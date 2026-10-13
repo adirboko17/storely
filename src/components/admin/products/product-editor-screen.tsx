@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { notFound } from "next/navigation";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
@@ -79,8 +79,19 @@ function fromProduct(product: Product | null): Draft {
     optionValues: [...values],
     variantPrices: values.map(() => (product ? product.price.toFixed(2) : "")),
     variantQty: values.map((_, index) => String(quantities[index] ?? 0)),
-    media: product ? [product.tone] : [],
+    media: product?.media ? [...product.media] : [],
   };
+}
+
+const mediaDragType = "application/x-storely-media";
+
+function readImageFile(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("read failed"));
+    reader.readAsDataURL(file);
+  });
 }
 
 export function ProductEditorScreen({ productId }: { productId: number | null }) {
@@ -104,6 +115,10 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const [fileDrag, setFileDrag] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
 
   function patch(partial: Partial<Draft>) {
@@ -145,7 +160,8 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
         status: draft.status,
         category: draft.category,
         vendor: draft.vendor,
-        tone: draft.media[0] ?? product?.tone ?? "#e7e2d9",
+        tone: product?.tone ?? "#e7e2d9",
+        media: [...draft.media],
         tags: draft.tags,
         collections: draft.collections,
         option: draft.optionValues.length ? { name: draft.optionName || "אפשרות", values: draft.optionValues } : undefined,
@@ -176,14 +192,39 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
   const priceError = errors.some((item) => item.includes("מחיר"));
   const hasVariants = draft.optionValues.length > 0;
 
-  function addMedia() {
-    if (uploading) return;
+  async function addMedia(files: FileList | File[] | null | undefined) {
+    const images = Array.from(files ?? []).filter((file) => file.type.startsWith("image/"));
+    if (!images.length) {
+      if (files && Array.from(files).length) toast("אפשר להעלות רק קובץ תמונה");
+      return;
+    }
     setUploading(true);
-    window.setTimeout(() => {
-      patch({ media: [...draft.media, "#e7e2d9"] });
+    try {
+      const urls = (await Promise.all(images.map(readImageFile))).filter(Boolean);
+      setDraft((current) => ({ ...current, media: [...current.media, ...urls] }));
+      setErrors([]);
+      toast(urls.length === 1 ? "התמונה נוספה" : `${urls.length} תמונות נוספו`);
+    } catch {
+      toast("העלאת התמונה נכשלה");
+    } finally {
       setUploading(false);
-      toast("התמונה נוספה");
-    }, 1400);
+    }
+  }
+
+  function moveMedia(from: number, to: number) {
+    setDraft((current) => {
+      if (from === to || from < 0 || to < 0 || from >= current.media.length || to >= current.media.length) return current;
+      const media = [...current.media];
+      const [item] = media.splice(from, 1);
+      media.splice(to, 0, item);
+      return { ...current, media };
+    });
+    setErrors([]);
+  }
+
+  function removeMedia(index: number) {
+    setDraft((current) => ({ ...current, media: current.media.filter((_, item) => item !== index) }));
+    setErrors([]);
   }
 
   return (
@@ -238,13 +279,80 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
             </div>
             <div>
               <span className="mb-1.5 block text-sm font-semibold">מדיה</span>
-              <div className="flex flex-wrap gap-2">
-                {draft.media.map((tone, index) => (
-                  <span key={`${tone}-${index}`} className="grid size-[116px] place-items-center rounded-xl shadow-[inset_0_0_0_1px_rgba(0,0,0,.1)]" style={{ background: tone }} />
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(event) => {
+                  void addMedia(event.target.files);
+                  event.target.value = "";
+                }}
+              />
+              <div
+                className="flex flex-wrap gap-2 rounded-xl"
+                onDragOver={(event) => {
+                  if (event.dataTransfer.types.includes(mediaDragType) || !event.dataTransfer.types.includes("Files")) return;
+                  event.preventDefault();
+                  setFileDrag(true);
+                }}
+                onDragLeave={() => setFileDrag(false)}
+                onDrop={(event) => {
+                  if (event.dataTransfer.types.includes(mediaDragType) || !event.dataTransfer.files?.length) return;
+                  event.preventDefault();
+                  setFileDrag(false);
+                  void addMedia(event.dataTransfer.files);
+                }}
+                style={{ outline: fileDrag ? "2px dashed #303030" : undefined, outlineOffset: 4 }}
+              >
+                {draft.media.map((src, index) => (
+                  <div
+                    key={`${index}-${src.slice(0, 32)}`}
+                    draggable
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData(mediaDragType, String(index));
+                      event.dataTransfer.setData("text/plain", String(index));
+                      setDragIndex(index);
+                    }}
+                    onDragEnd={() => {
+                      setDragIndex(null);
+                      setDropIndex(null);
+                    }}
+                    onDragOver={(event) => {
+                      if (!event.dataTransfer.types.includes(mediaDragType)) return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setDropIndex(index);
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      if (event.dataTransfer.types.includes(mediaDragType)) {
+                        const from = dragIndex ?? Number(event.dataTransfer.getData(mediaDragType));
+                        if (!Number.isNaN(from)) moveMedia(from, index);
+                        setDragIndex(null);
+                        setDropIndex(null);
+                        return;
+                      }
+                      if (event.dataTransfer.files?.length) {
+                        setFileDrag(false);
+                        void addMedia(event.dataTransfer.files);
+                      }
+                    }}
+                    className="group relative size-[116px] cursor-grab overflow-hidden rounded-xl shadow-[inset_0_0_0_1px_rgba(0,0,0,.1)] active:cursor-grabbing"
+                    style={{ opacity: dragIndex === index ? 0.45 : 1, outline: dropIndex === index && dragIndex !== index ? "2px solid #303030" : undefined, outlineOffset: 2 }}
+                  >
+                    <img src={src} alt="" className="size-full object-cover" />
+                    {index === 0 ? <span className="absolute start-1.5 top-1.5 rounded-md bg-white px-1.5 py-0.5 text-[11px] font-semibold shadow-[0_0_0_1px_rgba(0,0,0,.08)]">ראשית</span> : null}
+                    <button type="button" aria-label="הסרת תמונה" className="absolute end-1.5 top-1.5 grid size-6 place-items-center rounded-md border-0 bg-white text-sm opacity-0 shadow-[0_0_0_1px_rgba(0,0,0,.08)] group-hover:opacity-100" onClick={() => removeMedia(index)}>×</button>
+                  </div>
                 ))}
                 {uploading ? <span className="grid size-[116px] place-items-center rounded-xl bg-[#f1f1f1]"><span className="size-5 animate-spin rounded-full border-2 border-black/15 border-t-[#303030]" /></span> : null}
-                <button type="button" aria-label="הוספת מדיה" onClick={addMedia} className="grid size-[116px] place-items-center rounded-xl border-[1.5px] border-dashed border-[#c9c9c9] bg-[#fafafa]">+</button>
+                <button type="button" aria-label="הוספת מדיה" onClick={() => fileRef.current?.click()} className="grid size-[116px] place-items-center rounded-xl border-[1.5px] border-dashed border-[#c9c9c9] bg-[#fafafa] text-2xl text-[#616161]">+</button>
               </div>
+              <div className="mt-1.5 text-[13px] text-ink-secondary">{draft.media.length > 1 ? "גררו תמונה למקום הראשון כדי להפוך אותה לראשית." : "אפשר לבחור כמה תמונות, או לגרור אותן לכאן."}</div>
             </div>
             <div>
               <span className="mb-1.5 block text-sm font-semibold">קטגוריה</span>

@@ -39,6 +39,7 @@ function cloneProduct(product: Product): Product {
     ...product,
     tags: [...product.tags],
     collections: [...product.collections],
+    media: product.media ? [...product.media] : undefined,
     option: product.option ? { name: product.option.name, values: [...product.option.values] } : undefined,
     quantities: product.quantities ? [...product.quantities] : undefined,
   };

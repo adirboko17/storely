@@ -17,6 +17,7 @@ export type Product = {
   category: string;
   vendor: string;
   tone: string;
+  media?: string[];
   tags: string[];
   collections: string[];
   option?: { name: string; values: string[] };

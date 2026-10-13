@@ -179,7 +179,13 @@ export function ProductsListScreen() {
                       <td className="px-2.5" onClick={(event) => event.stopPropagation()}>
                         <input type="checkbox" checked={on} onChange={() => setSelected((current) => (current.includes(product.id) ? current.filter((id) => id !== product.id) : [...current, product.id]))} className="size-4 accent-[#303030]" />
                       </td>
-                      <td className="p-1"><span className="block size-9 rounded-lg shadow-[inset_0_0_0_1px_rgba(0,0,0,.08)]" style={{ background: product.tone }} /></td>
+                      <td className="p-1">
+                        {product.media?.[0] ? (
+                          <img src={product.media[0]} alt="" className="block size-9 rounded-lg object-cover shadow-[inset_0_0_0_1px_rgba(0,0,0,.08)]" />
+                        ) : (
+                          <span className="block size-9 rounded-lg shadow-[inset_0_0_0_1px_rgba(0,0,0,.08)]" style={{ background: product.tone }} />
+                        )}
+                      </td>
                       <td className="max-w-[300px] px-2 font-medium">{product.title}</td>
                       <td className="px-2"><span className="inline-flex h-5 items-center rounded-md px-[7px] text-[13px] font-semibold whitespace-nowrap" style={{ background: status.background, color: status.color }}>{status.label}</span></td>
                       <td className="px-2 whitespace-nowrap" style={{ color: inventory.color }}>{inventory.text}</td>
