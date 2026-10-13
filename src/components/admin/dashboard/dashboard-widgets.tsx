@@ -194,7 +194,7 @@ const TIPS: Array<{
 
 export function TipCards() {
   return (
-    <div className="grid w-full max-w-[1000px] grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4 px-4">
+    <div className="mx-auto grid w-full max-w-[1000px] grid-cols-[repeat(auto-fit,minmax(260px,1fr))] justify-center gap-4 px-4">
       {TIPS.map((tip) => (
         <div
           key={tip.title}

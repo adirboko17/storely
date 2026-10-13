@@ -8,6 +8,11 @@ export type Post = {
   visible: boolean;
   tags: string[];
   tone: string;
+  image: string;
+  seoTitle: string;
+  seoDescription: string;
+  handle: string;
+  template: string;
 };
 
 type Snapshot = { version: number; posts: Post[] };
@@ -28,13 +33,25 @@ export function getPostsVersion() {
   return current.version;
 }
 
+function copyPost(post: Post): Post {
+  return {
+    image: "",
+    seoTitle: "",
+    seoDescription: "",
+    handle: "",
+    template: "פוסט בלוג ברירת מחדל",
+    ...post,
+    tags: [...post.tags],
+  };
+}
+
 export function listPosts() {
-  return current.posts.map((post) => ({ ...post, tags: [...post.tags] }));
+  return current.posts.map(copyPost);
 }
 
 export function getPost(id: number) {
   const post = current.posts.find((item) => item.id === id);
-  return post ? { ...post, tags: [...post.tags] } : null;
+  return post ? copyPost(post) : null;
 }
 
 export function savePost(post: Post) {

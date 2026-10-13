@@ -1,14 +1,23 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
-import { AssistantCard } from "@/components/admin/dashboard/assistant-card";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { LowStock, QuickActions, RecentOrders, TipCards, TopProducts } from "@/components/admin/dashboard/dashboard-widgets";
+import { MetricPreview } from "@/components/admin/dashboard/metric-preview";
 import { SalesChart } from "@/components/admin/dashboard/sales-chart";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { Card } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 import { attentionCounts } from "@/data/mock/orders";
-import { RANGES, buildDashboardChart, greeting, type MetricId, type RangeId } from "@/lib/dashboard/chart";
+import {
+  DEFAULT_METRIC_SLOTS,
+  RANGES,
+  buildMetricChart,
+  dashboardMetrics,
+  greeting,
+  isMetricId,
+  type MetricId,
+  type RangeId,
+} from "@/lib/dashboard/chart";
 import Link from "next/link";
 
 function subscribeToClock() {
@@ -36,12 +45,83 @@ export function DashboardScreen({
 }) {
   const { menu, toggleMenu, closeMenu } = useAdmin();
   const [range, setRange] = useState<RangeId>("30");
-  const [metric, setMetric] = useState<MetricId>("sales");
+  const [slots, setSlots] = useState<MetricId[]>(DEFAULT_METRIC_SLOTS);
+  const [active, setActive] = useState(0);
   const [hover, setHover] = useState<number | null>(null);
-  const model = useMemo(() => buildDashboardChart(range, metric, hover), [range, metric, hover]);
+  const [openSlot, setOpenSlot] = useState<number | null>(null);
+  const [picker, setPicker] = useState(false);
+  const slotRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const slotRefCallbacks = useRef<Array<(node: HTMLButtonElement | null) => void>>([]);
+  const closeTimer = useRef<number | null>(null);
+  const openTimer = useRef<number | null>(null);
+  const metric = slots[active] ?? "sales";
+  const metricCards = useMemo(() => dashboardMetrics(range, slots), [range, slots]);
+  const chart = useMemo(() => buildMetricChart(range, metric, hover), [range, metric, hover]);
   const rangeLabel = RANGES.find((item) => item.id === range)?.label ?? "";
   const counts = attentionCounts();
   const hello = useSyncExternalStore(subscribeToClock, readGreeting, serverGreeting);
+  const openCard = openSlot == null ? null : metricCards[openSlot];
+  const openAnchor = openSlot == null ? null : slotRefs.current[openSlot];
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("storely-home-metrics");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return;
+      const next = parsed.filter((item): item is MetricId => typeof item === "string" && isMetricId(item)).slice(0, 4);
+      if (next.length === 4 && new Set(next).size === 4) setSlots(next);
+    } catch {
+      /* keep the default metrics */
+    }
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (closeTimer.current) window.clearTimeout(closeTimer.current);
+      if (openTimer.current) window.clearTimeout(openTimer.current);
+    },
+    [],
+  );
+
+  function showSlot(index: number) {
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    if (openTimer.current) window.clearTimeout(openTimer.current);
+    if (picker && openSlot !== index) return;
+    if (openSlot != null) {
+      setOpenSlot(index);
+      return;
+    }
+    openTimer.current = window.setTimeout(() => setOpenSlot(index), 70);
+  }
+
+  function hideSlot() {
+    if (picker) return;
+    if (openTimer.current) window.clearTimeout(openTimer.current);
+    closeTimer.current = window.setTimeout(() => {
+      setOpenSlot(null);
+      setPicker(false);
+    }, 220);
+  }
+
+  function closePreview() {
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    if (openTimer.current) window.clearTimeout(openTimer.current);
+    setPicker(false);
+    setOpenSlot(null);
+  }
+
+  function pickMetric(id: MetricId) {
+    if (openSlot == null) return;
+    const next = slots.map((item, index) => (index === openSlot ? id : item));
+    setSlots(next);
+    try {
+      localStorage.setItem("storely-home-metrics", JSON.stringify(next));
+    } catch {
+      /* the choice still applies for this visit */
+    }
+    setPicker(false);
+  }
 
   return (
     <div data-screen-label="Dashboard" className="flex flex-col pb-10">
@@ -76,13 +156,27 @@ export function DashboardScreen({
           ) : null}
         </div>
         <div className="flex flex-wrap justify-center gap-x-5 gap-y-2">
-          {model.metrics.map((item) => (
+          {metricCards.map((item, index) => (
             <button
-              key={item.id}
+              key={index}
+              ref={
+                slotRefCallbacks.current[index] ??
+                (slotRefCallbacks.current[index] = (node) => {
+                  slotRefs.current[index] = node;
+                })
+              }
               type="button"
-              onClick={() => setMetric(item.id)}
-              className="flex flex-col items-center gap-0.5 rounded-lg px-2.5 py-1 text-ink hover:bg-[#ebebeb]"
-              style={{ background: item.id === metric ? "#ebebeb" : "transparent" }}
+              aria-expanded={openSlot === index}
+              onMouseEnter={() => showSlot(index)}
+              onMouseLeave={hideSlot}
+              onFocus={() => showSlot(index)}
+              onClick={() => setActive(index)}
+              className="flex flex-col items-center gap-0.5 rounded-lg px-2.5 py-1 text-ink transition-[opacity,filter] duration-150"
+              style={
+                openSlot != null && openSlot !== index
+                  ? { opacity: 0.4, filter: "blur(0.7px)" }
+                  : undefined
+              }
             >
               <span className="text-[13px] text-ink-soft">{item.label}</span>
               <span className="flex items-center gap-1.5 text-sm">
@@ -121,7 +215,6 @@ export function DashboardScreen({
           </span>
           <span className="text-balance text-[28px] leading-9 font-bold text-ink-strong">בואו נמשיך להצמיח את העסק.</span>
         </div>
-        <AssistantCard />
         <div className="flex flex-wrap justify-center gap-2">
           {CHIPS.filter((chip) => counts[chip.key] > 0).map((chip) => (
             <Link
@@ -141,13 +234,29 @@ export function DashboardScreen({
       <TipCards />
 
       <div className="mx-auto mt-8 flex w-full max-w-[1000px] flex-col gap-4 px-4">
+        {openCard && openAnchor ? (
+          <MetricPreview
+            anchor={openAnchor}
+            card={openCard}
+            range={range}
+            picker={picker}
+            used={slots}
+            onOpenPicker={() => setPicker(true)}
+            onPick={pickMetric}
+            onClose={closePreview}
+            onPointerEnter={() => {
+              if (closeTimer.current) window.clearTimeout(closeTimer.current);
+            }}
+            onPointerLeave={hideSlot}
+          />
+        ) : null}
         <SalesChart
-          chart={model.chart}
+          chart={chart}
           rangeLabel={rangeLabel}
           onMove={(event) => {
             const rect = event.currentTarget.getBoundingClientRect();
             const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
-            const index = Math.round(ratio * (model.chart.pointCount - 1));
+            const index = Math.round(ratio * (chart.pointCount - 1));
             setHover((current) => (current === index ? current : index));
           }}
           onLeave={() => setHover(null)}

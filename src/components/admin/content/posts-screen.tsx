@@ -42,7 +42,11 @@ export function PostsScreen() {
           <div className="overflow-hidden rounded-[14px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
             {posts.map((post) => (
               <button key={post.id} type="button" className="flex w-full items-center gap-3.5 border-0 border-b border-[#f1f1f1] bg-white px-4 py-3 text-start hover:bg-[#f7f7f7]" onClick={() => router.push(`/admin/content/posts/${post.id}`)}>
-                <span className="h-10 w-14 shrink-0 rounded-lg" style={{ background: post.tone }} />
+                {post.image ? (
+                  <img src={post.image} alt="" className="h-10 w-14 shrink-0 rounded-lg object-cover" />
+                ) : (
+                  <span className="h-10 w-14 shrink-0 rounded-lg" style={{ background: post.tone || "#e3e3e3" }} />
+                )}
                 <span className="min-w-0 flex-1"><b className="block">{post.title}</b><span className="block truncate text-[13px] text-ink-secondary">{post.excerpt}</span></span>
                 <span className="inline-flex h-5 items-center rounded-md px-[7px] text-xs font-semibold" style={{ background: post.visible ? "#cdfee1" : "#e3e3e3", color: post.visible ? "#0c5132" : "#616161" }}>{post.visible ? "גלוי" : "מוסתר"}</span>
                 <span className="w-[90px] text-[13px] text-[#4a4a4a]">{post.blog}</span>

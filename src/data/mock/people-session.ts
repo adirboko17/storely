@@ -8,6 +8,9 @@ export type PersonProfile = {
   credit: number;
   comments: Array<{ text: string; time: string }>;
   blocks: Array<{ title: string; value: string }>;
+  language?: "he" | "en";
+  sms?: boolean;
+  whatsapp?: boolean;
 };
 
 type Snapshot = {
@@ -63,9 +66,9 @@ export function patchProfile(id: number, patch: Partial<PersonProfile>) {
   publish({ ...current, profiles: { ...current.profiles, [id]: { ...base, ...patch } } });
 }
 
-export function addPerson(input: Pick<Customer, "name" | "email" | "phone" | "city">) {
+export function addPerson(input: Pick<Customer, "name" | "email" | "phone" | "city"> & Partial<Pick<Customer, "street" | "zip">>) {
   const id = Math.max(0, ...listPeople().map((person) => person.id)) + 1;
-  const person: Customer = { id, name: input.name, email: input.email, phone: input.phone, street: "", city: input.city, zip: "", orders: 0 };
+  const person: Customer = { id, name: input.name, email: input.email, phone: input.phone, street: input.street ?? "", city: input.city, zip: input.zip ?? "", orders: 0 };
   publish({ ...current, added: [person, ...current.added] });
   return person;
 }

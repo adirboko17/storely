@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { IndexDock, darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { Icon } from "@/components/ui/icon";
-import { addPerson, getPeopleVersion, listPeople, profileOf, subscribePeople } from "@/data/mock/people-session";
+import { getPeopleVersion, listPeople, profileOf, subscribePeople } from "@/data/mock/people-session";
 import { getOrderSessionVersion, listResolvedOrders, subscribeOrderSession } from "@/data/mock/order-session";
 import { formatMoney } from "@/lib/formatting/money";
 
@@ -27,8 +28,6 @@ export function CustomersListScreen() {
   const [segment, setSegment] = useState("");
   const [applied, setApplied] = useState("");
   const [selected, setSelected] = useState<number[]>([]);
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", city: "תל אביב-יפו" });
 
   const rows = useMemo(() => {
     return people
@@ -57,7 +56,7 @@ export function CustomersListScreen() {
         <button type="button" className={softButton} onClick={() => toast("קובץ CSV יישלח אל maya@lavana.co.il")}>ייצוא</button>
         <button type="button" className={softButton}>ייבוא</button>
         <button type="button" className={softButton}>פעולות נוספות</button>
-        <button type="button" className={darkButton} onClick={() => setOpen(true)}>הוספת לקוח</button>
+        <Link href="/admin/customers/new" className={darkButton}>הוספת לקוח</Link>
       </div>
       <div className="mx-3 flex min-h-[46px] items-center gap-2 rounded-[14px] bg-white px-3.5 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
         <input value={segment} onChange={(event) => setSegment(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") setApplied(segment.trim()); }} placeholder="תארו את הפלח שאתם מחפשים, למשל: לקוחות שקנו יותר מפעמיים" className="h-9 min-w-0 flex-1 border-0 text-sm outline-none" style={clearInput} />
@@ -106,7 +105,7 @@ export function CustomersListScreen() {
                   <td className="px-2.5" onClick={(event) => event.stopPropagation()}><input type="checkbox" checked={on} onChange={() => setSelected((current) => current.includes(row.person.id) ? current.filter((id) => id !== row.person.id) : [...current, row.person.id])} className="size-4 accent-[#303030]" /></td>
                   <td dir="auto" className="px-2.5 text-right font-medium">{row.person.name}</td>
                   <td className="px-2.5"><span className="inline-flex h-5 items-center rounded-md px-[7px] text-[13px] font-medium" style={{ background: row.profile.subscribed ? "#cdfee1" : "#e3e3e3", color: row.profile.subscribed ? "#0c5132" : "#616161" }}>{row.profile.subscribed ? "מנוי" : "לא מנוי"}</span></td>
-                  <td className="px-2.5 whitespace-nowrap">{row.person.city}, ישראל</td>
+                  <td className="px-2.5 whitespace-nowrap">{row.person.city ? `${row.person.city}, ישראל` : "ישראל"}</td>
                   <td className="px-2.5 text-center">{row.person.orders}</td>
                   <td dir="ltr" className="px-4 text-left whitespace-nowrap">{formatMoney(row.spent)}</td>
                 </tr>
@@ -123,29 +122,6 @@ export function CustomersListScreen() {
       ) : null}
       <div className="min-h-4 flex-1" />
       <IndexDock pageLabel={rows.length ? `1-${rows.length}` : "0"} />
-      {open ? (
-        <div className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4" onClick={() => setOpen(false)}>
-          <div role="dialog" aria-label="הוספת לקוח" className="w-full max-w-[440px] rounded-2xl bg-white p-5" onClick={(event) => event.stopPropagation()}>
-            <h2 className="m-0 text-base font-bold">הוספת לקוח</h2>
-            {(["name", "email", "phone", "city"] as const).map((key) => (
-              <label key={key} className="mt-3 block text-sm font-semibold">
-                {key === "name" ? "שם" : key === "email" ? "דוא״ל" : key === "phone" ? "טלפון" : "עיר"}
-                <input value={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} className="mt-1 h-[34px] w-full rounded-[10px] border border-[#c9c9c9] bg-white px-3 font-normal" />
-              </label>
-            ))}
-            <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className={softButton} onClick={() => setOpen(false)}>ביטול</button>
-              <button type="button" className={darkButton} onClick={() => {
-                if (!form.name.trim() || !form.email.includes("@")) { toast("יש להזין שם ודוא״ל תקינים"); return; }
-                const person = addPerson(form);
-                setOpen(false);
-                toast("הלקוח נוסף");
-                router.push(`/admin/customers/${person.id}`);
-              }}>הוספה</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

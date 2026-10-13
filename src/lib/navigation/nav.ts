@@ -120,6 +120,7 @@ const TITLES: Record<string, string> = {
   "/admin/products/inventory": "מלאי",
   "/admin/products/gift-cards": "כרטיסי מתנה",
   "/admin/customers": "לקוחות",
+  "/admin/customers/new": "לקוח חדש",
   "/admin/customers/segments": "פלחים",
   "/admin/customers/companies": "חברות",
   "/admin/growth": "צמיחה",
@@ -157,22 +158,4 @@ export function titleForPath(path: string) {
 
 export function pathMatches(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-const ASSISTANT_ROUTES: Array<[string, string, string]> = [
-  ["הזמנ", "/admin/orders", "ההזמנות"],
-  ["משלוח", "/admin/orders", "ההזמנות"],
-  ["מוצר", "/admin/products", "המוצרים"],
-  ["מלאי", "/admin/products", "המוצרים"],
-  ["לקוח", "/admin/customers", "הלקוחות"],
-  ["פלח", "/admin/customers/segments", "פלחי הלקוחות"],
-  ["הנח", "/admin/discounts", "ההנחות"],
-  ["קופון", "/admin/discounts", "ההנחות"],
-  ["קוד", "/admin/discounts", "ההנחות"],
-];
-
-export function assistantDestination(query: string) {
-  const hit = ASSISTANT_ROUTES.find(([needle]) => query.includes(needle));
-  if (!hit) return null;
-  return { href: hit[1], toast: `פתחתי את ${hit[2]}` };
 }

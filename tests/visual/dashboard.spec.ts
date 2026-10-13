@@ -54,10 +54,8 @@ test("dashboard matches the admin shell and responds to the main controls", asyn
   await page.getByRole("button", { name: /^הזמנות/ }).click();
   await expect(page.getByRole("heading", { name: "הזמנות", exact: true })).toBeVisible();
 
-  await page.getByPlaceholder("שאלו את העוזר, או כתבו מה תרצו לעשות").fill("הזמנות");
-  await page.getByRole("button", { name: "שליחה" }).click();
+  await page.getByRole("link", { name: "הזמנות", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/orders/);
-  await expect(page.getByRole("status")).toContainText("פתחתי את ההזמנות");
   await expect(page.getByRole("heading", { name: "הזמנות", exact: true })).toBeVisible();
 
   await page.goto("/admin");
