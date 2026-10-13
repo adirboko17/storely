@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --shell: #1a1a1a;
+  --nav-active: #303030;
+  --nav-hover: #2a2a2a;
+  --nav-text: #e3e3e3;
+  --nav-muted: #b5b5b5;
+  --nav-section: #8a8a8a;
+  --canvas: #fafafa;
+  --ink: #303030;
+  --ink-strong: #1a1a1a;
+  --ink-soft: #4a4a4a;
+  --ink-secondary: #616161;
+  --ink-disabled: #b5b5b5;
+  --line: #ebebeb;
+  --line-strong: #e3e3e3;
+  --focus: #005bd3;
+  --link: #005bd3;
+  --chart: #2c6ecb;
+  --chart-compare: #9cc3ee;
+  --positive: #1f7a4d;
+  --negative: #8e1f0b;
+  --shadow-card: 0 0 0 1px rgba(26, 26, 26, 0.07), 0 1px 0 rgba(26, 26, 26, 0.07);
+  --shadow-popover: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.16);
+  --shadow-float: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --font-sans: var(--font-assistant), "Assistant", "Heebo", system-ui, sans-serif;
+}
+
+@theme inline {
+  --color-shell: var(--shell);
+  --color-canvas: var(--canvas);
+  --color-ink: var(--ink);
+  --color-ink-strong: var(--ink-strong);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-nav: var(--nav-text);
+  --color-chart: var(--chart);
+  --font-sans: var(--font-assistant), "Assistant", "Heebo", system-ui, sans-serif;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    transform: translate(-50%, 12px);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--shell);
+}
+
+body {
+  color: var(--ink);
+  font-family: var(--font-assistant), "Assistant", "Heebo", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+input,
+textarea,
+select {
+  background-color: #fff;
+  color: #303030;
+}
+
+#admin-search {
+  background-color: transparent;
+  color: #fff;
+}
+
+#admin-search::placeholder {
+  color: #b5b5b5;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.storely-link {
+  color: var(--link);
+  text-decoration: none;
+}
+
+.storely-link:hover {
+  color: #004299;
+  text-decoration: underline;
+}
