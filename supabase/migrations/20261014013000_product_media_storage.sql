@@ -76,7 +76,7 @@ create or replace function public.save_store_product_media(
   product_id uuid,
   media_paths text[]
 )
-returns void
+returns text[]
 language plpgsql
 security definer
 set search_path = ''
@@ -85,6 +85,7 @@ declare
   object_path text;
   next_position integer := 0;
   prefix text := target_store::text || '/' || product_id::text || '/';
+  removed text[];
 begin
   if not private.can_manage_store(target_store) then
     raise exception 'forbidden' using errcode = '42501';
@@ -109,10 +110,12 @@ begin
     end loop;
   end if;
 
-  delete from storage.objects as object
-  where object.bucket_id = 'product-media'
-    and object.name like prefix || '%'
-    and not (object.name = any (coalesce(media_paths, '{}'::text[])));
+  select coalesce(array_agg(media.path), '{}'::text[])
+  into removed
+  from public.product_media as media
+  where media.store_id = target_store
+    and media.product_id = product_id
+    and not (media.path = any (coalesce(media_paths, '{}'::text[])));
 
   delete from public.product_media as media
   where media.store_id = target_store
@@ -125,6 +128,8 @@ begin
       next_position := next_position + 1;
     end loop;
   end if;
+
+  return coalesce(removed, '{}'::text[]);
 end;
 $$;
 
@@ -400,16 +405,6 @@ begin
   delete from public.product_variants as variant_row
   where variant_row.store_id = target_store
     and variant_row.product_id = any(product_ids);
-
-  delete from storage.objects as object
-  where object.bucket_id = 'product-media'
-    and exists (
-      select 1
-      from public.product_media as media
-      where media.store_id = target_store
-        and media.product_id = any(product_ids)
-        and media.path = object.name
-    );
 
   delete from public.product_media as media
   where media.store_id = target_store

@@ -134,12 +134,15 @@ async function uploadProductMedia(storeId: string, productId: string, media: str
     if (error) throw new Error("העלאת התמונה נכשלה");
     paths.push(path);
   }
-  const { error } = await supabase.rpc("save_store_product_media", {
+  const { data: removed, error } = await supabase.rpc("save_store_product_media", {
     target_store: storeId,
     product_id: productId,
     media_paths: paths,
   });
   if (error) throw new Error("שמירת התמונות נכשלה");
+  if (Array.isArray(removed) && removed.length > 0) {
+    await supabase.storage.from(mediaBucket).remove(removed.filter((path): path is string => typeof path === "string"));
+  }
   return paths.map(publicMediaUrl);
 }
 
