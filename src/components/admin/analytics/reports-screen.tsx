@@ -77,7 +77,7 @@ export function ReportsScreen() {
             <button type="button" className="inline-flex h-[26px] items-center rounded-lg bg-white px-2.5 text-[13px] shadow-[0_0_0_1px_rgba(0,0,0,.12)]" onClick={() => setMenu(menu === "by" ? null : "by")}>{author === "me" ? "נוצר על ידי: אני" : author === "sys" ? "נוצר על ידי: מדף" : "נוצר על ידי"}</button>
             {menu === "by" ? (
               <div className="absolute top-8 right-0 z-50 w-[180px] rounded-xl bg-white p-1.5 shadow-[0_8px_24px_rgba(0,0,0,.16)]">
-                {[[null, "הכל"], ["sys", "מדף"], ["me", "מאיה ברק"]].map(([key, label]) => <button key={label} type="button" className="flex w-full rounded-lg border-0 bg-transparent px-2 py-1.5 text-start text-sm hover:bg-[#f1f1f1]" onClick={() => { setAuthor(key); setMenu(null); }}>{label}</button>)}
+                {[[null, "הכל"], ["sys", "מדף"], ["me", "שלי"]].map(([key, label]) => <button key={label} type="button" className="flex w-full rounded-lg border-0 bg-transparent px-2 py-1.5 text-start text-sm hover:bg-[#f1f1f1]" onClick={() => { setAuthor(key); setMenu(null); }}>{label}</button>)}
               </div>
             ) : null}
           </div>
@@ -106,7 +106,7 @@ export function ReportsScreen() {
                 <td className="px-3">{report[0]}</td>
                 <td className="px-3"><span className="inline-flex h-5 items-center rounded-md bg-[#ebebeb] px-[7px] text-[13px] font-medium">{report[1]}</span></td>
                 <td className="px-3">{report[2]}</td>
-                <td className="px-3">{report[3] === "me" ? "מאיה ברק" : "מדף"}</td>
+                <td className="px-3">{report[3] === "me" ? "שלי" : "מדף"}</td>
               </tr>
             ))}
           </tbody>

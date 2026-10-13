@@ -5,6 +5,8 @@ import { Icon } from "@/components/ui/icon";
 import {
   METRIC_CATALOG,
   buildMetricChart,
+  isHourlySpan,
+  type ChartSpan,
   type MetricCard,
   type MetricId,
   type RangeId,
@@ -51,7 +53,7 @@ export function MetricPreview({
 }: {
   anchor: HTMLElement;
   card: MetricCard;
-  range: RangeId;
+  range: RangeId | ChartSpan;
   picker: boolean;
   used: MetricId[];
   onOpenPicker: () => void;
@@ -73,9 +75,9 @@ export function MetricPreview({
   const chart = useMemo(
     () =>
       buildMetricChart(range, card.id, hover, {
-        cutoff: range === "1" && hour != null ? hour : null,
+        cutoff: isHourlySpan(range) && hour != null ? hour : null,
         smooth: true,
-        tickCount: range === "1" ? 8 : 5,
+        tickCount: isHourlySpan(range) ? 8 : 5,
         ySteps: 3,
       }),
     [range, card.id, hover, hour],
@@ -228,7 +230,7 @@ export function MetricPreview({
               onMouseMove={(event) => {
                 const rect = event.currentTarget.getBoundingClientRect();
                 const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
-                const limit = range === "1" && hour != null ? hour : chart.pointCount - 1;
+                const limit = isHourlySpan(range) && hour != null ? hour : chart.pointCount - 1;
                 const index = Math.min(limit, Math.round(ratio * (chart.pointCount - 1)));
                 setHover((current) => (current === index ? current : index));
               }}

@@ -115,10 +115,35 @@ export function AdminShell({ children, navItems }: { children: React.ReactNode; 
               </div>
             </div>
           </div>
-        ) : !narrow && navCollapsed ? (
-          <Sidebar navItems={navItems} rail expandable />
-        ) : (
+        ) : narrow ? (
           <Sidebar navItems={navItems} />
+        ) : (
+          <div
+            className={cn(
+              "relative h-full shrink-0 overflow-hidden transition-[width] duration-[320ms] motion-reduce:transition-none",
+              panelEase,
+              navCollapsed ? "w-[52px]" : "w-60",
+            )}
+          >
+            <div
+              inert={navCollapsed}
+              className={cn(
+                "absolute inset-y-0 right-0 transition-opacity motion-reduce:transition-none",
+                navCollapsed ? "pointer-events-none opacity-0 delay-[200ms] duration-150" : "opacity-100 duration-200",
+              )}
+            >
+              <Sidebar navItems={navItems} pinned />
+            </div>
+            <div
+              inert={!navCollapsed}
+              className={cn(
+                "absolute inset-y-0 right-0 transition-opacity motion-reduce:transition-none",
+                navCollapsed ? "opacity-100 delay-[200ms] duration-150" : "pointer-events-none opacity-0 duration-120",
+              )}
+            >
+              <Sidebar navItems={navItems} rail expandable />
+            </div>
+          </div>
         )
       ) : null}
       <div

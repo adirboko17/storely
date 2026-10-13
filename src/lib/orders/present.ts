@@ -104,21 +104,22 @@ export type OrderStat = {
 export function orderStats(orders: ResolvedOrder[]): OrderStat[] {
   const today = orders.filter((order) => order.date.startsWith("היום"));
   const returned = orders.reduce((sum, order) => sum + (order.date.startsWith("היום") ? order.refundedAmount : 0), 0);
-  const rows: Array<[string, string, string, boolean]> = [
-    ["הזמנות", String(today.length), "↗ 7%", true],
-    ["פריטים שהוזמנו", String(today.reduce((sum, order) => sum + order.quantity, 0)), "↗ 17%", true],
-    ["החזרות", formatMoney(-returned), "", true],
-    ["הזמנות שנשלחו", String(today.filter((order) => order.fulfillment === "fulfilled").length), "↘ 5%", false],
-    ["הזמנות שנמסרו", "0", "", true],
-    ["זמן עד משלוח", "2 שעות", "↗ 91%", true],
+  const rows: Array<[string, string]> = [
+    ["הזמנות", String(today.length)],
+    ["פריטים שהוזמנו", String(today.reduce((sum, order) => sum + order.quantity, 0))],
+    ["החזרות", formatMoney(-returned)],
+    ["הזמנות שנשלחו", String(today.filter((order) => order.fulfillment === "fulfilled").length)],
+    ["הזמנות שנמסרו", "0"],
+    ["זמן עד משלוח", "—"],
   ];
-  return rows.map(([label, value, delta, positive], index) => ({
+  const flat = "M0,22 L76,22";
+  return rows.map(([label, value]) => ({
     label,
     value,
-    delta,
-    deltaColor: positive ? "#1f7a4d" : "#8e1f0b",
-    spark: sparkPath(index * 7 + 3),
-    sparkCompare: sparkPath(index * 11 + 40),
+    delta: "",
+    deltaColor: "#1f7a4d",
+    spark: flat,
+    sparkCompare: flat,
   }));
 }
 

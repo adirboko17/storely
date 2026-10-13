@@ -4,6 +4,7 @@ export type FulfillmentStatus = "unfulfilled" | "fulfilled" | "partial" | "onhol
 
 export type Product = {
   id: number;
+  sourceId?: string;
   title: string;
   variant: string;
   price: number;
@@ -25,6 +26,7 @@ export type Product = {
 
 export type Customer = {
   id: number;
+  sourceId?: string;
   name: string;
   email: string;
   phone: string;

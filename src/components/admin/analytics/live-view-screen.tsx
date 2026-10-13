@@ -3,13 +3,7 @@
 import { useState } from "react";
 import { LiveGlobe } from "@/components/admin/analytics/live-globe";
 
-const LOCATIONS = [
-  ["ישראל · תל אביב · תל אביב-יפו", 201],
-  ["ישראל · מחוז המרכז · ראשון לציון", 32],
-  ["ישראל · מחוז חיפה · חיפה", 28],
-  ["ישראל · מחוז ירושלים · ירושלים", 19],
-  ["ישראל · לא ידוע", 12],
-];
+const LOCATIONS: Array<[string, number]> = [];
 
 export function LiveViewScreen() {
   const [cities, setCities] = useState(false);
@@ -21,7 +15,7 @@ export function LiveViewScreen() {
           <span className="inline-flex items-center gap-1 text-[13px] text-ink-secondary"><span className="size-[7px] animate-pulse rounded-full bg-[#1fa7e8]" />ממש עכשיו</span>
         </div>
         <div className="grid grid-cols-2 gap-2.5">
-          {[["מבקרים כעת", "8", ""], ["סך המכירות", "₪2,480", "↘ 31%"], ["ביקורים", "518", "↗ 8%"], ["הזמנות", "10", "↘ 9%"]].map(([label, value, delta]) => (
+          {[["מבקרים כעת", "0", ""], ["סך המכירות", "₪0", ""], ["ביקורים", "0", ""], ["הזמנות", "0", ""]].map(([label, value, delta]) => (
             <div key={label} className="flex min-h-[74px] flex-col justify-end gap-1 rounded-[14px] bg-white p-3.5 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
               <span className="text-sm font-semibold underline decoration-dotted underline-offset-[3px]">{label}</span>
               <span className="flex items-center gap-1.5"><b dir="ltr">{value}</b>{delta ? <span dir="ltr" className="text-xs font-semibold text-[#616161]">{delta}</span> : null}</span>
@@ -31,7 +25,7 @@ export function LiveViewScreen() {
         <div className="rounded-[14px] bg-white p-3.5 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
           <span className="text-sm font-semibold underline decoration-dotted underline-offset-[3px]">התנהגות לקוחות</span>
           <div className="mt-2.5 grid grid-cols-3">
-            {[["עגלות פעילות", "2", "100%"], ["בתהליך תשלום", "1", "50%"], ["רכשו", "0", "4%"]].map(([label, value, height], index) => (
+            {[["עגלות פעילות", "0", "0%"], ["בתהליך תשלום", "0", "0%"], ["רכשו", "0", "0%"]].map(([label, value, height], index) => (
               <div key={label} className="flex flex-col gap-0.5 px-2.5" style={{ borderInlineStart: index ? "1px solid #ebebeb" : undefined }}>
                 <span className="text-[13px] text-[#4a4a4a]">{label}</span>
                 <b>{value}</b>
@@ -42,6 +36,7 @@ export function LiveViewScreen() {
         </div>
         <div className="flex flex-col gap-3 rounded-[14px] bg-white p-3.5 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
           <span className="self-start text-sm font-semibold underline decoration-dotted underline-offset-[3px]">ביקורים לפי מיקום</span>
+          {LOCATIONS.length === 0 ? <p className="m-0 text-sm text-ink-secondary">אין ביקורים כרגע</p> : null}
           {LOCATIONS.map(([label, count]) => (
             <div key={String(label)} className="flex flex-col gap-1">
               <span className="text-xs text-ink-secondary">{label}</span>
@@ -51,8 +46,8 @@ export function LiveViewScreen() {
         </div>
         <div className="flex flex-col gap-2.5 rounded-[14px] bg-white p-3.5 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
           <span className="self-start text-sm font-semibold underline decoration-dotted underline-offset-[3px]">לקוחות חדשים מול חוזרים</span>
-          <div className="flex h-3 overflow-hidden rounded-sm"><div className="w-[78%] bg-[#6b3fe0]" /><div className="w-[22%] bg-[#7fd0f2]" /></div>
-          <div className="flex justify-between text-xs text-ink-secondary"><span>חדשים 8</span><span>חוזרים 2</span></div>
+          <div className="flex h-3 overflow-hidden rounded-sm bg-[#f1f1f1]" />
+          <div className="flex justify-between text-xs text-ink-secondary"><span>חדשים 0</span><span>חוזרים 0</span></div>
         </div>
       </div>
       <div className="relative hidden min-h-[640px] overflow-hidden bg-white min-[1000px]:block">

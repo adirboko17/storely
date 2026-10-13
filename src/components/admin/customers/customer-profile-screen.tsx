@@ -124,7 +124,7 @@ export function CustomerProfileScreen({ customerId }: { customerId: number }) {
             {profile.comments.map((item) => (
               <div key={item.text} className="relative py-2">
                 <span className="absolute top-3 -right-[21px] size-3 rounded-[3px] bg-[#303030] shadow-[0_0_0_3px_#fafafa]" />
-                <div className="flex gap-3"><b className="flex-1 font-normal"><b>מאיה ברק: </b>{item.text}</b><span className="text-[13px] text-[#4a4a4a]">{item.time}</span></div>
+                <div className="flex gap-3"><b className="flex-1 font-normal"><b>צוות החנות: </b>{item.text}</b><span className="text-[13px] text-[#4a4a4a]">{item.time}</span></div>
               </div>
             ))}
             <div className="relative py-2">

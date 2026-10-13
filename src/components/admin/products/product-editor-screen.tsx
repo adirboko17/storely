@@ -14,6 +14,7 @@ import {
   saveCatalogProduct,
   subscribeCatalog,
 } from "@/data/mock/catalog-session";
+import { getStoreIdentity } from "@/data/live/store-identity";
 import { COLLECTIONS } from "@/data/mock/products";
 import { PRODUCT_STATUS, slugifyHandle } from "@/lib/catalog/present";
 import { formatMoney } from "@/lib/formatting/money";
@@ -66,7 +67,7 @@ function fromProduct(product: Product | null): Draft {
     tax: true,
     continueSelling: false,
     status: product?.status ?? "draft",
-    vendor: product?.vendor ?? "סטודיו לבנה",
+    vendor: product?.vendor || getStoreIdentity().name,
     collections: product ? [...product.collections] : [],
     tags: product ? [...product.tags] : [],
     promo: "",
@@ -99,7 +100,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
   }
   const [tagInput, setTagInput] = useState("");
   const [seoEdit, setSeoEdit] = useState(false);
-  const [suggest, setSuggest] = useState(productId === 0);
+  const [suggest, setSuggest] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -132,6 +133,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
         : [Math.max(0, Number(draft.qty) || 0)];
       const savedProduct: Product = {
         id,
+        sourceId: product?.sourceId,
         title: draft.title.trim(),
         variant: draft.optionValues[0] ?? product?.variant ?? "",
         price,
@@ -352,8 +354,8 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
             <button type="button" aria-label="עריכה" className="grid size-7 place-items-center rounded-lg border-0 bg-transparent" onClick={() => setSeoEdit((open) => !open)}>✎</button>
           </div>
           <div className={`${card} flex flex-col gap-0.5`}>
-            <span>סטודיו לבנה</span>
-            <span dir="ltr" className="text-[13px] text-[#4a4a4a]">lavana.co.il/products/{draft.handle || "product"}</span>
+            <span>{getStoreIdentity().name}</span>
+            <span dir="ltr" className="text-[13px] text-[#4a4a4a]">{getStoreIdentity().hostname}/products/{draft.handle || "product"}</span>
             <span className="mt-1 text-[22px] leading-[30px] text-[#1a4fd6]">{draft.seoTitle || draft.title || "כותרת המוצר"}</span>
             <span className="text-sm text-[#4a4a4a]">{draft.seoDesc || draft.description.slice(0, 155) || "תיאור המוצר יופיע כאן."}</span>
             <span dir="ltr" className="mt-1 text-sm text-[#4a4a4a]">{formatMoney(priceNumber)}</span>

@@ -49,15 +49,8 @@ type Snapshot = {
 
 let current: Snapshot = {
   version: 0,
-  connected: {
-    meta: { id: "418273645091822", token: "", events: [0, 1, 2, 3, 4], consent: true, head: "", body: "" },
-    ga4: { id: "G-8KX2LPQ4MZ", token: "", events: [0, 1, 2, 3, 4], consent: true, head: "", body: "" },
-  },
-  flows: [
-    { id: 1, name: "עגלה נטושה", trigger: "הלקוח נטש עגלה", on: true, steps: TEMPLATES[0].steps, stats: [1284, "48.2%", "9.1%", 18420] },
-    { id: 2, name: "סדרת ברוכים הבאים", trigger: "לקוח נרשם לדיוור", on: true, steps: TEMPLATES[1].steps, stats: [612, "61.5%", "14.3%", 7230] },
-    { id: 3, name: "תודה על הרכישה", trigger: "הזמנה שולמה", on: false, steps: TEMPLATES[2].steps, stats: [947, "71.0%", "6.2%", 2110] },
-  ],
+  connected: {},
+  flows: [],
 };
 const listeners = new Set<() => void>();
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import { ColumnsButton, IndexDock, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { getStoreIdentity } from "@/data/live/store-identity";
 import { Icon } from "@/components/ui/icon";
 import { getCatalogVersion, listCatalogProducts, setVariantQuantity, subscribeCatalog } from "@/data/mock/catalog-session";
 
@@ -51,7 +52,7 @@ export function InventoryScreen() {
       <div className="flex items-center gap-2 px-3.5 pt-2.5 pb-2">
         <Icon name="store" size={18} strokeWidth={1.6} />
         <h1 className="m-0 flex-1 text-[15px] font-bold">מלאי</h1>
-        <button type="button" className={softButton} onClick={() => toast("קובץ CSV יישלח אל maya@lavana.co.il")}>ייצוא</button>
+        <button type="button" className={softButton} onClick={() => toast(`קובץ CSV יישלח אל ${getStoreIdentity().ownerEmail}`)}>ייצוא</button>
         <button type="button" className={softButton}>ייבוא</button>
       </div>
       <div className="mx-3 flex min-h-[42px] items-center gap-1.5 rounded-xl bg-white p-1.5 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">

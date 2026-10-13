@@ -21,7 +21,7 @@ function blank(id: number): Post {
     title: "",
     excerpt: "",
     body: "",
-    author: "מאיה ברק",
+    author: "",
     blog: "חדשות",
     visible: false,
     tags: [],

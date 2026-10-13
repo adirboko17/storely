@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { getStoreIdentity } from "@/data/live/store-identity";
 import { CUSTOMERS } from "@/data/mock/customers";
 import { createGiftCard, getCatalogVersion, listGiftCards, subscribeCatalog } from "@/data/mock/catalog-session";
 import { formatMoney } from "@/lib/formatting/money";
@@ -50,7 +51,7 @@ export function GiftCardsScreen() {
     <div className="flex min-h-full flex-col px-3.5 pt-2.5">
       <div className="flex items-center gap-2 pb-2.5">
         <h1 className="m-0 flex-1 text-[15px] font-bold">כרטיסי מתנה</h1>
-        <button type="button" disabled={cards.length === 0} className={softButton} style={{ background: cards.length ? "#fff" : "#f1f1f1", color: cards.length ? "#303030" : "#b5b5b5" }} onClick={() => toast("קובץ CSV יישלח אל maya@lavana.co.il")}>ייצוא</button>
+        <button type="button" disabled={cards.length === 0} className={softButton} style={{ background: cards.length ? "#fff" : "#f1f1f1", color: cards.length ? "#303030" : "#b5b5b5" }} onClick={() => toast(`קובץ CSV יישלח אל ${getStoreIdentity().ownerEmail}`)}>ייצוא</button>
       </div>
       {cards.length === 0 ? (
         <div className="flex flex-col items-center gap-2.5 rounded-[14px] bg-white px-6 py-[72px] text-center shadow-[0_0_0_1px_rgba(0,0,0,.08)]">

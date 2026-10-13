@@ -30,21 +30,8 @@ export type Discount = {
 
 export const TODAY = "2026-10-13";
 
-const SEED: Discount[] = [
-  { id: 1, code: "SHANA10", type: "order", valueType: "pct", value: "10", method: "code", eligibility: "all", segment: "", minType: "none", minValue: "", once: true, limit: false, limitN: "", start: "2026-09-01", hasEnd: true, end: "2026-10-31", uses: 184, combProduct: false, combOrder: false, combShip: false, applies: "all", collections: [], bxBuy: "2", bxGet: "1", bxColl: "" },
-  { id: 2, code: "WELCOME15", type: "order", valueType: "pct", value: "15", method: "code", eligibility: "seg", segment: "לקוחות חדשים", minType: "none", minValue: "", once: true, limit: false, limitN: "", start: "2025-01-01", hasEnd: false, end: "", uses: 96, combProduct: false, combOrder: false, combShip: false, applies: "all", collections: [], bxBuy: "2", bxGet: "1", bxColl: "" },
-  { id: 3, code: "משלוח חינם מעל ₪300", type: "ship", valueType: "pct", value: "100", method: "auto", eligibility: "all", segment: "", minType: "amount", minValue: "300", once: false, limit: false, limitN: "", start: "2025-03-01", hasEnd: false, end: "", uses: 412, combProduct: true, combOrder: true, combShip: false, applies: "all", collections: [], bxBuy: "2", bxGet: "1", bxColl: "" },
-  { id: 4, code: "CHANUKAH50", type: "order", valueType: "fixed", value: "50", method: "code", eligibility: "all", segment: "", minType: "amount", minValue: "400", once: false, limit: true, limitN: "300", start: "2026-12-04", hasEnd: true, end: "2026-12-12", uses: 0, combProduct: false, combOrder: false, combShip: false, applies: "all", collections: [], bxBuy: "2", bxGet: "1", bxColl: "" },
-  { id: 5, code: "15% על טקסטיל", type: "product", valueType: "pct", value: "15", method: "auto", eligibility: "all", segment: "", minType: "none", minValue: "", once: false, limit: false, limitN: "", start: "2026-10-01", hasEnd: true, end: "2026-10-20", uses: 73, combProduct: false, combOrder: false, combShip: false, applies: "colls", collections: ["טקסטיל לבית"], bxBuy: "2", bxGet: "1", bxColl: "" },
-  { id: 6, code: "SUMMER20", type: "product", valueType: "pct", value: "20", method: "code", eligibility: "all", segment: "", minType: "none", minValue: "", once: false, limit: false, limitN: "", start: "2026-07-01", hasEnd: true, end: "2026-08-31", uses: 231, combProduct: false, combOrder: false, combShip: false, applies: "all", collections: [], bxBuy: "2", bxGet: "1", bxColl: "" },
-  { id: 7, code: "SHABAT10", type: "order", valueType: "pct", value: "10", method: "code", eligibility: "all", segment: "", minType: "none", minValue: "", once: false, limit: false, limitN: "", start: "2026-05-01", hasEnd: false, end: "", uses: 4, combProduct: false, combOrder: false, combShip: false, applies: "all", collections: [], bxBuy: "2", bxGet: "1", bxColl: "" },
-  { id: 8, code: "NOA-VIP", type: "order", valueType: "pct", value: "10", method: "code", eligibility: "seg", segment: "לקוחות VIP", minType: "none", minValue: "", once: false, limit: false, limitN: "", start: "2026-02-01", hasEnd: false, end: "", uses: 21, combProduct: true, combOrder: true, combShip: false, applies: "all", collections: [], bxBuy: "2", bxGet: "1", bxColl: "" },
-  { id: 9, code: "מבצע 3 נרות ב-199", type: "bxgy", valueType: "pct", value: "100", method: "auto", eligibility: "all", segment: "", minType: "none", minValue: "", once: false, limit: false, limitN: "", start: "2026-09-01", hasEnd: false, end: "", uses: 11, combProduct: false, combOrder: false, combShip: false, applies: "all", collections: [], bxBuy: "2", bxGet: "1", bxColl: "מתנות עד ₪150" },
-  { id: 10, code: "משלוח חינם לחברי מועדון", type: "ship", valueType: "pct", value: "100", method: "code", eligibility: "seg", segment: "מנויים לדיוור", minType: "none", minValue: "", once: false, limit: false, limitN: "", start: "2026-01-01", hasEnd: false, end: "", uses: 58, combProduct: true, combOrder: false, combShip: false, applies: "all", collections: [], bxBuy: "2", bxGet: "1", bxColl: "" },
-];
-
 type Snapshot = { version: number; discounts: Discount[] };
-let current: Snapshot = { version: 0, discounts: SEED.map((item) => ({ ...item, collections: [...item.collections] })) };
+let current: Snapshot = { version: 0, discounts: [] };
 const listeners = new Set<() => void>();
 
 function publish(discounts: Discount[]) {
@@ -59,6 +46,10 @@ export function subscribeDiscounts(listener: () => void) {
 
 export function getDiscountVersion() {
   return current.version;
+}
+
+export function replaceDiscounts(discounts: Discount[]) {
+  publish(discounts.map((item) => ({ ...item, collections: [...item.collections] })));
 }
 
 export function listDiscounts() {
@@ -118,6 +109,6 @@ export function blankDiscount(type: DiscountKind, id: number): Discount {
     id, code: "", type, valueType: type === "ship" || type === "bxgy" ? "pct" : "pct", value: type === "ship" ? "100" : "10",
     method: "code", eligibility: "all", segment: "", minType: "none", minValue: "", once: false, limit: false, limitN: "",
     start: TODAY, hasEnd: false, end: "", uses: 0, combProduct: false, combOrder: false, combShip: false, applies: "all", collections: [],
-    bxBuy: "2", bxGet: "1", bxColl: "מתנות עד ₪150",
+    bxBuy: "2", bxGet: "1", bxColl: "",
   };
 }

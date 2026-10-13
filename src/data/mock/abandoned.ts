@@ -142,7 +142,7 @@ function buildAbandoned(): AbandonedCheckout[] {
   });
 }
 
-export const ABANDONED: AbandonedCheckout[] = buildAbandoned();
+export const ABANDONED: AbandonedCheckout[] = [];
 
 export function abandonedSlug(id: string) {
   return id.replace(/^#/, "");

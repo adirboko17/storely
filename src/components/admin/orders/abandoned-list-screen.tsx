@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { getStoreIdentity } from "@/data/live/store-identity";
 import { ColumnsButton, IndexDock, SearchField, darkButton, menuItem, menuPanel } from "@/components/admin/orders/chrome";
 import { Icon } from "@/components/ui/icon";
 import {
@@ -90,7 +91,7 @@ export function AbandonedListScreen() {
             </div>
           ) : null}
         </div>
-        <button type="button" className={darkButton} onClick={() => toast("קובץ CSV יישלח אל maya@lavana.co.il")}>
+        <button type="button" className={darkButton} onClick={() => toast(`קובץ CSV יישלח אל ${getStoreIdentity().ownerEmail}`)}>
           ייצוא
         </button>
       </div>

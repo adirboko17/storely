@@ -6,16 +6,17 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { IndexDock, darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { Icon } from "@/components/ui/icon";
+import { getStoreIdentity } from "@/data/live/store-identity";
 import { getPeopleVersion, listPeople, profileOf, subscribePeople } from "@/data/mock/people-session";
 import { getOrderSessionVersion, listResolvedOrders, subscribeOrderSession } from "@/data/mock/order-session";
 import { formatMoney } from "@/lib/formatting/money";
 
 const clearInput = { backgroundColor: "transparent", color: "#303030" } as const;
 
-export function customerSpent(customerId: number, orderCount: number) {
-  const live = listResolvedOrders().filter((order) => order.customer.id === customerId);
-  const extra = Math.max(0, orderCount - live.length);
-  return live.reduce((sum, order) => sum + order.total, 0) + extra * 186;
+export function customerSpent(customerId: number, _orderCount: number) {
+  return listResolvedOrders()
+    .filter((order) => order.customer.id === customerId)
+    .reduce((sum, order) => sum + order.total, 0);
 }
 
 export function CustomersListScreen() {
@@ -53,7 +54,7 @@ export function CustomersListScreen() {
       <div className="flex flex-wrap items-center gap-2 px-3.5 pt-2.5 pb-2">
         <Icon name="user" size={18} strokeWidth={1.6} />
         <h1 className="m-0 flex-1 text-[15px] font-bold">לקוחות</h1>
-        <button type="button" className={softButton} onClick={() => toast("קובץ CSV יישלח אל maya@lavana.co.il")}>ייצוא</button>
+        <button type="button" className={softButton} onClick={() => toast(`קובץ CSV יישלח אל ${getStoreIdentity().ownerEmail}`)}>ייצוא</button>
         <button type="button" className={softButton}>ייבוא</button>
         <button type="button" className={softButton}>פעולות נוספות</button>
         <Link href="/admin/customers/new" className={darkButton}>הוספת לקוח</Link>

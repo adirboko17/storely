@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { getStoreIdentity } from "@/data/live/store-identity";
 import { ColumnsButton, IndexDock, SearchField, darkButton, menuItem, menuPanel, softButton } from "@/components/admin/orders/chrome";
 import { Icon } from "@/components/ui/icon";
 import { bulkFulfill, getOrderSessionVersion, listResolvedOrders, subscribeOrderSession } from "@/data/mock/order-session";
@@ -66,7 +67,7 @@ export function OrdersListScreen() {
       <div className="flex flex-wrap items-center gap-2 px-3.5 pt-2.5 pb-2">
         <Icon name="orders" size={18} className="text-ink" />
         <h1 className="m-0 flex-1 text-[15px] leading-5 font-bold">הזמנות</h1>
-        <button type="button" className={softButton} onClick={() => toast("קובץ CSV יישלח אל maya@lavana.co.il")}>
+        <button type="button" className={softButton} onClick={() => toast(`קובץ CSV יישלח אל ${getStoreIdentity().ownerEmail}`)}>
           ייצוא
         </button>
         <div className="relative z-30">

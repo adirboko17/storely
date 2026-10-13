@@ -19,8 +19,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="he" dir="rtl" className={`${assistant.variable} h-full`}>
-      <body className="h-full">{children}</body>
+    <html lang="he" dir="rtl" className={`${assistant.variable} h-full`} suppressHydrationWarning>
+      <body className="h-full" suppressHydrationWarning>
+        {children}
+      </body>
     </html>
   );
 }

@@ -1,22 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { DateRangePicker, defaultDashboardWindow, spanFromWindow, type DashboardWindow } from "@/components/admin/dashboard/date-range-picker";
 import { LowStock, QuickActions, RecentOrders, TipCards, TopProducts } from "@/components/admin/dashboard/dashboard-widgets";
 import { MetricPreview } from "@/components/admin/dashboard/metric-preview";
 import { SalesChart } from "@/components/admin/dashboard/sales-chart";
-import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { Card } from "@/components/ui/card";
-import { Icon } from "@/components/ui/icon";
+import { getStoreIdentity, getStoreIdentityVersion, subscribeStoreIdentity } from "@/data/live/store-identity";
 import { attentionCounts } from "@/data/mock/orders";
+import { getAdminActor } from "@/platform/actor";
 import {
   DEFAULT_METRIC_SLOTS,
-  RANGES,
   buildMetricChart,
   dashboardMetrics,
   greeting,
   isMetricId,
   type MetricId,
-  type RangeId,
 } from "@/lib/dashboard/chart";
 import Link from "next/link";
 
@@ -29,7 +28,7 @@ function readGreeting() {
 }
 
 function serverGreeting() {
-  return "צהריים טובים, מאיה!";
+  return "צהריים טובים";
 }
 
 const CHIPS: Array<{ key: "unfulfilled" | "pendingPayment" | "lowStock"; label: string; href: string }> = [
@@ -43,8 +42,9 @@ export function DashboardScreen({
 }: {
   cards?: Array<{ id: string; title: string; body: string }>;
 }) {
-  const { menu, toggleMenu, closeMenu } = useAdmin();
-  const [range, setRange] = useState<RangeId>("30");
+  const [dashboardWindow, setDashboardWindow] = useState<DashboardWindow>(defaultDashboardWindow);
+  const [rangeOpen, setRangeOpen] = useState(false);
+  const rangeButtonRef = useRef<HTMLButtonElement>(null);
   const [slots, setSlots] = useState<MetricId[]>(DEFAULT_METRIC_SLOTS);
   const [active, setActive] = useState(0);
   const [hover, setHover] = useState<number | null>(null);
@@ -55,11 +55,15 @@ export function DashboardScreen({
   const closeTimer = useRef<number | null>(null);
   const openTimer = useRef<number | null>(null);
   const metric = slots[active] ?? "sales";
-  const metricCards = useMemo(() => dashboardMetrics(range, slots), [range, slots]);
-  const chart = useMemo(() => buildMetricChart(range, metric, hover), [range, metric, hover]);
-  const rangeLabel = RANGES.find((item) => item.id === range)?.label ?? "";
+  const span = useMemo(() => spanFromWindow(dashboardWindow), [dashboardWindow]);
+  const rangeLabel = dashboardWindow.label;
+  const metricCards = useMemo(() => dashboardMetrics(span, slots), [span, slots]);
+  const chart = useMemo(() => buildMetricChart(span, metric, hover), [span, metric, hover]);
   const counts = attentionCounts();
   const hello = useSyncExternalStore(subscribeToClock, readGreeting, serverGreeting);
+  useSyncExternalStore(subscribeStoreIdentity, getStoreIdentityVersion, getStoreIdentityVersion);
+  const ownerName = getStoreIdentity().ownerName.trim() || getAdminActor().displayName;
+  const customerName = ownerName.split(/\s+/).find(Boolean) ?? ownerName;
   const openCard = openSlot == null ? null : metricCards[openSlot];
   const openAnchor = openSlot == null ? null : slotRefs.current[openSlot];
 
@@ -128,31 +132,28 @@ export function DashboardScreen({
       <div className="flex flex-wrap items-center gap-4 px-4 py-3">
         <div className="relative z-30 min-w-[180px] flex-1">
           <button
+            ref={rangeButtonRef}
             type="button"
-            onClick={() => toggleMenu("range")}
+            aria-expanded={rangeOpen}
+            onClick={() => {
+              closePreview();
+              setRangeOpen((open) => !open);
+            }}
             className="rounded-lg px-2 py-1 text-sm text-ink hover:bg-[#ebebeb]"
           >
-            {rangeLabel} · כל הערוצים
+            {dashboardWindow.label} · כל הערוצים
           </button>
-          {menu === "range" ? (
-            <div className="absolute top-[34px] right-0 z-50 w-[220px] rounded-xl bg-white p-1.5 shadow-[var(--shadow-popover)]">
-              {RANGES.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => {
-                    setRange(item.id);
-                    setHover(null);
-                    closeMenu();
-                  }}
-                  className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-start text-sm text-ink hover:bg-[#f1f1f1]"
-                  style={{ background: item.id === range ? "#f1f1f1" : "transparent" }}
-                >
-                  {item.label}
-                  {item.id === range ? <Icon name="check" strokeWidth={1.8} /> : null}
-                </button>
-              ))}
-            </div>
+          {rangeOpen && rangeButtonRef.current ? (
+            <DateRangePicker
+              anchor={rangeButtonRef.current}
+              value={dashboardWindow}
+              onClose={() => setRangeOpen(false)}
+              onApply={(next) => {
+                setDashboardWindow(next);
+                setHover(null);
+                setRangeOpen(false);
+              }}
+            />
           ) : null}
         </div>
         <div className="flex flex-wrap justify-center gap-x-5 gap-y-2">
@@ -202,16 +203,19 @@ export function DashboardScreen({
             </button>
           ))}
         </div>
-        <div className="flex min-w-[120px] flex-1 items-center justify-end gap-1.5 text-sm text-ink">
-          מבקרים כעת <b>9</b>
+        <Link
+          href="/admin/analytics/live"
+          className="inline-flex min-w-[120px] flex-1 items-center justify-end gap-1.5 rounded-lg px-2 py-1 text-sm text-ink no-underline hover:bg-[#f1f1f1] hover:no-underline"
+        >
+          מבקרים כעת <b>0</b>
           <span className="size-[9px] animate-[pulse-dot_2s_ease-in-out_infinite] rounded-full border-2 border-[#29845a]" />
-        </div>
+        </Link>
       </div>
 
       <div className="flex flex-col items-center gap-5 px-4 pt-10 pb-8 min-[1000px]:px-5 min-[1000px]:pt-[84px] min-[1000px]:pb-12">
         <div className="flex flex-col gap-0.5 text-center">
           <span className="text-[26px] leading-[34px] font-semibold text-ink-soft" suppressHydrationWarning>
-            {hello}
+            {hello}, {customerName}
           </span>
           <span className="text-balance text-[28px] leading-9 font-bold text-ink-strong">בואו נמשיך להצמיח את העסק.</span>
         </div>
@@ -238,7 +242,7 @@ export function DashboardScreen({
           <MetricPreview
             anchor={openAnchor}
             card={openCard}
-            range={range}
+            range={span}
             picker={picker}
             used={slots}
             onOpenPicker={() => setPicker(true)}

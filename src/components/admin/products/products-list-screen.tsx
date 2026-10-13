@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { ColumnsButton, IndexDock, darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { getStoreIdentity } from "@/data/live/store-identity";
 import { Icon } from "@/components/ui/icon";
 import {
   deleteCatalogProducts,
@@ -30,7 +31,6 @@ export function ProductsListScreen() {
   const [loading, setLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const low = products.filter((product) => product.stock < 5).length;
   const needle = query.trim();
   const rows = products.filter((product) => {
     if (tab !== "all" && product.status !== tab) return false;
@@ -63,7 +63,7 @@ export function ProductsListScreen() {
         <button type="button" className={softButton}>
           ייבוא
         </button>
-        <button type="button" className={softButton} onClick={() => toast("קובץ CSV יישלח אל maya@lavana.co.il")}>
+        <button type="button" className={softButton} onClick={() => toast(`קובץ CSV יישלח אל ${getStoreIdentity().ownerEmail}`)}>
           ייצוא
         </button>
         <button type="button" className={softButton}>
@@ -82,25 +82,25 @@ export function ProductsListScreen() {
         </div>
         <div className="flex min-w-[220px] flex-1 flex-col gap-0.5 border-e border-[#ebebeb] px-[18px] py-3">
           <span className="text-sm font-semibold underline decoration-dotted decoration-[#8a8a8a] underline-offset-[3px]">שיעור מכירה ממוצע</span>
-          <b className="text-sm">34.2%</b>
+          <b className="text-sm">0%</b>
         </div>
         <div className="flex min-w-[220px] flex-1 flex-col gap-0.5 border-e border-[#ebebeb] px-[18px] py-3">
           <span className="text-sm font-semibold underline decoration-dotted decoration-[#8a8a8a] underline-offset-[3px]">מוצרים לפי ימי מלאי שנותרו</span>
           <div className="flex flex-wrap gap-3.5">
             <span>
-              <b className="text-sm text-[#8a6116]">{low}</b> בפחות מ-7 ימים
+              <b className="text-sm text-[#8a6116]">0</b> בפחות מ-7 ימים
             </span>
             <span>
-              <b className="text-sm">{products.length - low}</b> מעל 7 ימים
+              <b className="text-sm">0</b> מעל 7 ימים
             </span>
           </div>
         </div>
         <div className="flex min-w-[220px] flex-1 flex-col gap-0.5 px-[18px] py-3">
           <span className="text-sm font-semibold underline decoration-dotted decoration-[#8a8a8a] underline-offset-[3px]">ניתוח ABC</span>
           <div className="flex flex-wrap gap-3.5 text-sm">
-            <span className="border-b-2 border-[#2c6ecb]"><b dir="ltr">₪48,210</b> A</span>
-            <span className="border-b-2 border-[#7b61d6]"><b dir="ltr">₪21,930</b> B</span>
-            <span className="border-b-2 border-[#9cc3ee]"><b dir="ltr">₪9,480</b> C</span>
+            <span className="border-b-2 border-[#2c6ecb]"><b dir="ltr">₪0</b> A</span>
+            <span className="border-b-2 border-[#7b61d6]"><b dir="ltr">₪0</b> B</span>
+            <span className="border-b-2 border-[#9cc3ee]"><b dir="ltr">₪0</b> C</span>
           </div>
         </div>
       </div>
@@ -184,8 +184,8 @@ export function ProductsListScreen() {
                       <td className="px-2"><span className="inline-flex h-5 items-center rounded-md px-[7px] text-[13px] font-semibold whitespace-nowrap" style={{ background: status.background, color: status.color }}>{status.label}</span></td>
                       <td className="px-2 whitespace-nowrap" style={{ color: inventory.color }}>{inventory.text}</td>
                       <td className="px-2 whitespace-nowrap">{product.category}</td>
-                      <td className="px-2 text-center">{product.status === "active" ? "2" : "0"}</td>
-                      <td className="px-2 text-center">1</td>
+                      <td className="px-2 text-center">0</td>
+                      <td className="px-2 text-center">0</td>
                       <td className="px-2 whitespace-nowrap text-ink-secondary">{product.category}</td>
                       <td className="px-2 whitespace-nowrap">{product.vendor}</td>
                     </tr>
@@ -207,7 +207,7 @@ export function ProductsListScreen() {
         <div className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4" onClick={() => setConfirmDelete(false)}>
           <div role="dialog" aria-label="מחיקת מוצרים" className="w-full max-w-[440px] rounded-2xl bg-white p-5 shadow-[0_16px_40px_rgba(0,0,0,.24)]" onClick={(event) => event.stopPropagation()}>
             <h2 className="m-0 text-base font-bold">למחוק {selected.length} מוצרים?</h2>
-            <p className="mt-2 text-sm text-[#4a4a4a]">המוצרים יוסרו מהקטלוג לדוגמה. רענון הדף מחזיר את הנתונים המקוריים.</p>
+            <p className="mt-2 text-sm text-[#4a4a4a]">המוצרים יימחקו מהחנות.</p>
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" className={softButton} onClick={() => setConfirmDelete(false)}>ביטול</button>
               <button type="button" className="h-[30px] rounded-[10px] border-0 bg-[#8e1f0b] px-3 text-sm font-semibold text-white" onClick={() => { deleteCatalogProducts(selected); setSelected([]); setConfirmDelete(false); toast("המוצרים נמחקו"); }}>מחיקה</button>

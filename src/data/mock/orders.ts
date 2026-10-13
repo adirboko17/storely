@@ -188,7 +188,7 @@ function generatedOrders(): Order[] {
   return orders;
 }
 
-export const ORDERS: Order[] = [...HANDWRITTEN, ...generatedOrders()];
+export const ORDERS: Order[] = [];
 
 export function toOrderView(order: Order): OrderView {
   const subtotal = order.items.reduce((sum, [productIndex, quantity]) => {

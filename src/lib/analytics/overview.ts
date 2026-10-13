@@ -1,4 +1,4 @@
-import { PRODUCTS } from "@/data/mock/products";
+import { listCatalogProducts } from "@/data/mock/catalog-session";
 import type { LiveCheckout } from "@/data/mock/order-session";
 import type { ResolvedOrder } from "@/lib/orders/present";
 
@@ -200,7 +200,7 @@ export function buildOverview(orders: ResolvedOrder[], checkouts: LiveCheckout[]
     ? [{ label: `${monthNames[month.getMonth()]} ${month.getFullYear()}`, customers: buyers, rates: [(repeat / buyers) * 100] }]
     : [];
 
-  const sellThrough = PRODUCTS.map((product) => {
+  const sellThrough = listCatalogProducts().map((product) => {
     const sold = units.get(product.id) ?? 0;
     const rateValue = sold + product.stock > 0 ? (sold / (sold + product.stock)) * 100 : 0;
     return {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import { notFound } from "next/navigation";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { getStoreIdentity } from "@/data/live/store-identity";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
 import { getFlow, getMarketingVersion, saveFlow, subscribeMarketing, type Flow, type FlowStep } from "@/data/mock/marketing-session";
 
@@ -53,7 +54,7 @@ export function AutomationEditorScreen({ flowId }: { flowId: number }) {
         <span className="text-sm text-[#4a4a4a]">אוטומציות /</span>
         <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className="h-8 min-w-0 flex-1 border-0 text-[15px] font-bold outline-none" style={clearInput} />
         <span className="inline-flex h-5 items-center rounded-md px-[7px] text-xs font-semibold" style={{ background: draft.on ? "#cdfee1" : "#ebebeb", color: draft.on ? "#0c5132" : "#303030" }}>{draft.on ? "פעיל" : "טיוטה"}</span>
-        <button type="button" className="h-[30px] rounded-[10px] border-0 bg-white px-3 text-sm font-semibold shadow-[0_0_0_1px_rgba(0,0,0,.1)]" onClick={() => toast("הודעת בדיקה נשלחה אל maya@lavana.co.il")}>שליחת בדיקה</button>
+        <button type="button" className="h-[30px] rounded-[10px] border-0 bg-white px-3 text-sm font-semibold shadow-[0_0_0_1px_rgba(0,0,0,.1)]" onClick={() => toast(`הודעת בדיקה נשלחה אל ${getStoreIdentity().ownerEmail}`)}>שליחת בדיקה</button>
         <button type="button" className="h-[30px] rounded-[10px] border-0 px-3 text-sm font-semibold text-white" style={{ background: draft.on ? "#8e1f0b" : "#1a1a1a" }} onClick={() => { setDraft({ ...draft, on: !draft.on }); toast(draft.on ? "האוטומציה הושהתה" : "האוטומציה הופעלה"); }}>{draft.on ? "השהיה" : "הפעלה"}</button>
       </div>
       <div className="grid min-h-[520px] flex-1 min-[1000px]:grid-cols-[minmax(0,1fr)_320px]">

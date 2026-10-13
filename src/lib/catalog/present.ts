@@ -21,22 +21,7 @@ export type CollectionSeed = {
   tone: string;
 };
 
-export const COLLECTION_SEEDS: CollectionSeed[] = [
-  { title: "מוצרים מומלצים (דיוור)", conditions: ["מלאי גדול מ-0", "מחיר גדול מ-₪10.00"], tone: "#2c6ecb" },
-  { title: "מטבח ואירוח", conditions: [], tone: "#fff" },
-  { title: "טקסטיל לבית", conditions: [], tone: "#fff" },
-  { title: "מתנות עד ₪150", conditions: ["מחיר קטן מ-₪150.00"], tone: "#fff" },
-  { title: "מתנות לחג", conditions: [], tone: "#fff" },
-  { title: "חדש בחנות", conditions: ["נוסף ב-30 הימים האחרונים"], tone: "#fff" },
-  { title: "כלי שתייה", conditions: ['קטגוריה שווה ל"כלי שתייה"'], tone: "#fff" },
-  { title: "כלי הגשה", conditions: ['קטגוריה שווה ל"כלי הגשה"'], tone: "#fff" },
-  { title: "עיצוב הבית", conditions: [], tone: "#fff" },
-  { title: "מוצרי פשתן", conditions: ['הכותרת מכילה "פשתן" ועוד 2', 'תגית כוללת "פשתן"'], tone: "#fff" },
-  { title: "קרמיקה בעבודת יד", conditions: ['תגית כוללת "קרמיקה"'], tone: "#fff" },
-  { title: "סטודיו לבנה", conditions: ['הספק שווה ל"סטודיו לבנה"'], tone: "#fff" },
-  { title: "נגריית הכרמל", conditions: ['הספק שווה ל"נגריית הכרמל"'], tone: "#fff" },
-  { title: "מבצעי סוף עונה", conditions: [], tone: "#fff" },
-];
+export const COLLECTION_SEEDS: CollectionSeed[] = [];
 
 export function productInSeed(product: Product, title: string) {
   if (title.startsWith("מוצרים מומלצים")) return product.stock > 0 && product.price > 10;

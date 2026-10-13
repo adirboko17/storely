@@ -21,9 +21,9 @@ export function SalesChart({
       </div>
       <div dir="ltr" className="grid grid-cols-[56px_minmax(0,1fr)] px-0 pt-5 pr-3">
         <div className="relative h-[200px]">
-          {chart.yTicks.map((tick) => (
+          {chart.yTicks.map((tick, index) => (
             <div
-              key={tick.label}
+              key={`${index}-${tick.top}`}
               className="absolute right-2.5 -translate-y-1/2 text-xs whitespace-nowrap text-ink-secondary"
               style={{ top: tick.top }}
             >
@@ -32,8 +32,8 @@ export function SalesChart({
           ))}
         </div>
         <div className="relative h-[200px] cursor-crosshair" onMouseMove={onMove} onMouseLeave={onLeave}>
-          {chart.yTicks.map((tick) => (
-            <div key={tick.top} className="absolute inset-x-0 border-t border-[#ebebeb]" style={{ top: tick.top }} />
+          {chart.yTicks.map((tick, index) => (
+            <div key={`${index}-${tick.top}`} className="absolute inset-x-0 border-t border-[#ebebeb]" style={{ top: tick.top }} />
           ))}
           <svg viewBox="0 0 800 200" preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible">
             <path d={chart.area} fill="rgba(44,110,203,.07)" />
@@ -85,8 +85,8 @@ export function SalesChart({
         </div>
         <div />
         <div className="flex justify-between pt-2.5 text-xs text-ink-secondary">
-          {chart.xTicks.map((tick) => (
-            <span key={tick} dir="rtl">
+          {chart.xTicks.map((tick, index) => (
+            <span key={`${index}-${tick}`} dir="rtl">
               {tick}
             </span>
           ))}

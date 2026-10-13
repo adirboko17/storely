@@ -35,11 +35,6 @@ export function getPostsVersion() {
 
 function copyPost(post: Post): Post {
   return {
-    image: "",
-    seoTitle: "",
-    seoDescription: "",
-    handle: "",
-    template: "פוסט בלוג ברירת מחדל",
     ...post,
     tags: [...post.tags],
   };

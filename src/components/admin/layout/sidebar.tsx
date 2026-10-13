@@ -5,7 +5,9 @@ import { usePathname } from "next/navigation";
 import { useSyncExternalStore } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { Icon } from "@/components/ui/icon";
+import { AccountMenu } from "@/components/admin/layout/account-menu";
 import { getOrderSessionVersion, subscribeOrderSession, unfulfilledCount } from "@/data/mock/order-session";
+import { getStoreIdentity, getStoreIdentityVersion, subscribeStoreIdentity } from "@/data/live/store-identity";
 import { cn } from "@/lib/cn";
 import { pathMatches, type NavItem } from "@/lib/navigation/nav";
 
@@ -29,8 +31,10 @@ export function Sidebar({
   seam?: boolean;
 }) {
   const pathname = usePathname();
-  const { narrow, toggleNav, menu, toggleMenu, toast, openSearch } = useAdmin();
+  const { narrow, toggleNav, menu, toggleMenu, openSearch } = useAdmin();
   useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
+  useSyncExternalStore(subscribeStoreIdentity, getStoreIdentityVersion, getStoreIdentityVersion);
+  const store = getStoreIdentity();
   const unfulfilled = unfulfilledCount();
   const profileOpen = menu === "profile";
   const settingsOn = pathname.startsWith("/admin/settings");
@@ -103,17 +107,6 @@ export function Sidebar({
         >
           <Icon name="settings" />
         </Link>
-        <button
-          type="button"
-          aria-label="התראות"
-          onClick={() => toast("אין התראות חדשות")}
-          className="relative grid size-8 place-items-center rounded-lg text-[#b5b5b5] hover:bg-[#2a2a2a] hover:text-white"
-        >
-          <Icon name="bell" />
-          <span className="absolute top-0.5 left-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-[#e51c00] px-0.5 text-[9px] font-bold text-white">
-            2
-          </span>
-        </button>
       </nav>
     );
   }
@@ -235,55 +228,13 @@ export function Sidebar({
         הגדרות
       </Link>
 
-      <div className="relative mt-0.5 flex items-center gap-1">
-        <button
-          type="button"
-          onClick={() => toggleMenu("profile")}
-          className="flex h-[34px] min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1.5 text-start text-sm font-semibold text-[#e3e3e3] hover:bg-[#2a2a2a]"
-        >
-          <span className="grid size-[22px] shrink-0 place-items-center rounded-md bg-[#c9e7d5] text-[11px] font-bold text-[#0c5132]">
-            סל
-          </span>
-          סטודיו לבנה
-        </button>
-        <button
-          type="button"
-          aria-label="התראות"
-          onClick={() => toast("אין התראות חדשות")}
-          className="relative grid size-8 place-items-center rounded-lg text-[#b5b5b5] hover:bg-[#2a2a2a] hover:text-white"
-        >
-          <Icon name="bell" />
-          <span className="absolute top-[3px] left-1 grid h-[15px] min-w-[15px] place-items-center rounded-lg bg-[#e51c00] px-0.5 text-[10px] font-bold text-white">
-            2
-          </span>
-        </button>
-        {profileOpen ? (
-          <div className="absolute right-0 bottom-10 z-50 w-56 rounded-xl bg-white p-1.5 text-ink shadow-[var(--shadow-popover)]">
-            <div className="mb-1 border-b border-[#ebebeb] px-2 pt-2 pb-2.5">
-              <div className="font-semibold">מאיה ברק</div>
-              <div dir="ltr" className="text-right text-[13px] text-ink-secondary">
-                maya@lavana.co.il
-              </div>
-            </div>
-            <Link
-              href="/admin/settings"
-              className="flex w-full rounded-lg px-2 py-1.5 text-start text-sm text-ink no-underline hover:bg-[#f1f1f1] hover:no-underline"
-            >
-              הגדרות חשבון
-            </Link>
-            <button
-              type="button"
-              onClick={() => {
-                toggleMenu("profile");
-                toast("התנתקות אינה זמינה באב-טיפוס");
-              }}
-              className="flex w-full rounded-lg border-t border-[#ebebeb] px-2 py-1.5 text-start text-sm text-ink hover:bg-[#f1f1f1]"
-            >
-              התנתקות
-            </button>
-          </div>
-        ) : null}
-      </div>
+      <AccountMenu
+        open={profileOpen}
+        onToggle={() => toggleMenu("profile")}
+        name={store.ownerName}
+        storeName={store.name}
+        email={store.ownerEmail}
+      />
     </nav>
   );
 }

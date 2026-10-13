@@ -94,7 +94,7 @@ export function unfulfilledCount() {
 function remember(orderId: number, text: string, events: Snapshot["events"]) {
   return {
     ...events,
-    [orderId]: [{ text, time: "עכשיו", who: "מאיה ברק" }, ...(events[orderId] ?? [])],
+    [orderId]: [{ text, time: "עכשיו", who: "צוות החנות" }, ...(events[orderId] ?? [])],
   };
 }
 

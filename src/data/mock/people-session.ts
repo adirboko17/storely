@@ -1,4 +1,6 @@
 import { CUSTOMERS } from "@/data/mock/customers";
+import { getStoreIdentity } from "@/data/live/store-identity";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { Customer } from "@/types/commerce";
 
 export type PersonProfile = {
@@ -19,11 +21,11 @@ type Snapshot = {
   profiles: Record<number, PersonProfile>;
 };
 
-function defaultProfile(customer: Customer): PersonProfile {
+function defaultProfile(_customer: Customer): PersonProfile {
   return {
-    subscribed: customer.id % 3 !== 1,
-    note: customer.id === 0 ? "מעדיפה איסוף עצמי כשהסטודיו פתוח." : "",
-    tags: customer.orders >= 8 ? ["VIP"] : customer.orders >= 5 ? ["חוזר"] : [],
+    subscribed: false,
+    note: "",
+    tags: [],
     credit: 0,
     comments: [],
     blocks: [],
@@ -45,6 +47,11 @@ export function subscribePeople(listener: () => void) {
 
 export function getPeopleVersion() {
   return current.version;
+}
+
+export function replacePeople(people: Customer[]) {
+  CUSTOMERS.splice(0, CUSTOMERS.length, ...people.map((person) => ({ ...person })));
+  publish({ added: [], profiles: {} });
 }
 
 export function listPeople() {
@@ -70,5 +77,26 @@ export function addPerson(input: Pick<Customer, "name" | "email" | "phone" | "ci
   const id = Math.max(0, ...listPeople().map((person) => person.id)) + 1;
   const person: Customer = { id, name: input.name, email: input.email, phone: input.phone, street: input.street ?? "", city: input.city, zip: input.zip ?? "", orders: 0 };
   publish({ ...current, added: [person, ...current.added] });
+  if (typeof window !== "undefined" && getStoreIdentity().storeId) {
+    const supabase = createSupabaseBrowserClient();
+    void supabase
+      .rpc("save_store_customer", {
+        target_store: getStoreIdentity().storeId,
+        customer_id: null,
+        customer_name: person.name,
+        customer_email: person.email,
+        customer_phone: person.phone,
+        customer_street: person.street,
+        customer_city: person.city,
+        customer_zip: person.zip,
+      })
+      .then(({ data }) => {
+        if (typeof data !== "string" || !data) return;
+        publish({
+          ...current,
+          added: current.added.map((item) => (item.id === id ? { ...item, sourceId: data } : item)),
+        });
+      });
+  }
   return person;
 }

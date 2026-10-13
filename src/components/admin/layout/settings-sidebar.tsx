@@ -2,19 +2,25 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { AccountMenu } from "@/components/admin/layout/account-menu";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { getStoreIdentity, getStoreIdentityVersion, subscribeStoreIdentity } from "@/data/live/store-identity";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/cn";
 import type { IconName } from "@/lib/icons";
 
-const ITEMS: Array<{ href: string; label: string; icon: IconName }> = [
-  { href: "/admin/settings", label: "כללי", icon: "store" },
+const ITEMS: Array<{ href: string; label: string; icon: IconName; exact?: boolean }> = [
+  { href: "/admin/settings", label: "כללי", icon: "store", exact: true },
+  { href: "/admin/settings/shipping", label: "משלוחים", icon: "truck" },
+  { href: "/admin/settings/policies", label: "פוליסות", icon: "document" },
 ];
 
 export function SettingsSidebar() {
   const pathname = usePathname();
-  const { menu, toggleMenu, toast } = useAdmin();
+  const { menu, toggleMenu } = useAdmin();
+  useSyncExternalStore(subscribeStoreIdentity, getStoreIdentityVersion, getStoreIdentityVersion);
+  const store = getStoreIdentity();
   const [query, setQuery] = useState("");
   const profileOpen = menu === "profile";
   const needle = query.trim();
@@ -46,15 +52,15 @@ export function SettingsSidebar() {
       </label>
 
       <div className="px-2 pt-3 pb-1.5">
-        <div className="text-sm font-semibold text-[#e3e3e3]">סטודיו לבנה</div>
+        <div className="text-sm font-semibold text-[#e3e3e3]">{store.name}</div>
         <div dir="ltr" className="text-right text-[13px] text-[#8a8a8a]">
-          lavana.co.il
+          {store.hostname}
         </div>
       </div>
 
       <div className="flex flex-col gap-px">
         {items.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const active = item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <Link
               key={item.href}
@@ -74,48 +80,14 @@ export function SettingsSidebar() {
 
       <div className="min-h-4 flex-1" />
 
-      <div className="relative mt-0.5 border-t border-white/10 pt-1">
-        <button
-          type="button"
-          onClick={() => toggleMenu("profile")}
-          className="flex w-full items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-start hover:bg-[#2a2a2a]"
-        >
-          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#c9e7d5] text-[11px] font-bold text-[#0c5132]">
-            סל
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold text-[#e3e3e3]">סטודיו לבנה</span>
-            <span dir="ltr" className="block truncate text-right text-[12px] text-[#8a8a8a]">
-              maya@lavana.co.il
-            </span>
-          </span>
-        </button>
-        {profileOpen ? (
-          <div className="absolute right-0 bottom-10 z-50 w-56 rounded-xl bg-white p-1.5 text-ink shadow-[var(--shadow-popover)]">
-            <div className="mb-1 border-b border-[#ebebeb] px-2 pt-2 pb-2.5">
-              <div className="font-semibold">מאיה ברק</div>
-              <div dir="ltr" className="text-right text-[13px] text-ink-secondary">
-                maya@lavana.co.il
-              </div>
-            </div>
-            <Link
-              href="/admin/settings"
-              className="flex w-full rounded-lg px-2 py-1.5 text-start text-sm text-ink no-underline hover:bg-[#f1f1f1] hover:no-underline"
-            >
-              הגדרות חשבון
-            </Link>
-            <button
-              type="button"
-              onClick={() => {
-                toggleMenu("profile");
-                toast("התנתקות אינה זמינה באב-טיפוס");
-              }}
-              className="flex w-full rounded-lg border-t border-[#ebebeb] px-2 py-1.5 text-start text-sm text-ink hover:bg-[#f1f1f1]"
-            >
-              התנתקות
-            </button>
-          </div>
-        ) : null}
+      <div className="mt-0.5 border-t border-white/10 pt-1">
+        <AccountMenu
+          open={profileOpen}
+          onToggle={() => toggleMenu("profile")}
+          name={store.ownerName}
+          storeName={store.name}
+          email={store.ownerEmail}
+        />
       </div>
     </nav>
   );

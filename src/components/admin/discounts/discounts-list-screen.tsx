@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { ColumnsButton, darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { getStoreIdentity } from "@/data/live/store-identity";
 import { Icon } from "@/components/ui/icon";
 import {
   KIND_LABEL,
@@ -58,7 +59,7 @@ export function DiscountsListScreen() {
       <div className="flex flex-wrap items-center gap-2 px-3.5 pt-2.5 pb-2">
         <Icon name="discount" size={18} strokeWidth={1.6} />
         <h1 className="m-0 flex-1 text-[15px] font-bold">הנחות</h1>
-        <button type="button" className={softButton} onClick={() => toast("קובץ CSV יישלח אל maya@lavana.co.il")}>ייצוא</button>
+        <button type="button" className={softButton} onClick={() => toast(`קובץ CSV יישלח אל ${getStoreIdentity().ownerEmail}`)}>ייצוא</button>
         <button type="button" className={softButton}>פעולות נוספות</button>
         <button type="button" className={darkButton} onClick={() => setPicker(true)}>יצירת הנחה</button>
       </div>

@@ -27,6 +27,7 @@ export const ICONS = {
   clock: "M3.5 10a6.5 6.5 0 1 0 2-4.7M3.5 3.5v3h3M10 6.5V10l2.5 1.5",
   send: "M10 16V4M5 9l5-5 5 5",
   close: "M5 5l10 10M15 5L5 15",
+  logout: "M8 4.5H4.5v11H8M11 6.5 14.5 10 11 13.5M14.5 10H7.5",
   pencil: "M13.2 3.4l3.4 3.4L7.2 16.2H3.8v-3.4zM11.4 5.2l3.4 3.4",
   info: "M10 17a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM10 9.2V14M10 6.6h.01",
   warning: "M10 2.5l8 14H2zM10 7.5v4M10 14h.01",
@@ -34,6 +35,8 @@ export const ICONS = {
   calendar: "M4 5.5h12v11H4zM4 9h12M7.5 3.5v3M12.5 3.5v3M7 12h2M11 12h2",
   card: "M3 5.5h14v9H3zM3 8.5h14M6 12h3",
   placeholder: "M3.5 5.5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2zM3.5 8h13",
+  document: "M6 3.5h6l4 4V16.5H6zM12 3.5V8h4M8 11h4M8 13.5h4",
+  truck: "M3 6.5h8.5V13H3zM11.5 9H15l2 2.2V13h-5.5M6.2 15.2a1.3 1.3 0 1 0 0-2.6 1.3 1.3 0 0 0 0 2.6zM14.8 15.2a1.3 1.3 0 1 0 0-2.6 1.3 1.3 0 0 0 0 2.6z",
 } as const;
 
 export type IconName = keyof typeof ICONS;

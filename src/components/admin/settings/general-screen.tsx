@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { getStoreIdentity, getStoreIdentityVersion, subscribeStoreIdentity } from "@/data/live/store-identity";
 import { Card } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 
@@ -10,6 +11,8 @@ const selectClass =
 
 export function GeneralSettingsScreen() {
   const { toast } = useAdmin();
+  useSyncExternalStore(subscribeStoreIdentity, getStoreIdentityVersion, getStoreIdentityVersion);
+  const store = getStoreIdentity();
   const [region, setRegion] = useState("israel");
   const [units, setUnits] = useState("metric");
   const [weight, setWeight] = useState("kg");
@@ -29,7 +32,7 @@ export function GeneralSettingsScreen() {
             🇮🇱
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold text-ink">סטודיו לבנה</span>
+            <span className="block text-sm font-semibold text-ink">{store.name}</span>
             <span className="block text-[13px] text-ink-secondary">ישראל</span>
           </span>
           <button
@@ -53,9 +56,9 @@ export function GeneralSettingsScreen() {
           >
             <Icon name="store" className="shrink-0 text-ink-secondary" />
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-ink">סטודיו לבנה</span>
+              <span className="block text-sm font-semibold text-ink">{store.name}</span>
               <span dir="ltr" className="block text-right text-[13px] text-ink-secondary">
-                maya@lavana.co.il · אין מספר טלפון
+                {store.ownerEmail || "אין אימייל"} · אין מספר טלפון
               </span>
             </span>
             <Icon name="chevron" size={16} className="shrink-0 text-ink-secondary" />
@@ -70,7 +73,7 @@ export function GeneralSettingsScreen() {
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-semibold text-ink">כתובת החנות</span>
-              <span className="block text-[13px] text-ink-secondary">דיזנגוף 100, תל אביב-יפו, ישראל</span>
+              <span className="block text-[13px] text-ink-secondary">לא הוגדרה כתובת</span>
             </span>
             <Icon name="chevron" size={16} className="mt-0.5 shrink-0 text-ink-secondary" />
           </button>

@@ -9,6 +9,26 @@ export const RANGES = [
 
 export type RangeId = (typeof RANGES)[number]["id"];
 
+export type ChartSpan = {
+  days: number;
+  hourly: boolean;
+  end: Date;
+};
+
+const CHART_END = new Date(2026, 9, 13);
+
+export function spanFromRangeId(range: RangeId, end = CHART_END): ChartSpan {
+  return range === "1" ? { days: 1, hourly: true, end } : { days: Number(range), hourly: false, end };
+}
+
+export function isHourlySpan(range: RangeId | ChartSpan) {
+  return typeof range === "string" ? range === "1" : range.hourly;
+}
+
+function resolveSpan(range: RangeId | ChartSpan): ChartSpan {
+  return typeof range === "string" ? spanFromRangeId(range) : range;
+}
+
 const MONTHS = ["ינו׳", "פבר׳", "מרץ", "אפר׳", "מאי", "יוני", "יולי", "אוג׳", "ספט׳", "אוק׳", "נוב׳", "דצמ׳"];
 
 export const METRIC_CATALOG = [
@@ -287,18 +307,53 @@ function derive(sales: number[], orders: number[], sessions: number[], seed: num
   };
 }
 
+let liveMetrics = false;
+
+export function enableLiveMetrics() {
+  liveMetrics = true;
+}
+
 function periodTotal(series: Series, id: MetricId) {
-  if (id === "conv") return (sum(series.orders) / sum(series.sessions)) * 100;
-  if (id === "aov") return sum(series.sales) / sum(series.orders);
-  if (id === "returning") return (sum(series.orders.map((value, index) => value * ((series.returning[index] ?? 0) / 100))) / sum(series.orders)) * 100;
-  if (id === "refundRate") return (sum(series.refunds) / sum(series.sales)) * 100;
+  const orderTotal = sum(series.orders);
+  const sessionTotal = sum(series.sessions);
+  const salesTotal = sum(series.sales);
+  if (id === "conv") return sessionTotal ? (orderTotal / sessionTotal) * 100 : 0;
+  if (id === "aov") return orderTotal ? salesTotal / orderTotal : 0;
+  if (id === "returning") return orderTotal ? (sum(series.orders.map((value, index) => value * ((series.returning[index] ?? 0) / 100))) / orderTotal) * 100 : 0;
+  if (id === "refundRate") return salesTotal ? (sum(series.refunds) / salesTotal) * 100 : 0;
   if (id === "search") return weighted(series.search, series.sessions);
   return sum(series[id]);
 }
 
-function buildBundle(range: RangeId) {
-  const pointCount = range === "1" ? 24 : Number(range);
-  const hourly = pointCount === 24;
+function emptySeries(pointCount: number): Series {
+  const flat = Array.from({ length: pointCount }, () => 0);
+  return {
+    aov: flat,
+    sales: flat,
+    orders: flat,
+    returning: flat,
+    refundRate: flat,
+    search: flat,
+    units: flat,
+    channels: flat,
+    conv: flat,
+    productOrders: flat,
+    refundQty: flat,
+    refunds: flat,
+    sessions: flat,
+    customers: flat,
+    net: flat,
+    total: flat,
+  };
+}
+
+function buildBundle(range: RangeId | ChartSpan) {
+  const span = resolveSpan(range);
+  const pointCount = span.hourly ? 24 : Math.max(2, Math.min(span.days, 366));
+  const hourly = span.hourly;
+  if (liveMetrics) {
+    return { pointCount, hourly, end: span.end, current: emptySeries(pointCount), previous: emptySeries(pointCount) };
+  }
   const make = (seed: number, base: number, factor: number) => {
     const random = rng(seed + pointCount * 13);
     const scaled = base * (hourly ? 1 / 24 : 1) * factor;
@@ -321,6 +376,7 @@ function buildBundle(range: RangeId) {
   return {
     pointCount,
     hourly,
+    end: span.end,
     current: derive(make(11, 1630, 1), make(21, 10.4, 1), make(31, 328, 1), 41),
     previous: derive(make(12, 1630, 0.89), make(22, 10.4, 0.93), make(32, 328, 0.96), 52),
   };
@@ -351,7 +407,7 @@ function cardFor(bundle: ReturnType<typeof buildBundle>, id: MetricId): MetricCa
   };
 }
 
-export function dashboardMetrics(range: RangeId, ids: MetricId[]) {
+export function dashboardMetrics(range: RangeId | ChartSpan, ids: MetricId[]) {
   const bundle = buildBundle(range);
   return ids.map((id) => cardFor(bundle, id));
 }
@@ -382,7 +438,7 @@ function linePath(points: Array<{ x: number; y: number }>, smooth: boolean) {
   return points.map((point, index) => `${index ? "L" : "M"}${point.x.toFixed(1)},${point.y.toFixed(1)}`).join("");
 }
 
-export function buildMetricChart(range: RangeId, metric: MetricId, hover: number | null, options: ChartOptions = {}) {
+export function buildMetricChart(range: RangeId | ChartSpan, metric: MetricId, hover: number | null, options: ChartOptions = {}) {
   const bundle = buildBundle(range);
   const { pointCount, hourly } = bundle;
   const definition = METRICS[metric];
@@ -400,14 +456,15 @@ export function buildMetricChart(range: RangeId, metric: MetricId, hover: number
   const last = currentPoints[currentPoints.length - 1];
   const area = last ? `${current}L${last.x.toFixed(1)},190L0,190Z` : "";
 
+  const axisNumber = (value: number) => (Number.isInteger(value) ? formatInteger(value) : value.toFixed(1));
   const yFormat =
     definition.format === "money"
-      ? (value: number) => (value >= 1000 ? `₪${(value / 1000).toFixed(value % 1000 ? 1 : 0)}K` : `₪${formatInteger(value)}`)
+      ? (value: number) => (value >= 1000 ? `₪${(value / 1000).toFixed(value % 1000 ? 1 : 0)}K` : `₪${axisNumber(value)}`)
       : definition.format === "percent"
-        ? (value: number) => `${value.toFixed(value >= 10 ? 0 : 1)}%`
-        : (value: number) => (nice >= 100 ? formatInteger(value) : String(Math.round(value)));
+        ? (value: number) => `${Number.isInteger(value) && value >= 10 ? value.toFixed(0) : value.toFixed(1)}%`
+        : (value: number) => (nice >= 100 && Number.isInteger(value) ? formatInteger(value) : axisNumber(value));
 
-  const end = new Date(2026, 9, 13);
+  const end = bundle.end;
   const dayAt = (index: number, offset: number) => {
     const date = new Date(end);
     date.setDate(date.getDate() - (pointCount - 1 - index) - offset);
@@ -464,9 +521,9 @@ export function buildDashboardChart(range: RangeId, metric: MetricId, hover: num
 
 export function greeting(date: Date) {
   const hour = date.getHours();
-  if (hour < 5) return "לילה טוב, מאיה!";
-  if (hour < 12) return "בוקר טוב, מאיה!";
-  if (hour < 17) return "צהריים טובים, מאיה!";
-  if (hour < 21) return "ערב טוב, מאיה!";
-  return "לילה טוב, מאיה!";
+  if (hour < 5) return "לילה טוב";
+  if (hour < 12) return "בוקר טוב";
+  if (hour < 17) return "צהריים טובים";
+  if (hour < 21) return "ערב טוב";
+  return "לילה טוב";
 }

@@ -2,17 +2,9 @@ import Link from "next/link";
 import { FulfillmentBadge } from "@/components/ui/status-badge";
 import { Icon } from "@/components/ui/icon";
 import type { IconName } from "@/lib/icons";
-import { formatMoney, formatMoney0 } from "@/lib/formatting/money";
-import { PRODUCTS } from "@/data/mock/products";
+import { formatMoney } from "@/lib/formatting/money";
+import { listCatalogProducts } from "@/data/mock/catalog-session";
 import { listOrderViews } from "@/data/mock/orders";
-
-const TOP = [
-  { id: 0, units: 142, value: 12638 },
-  { id: 3, units: 118, value: 8850 },
-  { id: 6, units: 37, value: 7770 },
-  { id: 1, units: 21, value: 6720 },
-  { id: 2, units: 49, value: 5880 },
-] as const;
 
 export function RecentOrders() {
   const orders = listOrderViews().slice(0, 5);
@@ -24,6 +16,7 @@ export function RecentOrders() {
           לכל ההזמנות
         </Link>
       </div>
+      {orders.length === 0 ? <p className="m-0 border-t border-[#ebebeb] px-4 py-4 text-sm text-ink-secondary">אין הזמנות עדיין</p> : null}
       {orders.map((order) => (
         <Link
           key={order.id}
@@ -54,37 +47,7 @@ export function TopProducts({ rangeLabel }: { rangeLabel: string }) {
         <h2 className="m-0 flex-1 text-[15px] font-bold">מוצרים מובילים לפי מכירות</h2>
         <span className="text-[13px] text-ink-secondary">{rangeLabel}</span>
       </div>
-      {TOP.map((item) => {
-        const product = PRODUCTS[item.id];
-        if (!product) return null;
-        return (
-          <Link
-            key={item.id}
-            href={`/admin/products/${item.id}`}
-            className="grid grid-cols-[36px_minmax(0,1fr)_90px] items-center gap-3 text-start text-sm text-ink no-underline hover:no-underline"
-          >
-            <span
-              className="size-9 rounded-lg shadow-[inset_0_0_0_1px_rgba(0,0,0,.06)]"
-              style={{ background: product.tone }}
-            />
-            <span className="flex min-w-0 flex-col gap-1">
-              <span className="flex justify-between gap-2">
-                <span className="truncate font-semibold">{product.title}</span>
-                <span className="text-[13px] whitespace-nowrap text-ink-secondary">{item.units} יחידות</span>
-              </span>
-              <span className="h-1.5 overflow-hidden rounded-[3px] bg-[#f1f1f1]">
-                <span
-                  className="block h-full rounded-[3px] bg-[#2c6ecb]"
-                  style={{ width: `${Math.round((item.value / 12638) * 100)}%` }}
-                />
-              </span>
-            </span>
-            <span dir="ltr" className="text-left font-semibold">
-              {formatMoney0(item.value)}
-            </span>
-          </Link>
-        );
-      })}
+      <p className="m-0 text-sm text-ink-secondary">אין מכירות בטווח הזה</p>
     </div>
   );
 }
@@ -114,7 +77,7 @@ export function QuickActions() {
 }
 
 export function LowStock() {
-  const products = PRODUCTS.filter((product) => product.status === "active" && product.stock < 5);
+  const products = listCatalogProducts().filter((product) => product.status === "active" && product.stock < 5);
   return (
     <div className="overflow-hidden rounded-xl bg-white shadow-[var(--shadow-card)]">
       <div className="flex items-center gap-2 px-4 pt-4 pb-3">
@@ -176,7 +139,7 @@ const TIPS: Array<{
     title: "תזמנו את מבצע חנוכה מראש",
     body: "הכינו באנר, קוד הנחה ומחירים, והגדירו שיעלו לאוויר ב-4 בדצמבר וירדו מעצמם בסיום החג.",
     cta: "פתיחת המבצע",
-    href: "/admin/discounts/3",
+    href: "/admin/discounts",
     background: "#fdf3e7",
     color: "#b2601b",
     icon: "calendar",

@@ -1,5 +1,7 @@
 import { PRODUCTS } from "@/data/mock/products";
+import { getStoreIdentity } from "@/data/live/store-identity";
 import { COLLECTION_SEEDS } from "@/lib/catalog/present";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { Product, ProductStatus } from "@/types/commerce";
 
 export type GiftCard = {
@@ -55,6 +57,7 @@ const listeners = new Set<() => void>();
 
 function publish(next: Omit<Snapshot, "version">) {
   current = { ...next, version: current.version + 1 };
+  PRODUCTS.splice(0, PRODUCTS.length, ...current.products.map(cloneProduct));
   listeners.forEach((listener) => listener());
 }
 
@@ -76,25 +79,77 @@ export function getCatalogProduct(id: number) {
   return product ? cloneProduct(product) : null;
 }
 
-export function setProductStatuses(ids: number[], status: ProductStatus) {
+export function replaceCatalogProducts(products: Product[]) {
+  const next = products.map(cloneProduct);
   publish({
     ...current,
-    products: current.products.map((product) => (ids.includes(product.id) ? { ...product, status } : product)),
+    products: next,
+    giftCards: [],
+    collections: {},
+    hiddenCollections: [],
+    extraCollections: [],
   });
 }
 
+function rememberProductSource(localId: number, sourceId: string) {
+  publish({
+    ...current,
+    products: current.products.map((item) => (item.id === localId ? { ...item, sourceId } : item)),
+  });
+}
+
+function persistProduct(product: Product) {
+  if (typeof window === "undefined") return;
+  const storeId = getStoreIdentity().storeId;
+  if (!storeId) return;
+  const supabase = createSupabaseBrowserClient();
+  void supabase
+    .rpc("save_store_product", {
+      target_store: storeId,
+      product_id: product.sourceId ?? null,
+      product_title: product.title,
+      product_status: product.status,
+      product_price: product.price,
+      product_compare: product.compareAt ?? null,
+      product_cost: product.cost,
+      product_vendor: product.vendor,
+      product_category: product.category,
+      product_description: product.description ?? "",
+      product_tags: product.tags,
+      product_sku: product.sku,
+      product_barcode: product.barcode ?? null,
+      product_stock: product.stock,
+      variant_title: product.variant,
+    })
+    .then(({ data }) => {
+      if (typeof data === "string" && data && data !== product.sourceId) rememberProductSource(product.id, data);
+    });
+}
+
+export function setProductStatuses(ids: number[], status: ProductStatus) {
+  const products = current.products.map((product) => (ids.includes(product.id) ? { ...product, status } : product));
+  publish({ ...current, products });
+  products.filter((product) => ids.includes(product.id)).forEach(persistProduct);
+}
+
 export function deleteCatalogProducts(ids: number[]) {
+  const sourceIds = current.products.flatMap((product) => (ids.includes(product.id) && product.sourceId ? [product.sourceId] : []));
   publish({ ...current, products: current.products.filter((product) => !ids.includes(product.id)) });
+  if (typeof window === "undefined" || sourceIds.length === 0) return;
+  const storeId = getStoreIdentity().storeId;
+  if (!storeId) return;
+  const supabase = createSupabaseBrowserClient();
+  void supabase.rpc("delete_store_products", { target_store: storeId, product_ids: sourceIds });
 }
 
 export function saveCatalogProduct(product: Product) {
   const exists = current.products.some((item) => item.id === product.id);
+  const saved = cloneProduct(product);
   publish({
     ...current,
-    products: exists
-      ? current.products.map((item) => (item.id === product.id ? cloneProduct(product) : item))
-      : [cloneProduct(product), ...current.products],
+    products: exists ? current.products.map((item) => (item.id === product.id ? saved : item)) : [saved, ...current.products],
   });
+  persistProduct(saved);
 }
 
 export function nextProductId() {
@@ -102,15 +157,15 @@ export function nextProductId() {
 }
 
 export function setVariantQuantity(productId: number, index: number, quantity: number) {
-  publish({
-    ...current,
-    products: current.products.map((product) => {
-      if (product.id !== productId) return product;
-      const quantities = [...(product.quantities ?? [product.stock])];
-      quantities[index] = Math.max(0, quantity);
-      return { ...product, quantities, stock: quantities.reduce((sum, value) => sum + value, 0) };
-    }),
+  const products = current.products.map((product) => {
+    if (product.id !== productId) return product;
+    const quantities = [...(product.quantities ?? [product.stock])];
+    quantities[index] = Math.max(0, quantity);
+    return { ...product, quantities, stock: quantities.reduce((sum, value) => sum + value, 0) };
   });
+  publish({ ...current, products });
+  const product = products.find((item) => item.id === productId);
+  if (product) persistProduct(product);
 }
 
 export function listGiftCards() {

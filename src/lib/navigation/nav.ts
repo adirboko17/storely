@@ -140,6 +140,8 @@ const TITLES: Record<string, string> = {
   "/admin/online-store/home": "תוכן דף הבית",
   "/admin/online-store/banners": "באנרים",
   "/admin/settings": "הגדרות",
+  "/admin/settings/policies": "פוליסות",
+  "/admin/settings/shipping": "משלוחים",
   "/admin/design-system": "מערכת עיצוב ומפרט",
 };
 
