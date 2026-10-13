@@ -51,6 +51,7 @@ function mapProduct(value: unknown, index: number): Product {
     category: text(item?.category),
     vendor: text(item?.vendor),
     tone: "#e4e0d8",
+    media: Array.isArray(item?.media) ? item.media.filter((value): value is string => typeof value === "string" && value.startsWith("http")) : undefined,
     tags,
     collections: [],
     description: text(item?.description),

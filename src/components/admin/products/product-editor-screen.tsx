@@ -141,41 +141,44 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
       return;
     }
     setSaving(true);
-    window.setTimeout(() => {
-      const id = product?.id ?? nextProductId();
-      const quantities = draft.optionValues.length
-        ? draft.variantQty.map((value) => Math.max(0, Number(value) || 0))
-        : [Math.max(0, Number(draft.qty) || 0)];
-      const savedProduct: Product = {
-        id,
-        sourceId: product?.sourceId,
-        title: draft.title.trim(),
-        variant: draft.optionValues[0] ?? product?.variant ?? "",
-        price,
-        compareAt: draft.compare.trim() ? Number(draft.compare) : undefined,
-        cost: Number(draft.cost) || 0,
-        sku: draft.sku.trim(),
-        barcode: draft.barcode.trim() || undefined,
-        stock: quantities.reduce((sum, value) => sum + value, 0),
-        status: draft.status,
-        category: draft.category,
-        vendor: draft.vendor,
-        tone: product?.tone ?? "#e7e2d9",
-        media: [...draft.media],
-        tags: draft.tags,
-        collections: draft.collections,
-        option: draft.optionValues.length ? { name: draft.optionName || "אפשרות", values: draft.optionValues } : undefined,
-        quantities: draft.optionValues.length ? quantities : undefined,
-        description: draft.description,
-      };
-      saveCatalogProduct(savedProduct);
-      const next = fromProduct(savedProduct);
-      setDraft(next);
-      setSaved(next);
-      setSaving(false);
-      toast("המוצר נשמר");
-      if (productId == null) router.replace(`/admin/products/${id}`);
-    }, 600);
+    const id = product?.id ?? nextProductId();
+    const quantities = draft.optionValues.length
+      ? draft.variantQty.map((value) => Math.max(0, Number(value) || 0))
+      : [Math.max(0, Number(draft.qty) || 0)];
+    const savedProduct: Product = {
+      id,
+      sourceId: product?.sourceId,
+      title: draft.title.trim(),
+      variant: draft.optionValues[0] ?? product?.variant ?? "",
+      price,
+      compareAt: draft.compare.trim() ? Number(draft.compare) : undefined,
+      cost: Number(draft.cost) || 0,
+      sku: draft.sku.trim(),
+      barcode: draft.barcode.trim() || undefined,
+      stock: quantities.reduce((sum, value) => sum + value, 0),
+      status: draft.status,
+      category: draft.category,
+      vendor: draft.vendor,
+      tone: product?.tone ?? "#e7e2d9",
+      media: [...draft.media],
+      tags: draft.tags,
+      collections: draft.collections,
+      option: draft.optionValues.length ? { name: draft.optionName || "אפשרות", values: draft.optionValues } : undefined,
+      quantities: draft.optionValues.length ? quantities : undefined,
+      description: draft.description,
+    };
+    void saveCatalogProduct(savedProduct)
+      .then((stored) => {
+        const next = fromProduct(stored);
+        setDraft(next);
+        setSaved(next);
+        toast(stored.status === "active" ? "המוצר נשמר ויופיע באתר" : "המוצר נשמר. רק מוצר בסטטוס פעיל מופיע באתר");
+        if (productId == null) router.replace(`/admin/products/${id}`);
+      })
+      .catch((error: unknown) => {
+        toast(error instanceof Error ? error.message : "שמירת המוצר נכשלה");
+      })
+      .finally(() => setSaving(false));
   }
 
   useUnsavedEditor(dirty, saving, save, discard);

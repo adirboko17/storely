@@ -99,38 +99,87 @@ function rememberProductSource(localId: number, sourceId: string) {
   });
 }
 
-function persistProduct(product: Product) {
-  if (typeof window === "undefined") return;
-  const storeId = getStoreIdentity().storeId;
-  if (!storeId) return;
+const mediaBucket = "product-media";
+
+function publicMediaUrl(path: string) {
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
+  return `${base}/storage/v1/object/public/${mediaBucket}/${path}`;
+}
+
+function storedMediaPath(value: string, storeId: string, productId: string) {
+  const marker = `/storage/v1/object/public/${mediaBucket}/`;
+  const index = value.indexOf(marker);
+  const path = index >= 0 ? decodeURIComponent(value.slice(index + marker.length).split("?")[0] ?? "") : value;
+  const prefix = `${storeId}/${productId}/`;
+  return path.startsWith(prefix) ? path : null;
+}
+
+async function uploadProductMedia(storeId: string, productId: string, media: string[]) {
   const supabase = createSupabaseBrowserClient();
-  void supabase
-    .rpc("save_store_product", {
-      target_store: storeId,
-      product_id: product.sourceId ?? null,
-      product_title: product.title,
-      product_status: product.status,
-      product_price: product.price,
-      product_compare: product.compareAt ?? null,
-      product_cost: product.cost,
-      product_vendor: product.vendor,
-      product_category: product.category,
-      product_description: product.description ?? "",
-      product_tags: product.tags,
-      product_sku: product.sku,
-      product_barcode: product.barcode ?? null,
-      product_stock: product.stock,
-      variant_title: product.variant,
-    })
-    .then(({ data }) => {
-      if (typeof data === "string" && data && data !== product.sourceId) rememberProductSource(product.id, data);
-    });
+  const paths: string[] = [];
+  for (const item of media) {
+    const existing = storedMediaPath(item, storeId, productId);
+    if (existing) {
+      paths.push(existing);
+      continue;
+    }
+    if (!item.startsWith("data:image/")) continue;
+    const blob = await fetch(item).then((response) => response.blob());
+    const extension = blob.type === "image/jpeg" ? "jpg" : blob.type.split("/")[1];
+    if (!extension || !["jpg", "png", "webp", "gif", "avif"].includes(extension)) {
+      throw new Error("אפשר לשמור רק תמונות jpg, png, webp, gif או avif");
+    }
+    const path = `${storeId}/${productId}/${crypto.randomUUID()}.${extension}`;
+    const { error } = await supabase.storage.from(mediaBucket).upload(path, blob, { contentType: blob.type, upsert: false });
+    if (error) throw new Error("העלאת התמונה נכשלה");
+    paths.push(path);
+  }
+  const { error } = await supabase.rpc("save_store_product_media", {
+    target_store: storeId,
+    product_id: productId,
+    media_paths: paths,
+  });
+  if (error) throw new Error("שמירת התמונות נכשלה");
+  return paths.map(publicMediaUrl);
+}
+
+async function persistProduct(product: Product) {
+  if (typeof window === "undefined") return null;
+  const storeId = getStoreIdentity().storeId;
+  if (!storeId) return null;
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc("save_store_product", {
+    target_store: storeId,
+    product_id: product.sourceId ?? null,
+    product_title: product.title,
+    product_status: product.status,
+    product_price: product.price,
+    product_compare: product.compareAt ?? null,
+    product_cost: product.cost,
+    product_vendor: product.vendor,
+    product_category: product.category,
+    product_description: product.description ?? "",
+    product_tags: product.tags,
+    product_sku: product.sku,
+    product_barcode: product.barcode ?? null,
+    product_stock: product.stock,
+    variant_title: product.variant,
+  });
+  if (error || typeof data !== "string" || !data) throw new Error("שמירת המוצר נכשלה");
+  if (data !== product.sourceId) rememberProductSource(product.id, data);
+  if (product.media) {
+    const media = await uploadProductMedia(storeId, data, product.media);
+    return { ...product, sourceId: data, media };
+  }
+  return { ...product, sourceId: data };
 }
 
 export function setProductStatuses(ids: number[], status: ProductStatus) {
   const products = current.products.map((product) => (ids.includes(product.id) ? { ...product, status } : product));
   publish({ ...current, products });
-  products.filter((product) => ids.includes(product.id)).forEach(persistProduct);
+  products.filter((product) => ids.includes(product.id)).forEach((product) => {
+    void persistProduct(product).catch(() => undefined);
+  });
 }
 
 export function deleteCatalogProducts(ids: number[]) {
@@ -143,14 +192,20 @@ export function deleteCatalogProducts(ids: number[]) {
   void supabase.rpc("delete_store_products", { target_store: storeId, product_ids: sourceIds });
 }
 
-export function saveCatalogProduct(product: Product) {
+export async function saveCatalogProduct(product: Product) {
   const exists = current.products.some((item) => item.id === product.id);
   const saved = cloneProduct(product);
   publish({
     ...current,
     products: exists ? current.products.map((item) => (item.id === product.id ? saved : item)) : [saved, ...current.products],
   });
-  persistProduct(saved);
+  const stored = await persistProduct(saved);
+  if (!stored) return saved;
+  publish({
+    ...current,
+    products: current.products.map((item) => (item.id === stored.id ? cloneProduct(stored) : item)),
+  });
+  return stored;
 }
 
 export function nextProductId() {
@@ -166,7 +221,7 @@ export function setVariantQuantity(productId: number, index: number, quantity: n
   });
   publish({ ...current, products });
   const product = products.find((item) => item.id === productId);
-  if (product) persistProduct(product);
+  if (product) void persistProduct(product).catch(() => undefined);
 }
 
 export function listGiftCards() {
