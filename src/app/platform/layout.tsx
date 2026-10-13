@@ -1,8 +1,19 @@
+import { Suspense } from "react";
+import { io } from "next/cache";
 import { redirect } from "next/navigation";
 import { PlatformShell } from "@/components/platform/platform-shell";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export default async function PlatformLayout({ children }: { children: React.ReactNode }) {
+export default function PlatformLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<div className="h-dvh bg-shell" />}>
+      <PlatformFrame>{children}</PlatformFrame>
+    </Suspense>
+  );
+}
+
+async function PlatformFrame({ children }: { children: React.ReactNode }) {
+  await io();
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
