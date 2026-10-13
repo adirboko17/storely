@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
-import { AssistantDock, ColumnsButton, darkButton, softButton } from "@/components/admin/orders/chrome";
+import { ColumnsButton, darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { Icon } from "@/components/ui/icon";
 import {
@@ -124,7 +124,6 @@ export function DiscountsListScreen() {
         </div>
       ) : null}
       <div className="min-h-[70px] flex-1" />
-      <AssistantDock />
       {picker ? (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4" onClick={() => setPicker(false)}>
           <div role="dialog" aria-label="בחירת סוג הנחה" className="w-full max-w-[520px] rounded-2xl bg-white p-5" onClick={(event) => event.stopPropagation()}>

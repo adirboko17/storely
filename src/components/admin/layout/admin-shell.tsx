@@ -1,15 +1,16 @@
 "use client";
 
+import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { SearchDialog } from "@/components/admin/layout/search-dialog";
 import { Sidebar } from "@/components/admin/layout/sidebar";
 import { ToastViewport } from "@/components/admin/layout/toast-viewport";
 import { TopBar } from "@/components/admin/layout/top-bar";
 import { UnsavedBar } from "@/components/admin/layout/unsaved-bar";
-import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { cn } from "@/lib/cn";
 import type { NavItem } from "@/lib/navigation/nav";
 
 export function AdminShell({ children, navItems }: { children: React.ReactNode; navItems: NavItem[] }) {
-  const { narrow, navCollapsed, navOpen, toggleNav, menu, closeMenu } = useAdmin();
+  const { narrow, navCollapsed, navOpen, toggleNav, menu, closeMenu, searchOpen } = useAdmin();
   const showSide = narrow ? navOpen : !navCollapsed;
   const showBar = narrow || navCollapsed;
 
@@ -31,6 +32,7 @@ export function AdminShell({ children, navItems }: { children: React.ReactNode; 
         <div className="fixed inset-0 z-[25] bg-black/35" onClick={toggleNav} />
       ) : null}
       <ToastViewport />
+      {searchOpen ? <SearchDialog navItems={navItems} /> : null}
     </div>
   );
 }

@@ -18,6 +18,9 @@ type AdminContextValue = {
   menu: string | null;
   toggleMenu: (id: string) => void;
   closeMenu: () => void;
+  searchOpen: boolean;
+  openSearch: () => void;
+  closeSearch: () => void;
   toastMessage: string | null;
   toast: (message: string) => void;
   dismissToast: () => void;
@@ -40,6 +43,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [navCollapsed, setNavCollapsed] = useState(false);
   const [navState, setNavState] = useState({ open: false, path: pathname });
   const [menuState, setMenuState] = useState<{ id: string; path: string } | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const navOpen = navState.path === pathname && navState.open;
   const menu = menuState?.path === pathname ? menuState.id : null;
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -54,10 +58,14 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    setSearchOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        document.getElementById("admin-search")?.focus();
+        setSearchOpen((open) => !open);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -97,13 +105,19 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
           current?.path === pathname && current.id === id ? null : { id, path: pathname },
         ),
       closeMenu: () => setMenuState(null),
+      searchOpen,
+      openSearch: () => {
+        setMenuState(null);
+        setSearchOpen(true);
+      },
+      closeSearch: () => setSearchOpen(false),
       toastMessage,
       toast,
       dismissToast: () => setToastMessage(null),
       editor,
       setEditor: (next) => setEditorState(next ?? idleEditor),
     }),
-    [narrow, navCollapsed, navOpen, pathname, menu, toastMessage, toast, editor],
+    [narrow, navCollapsed, navOpen, pathname, menu, searchOpen, toastMessage, toast, editor],
   );
 
   return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>;

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
-import { AssistantDock, darkButton, softButton } from "@/components/admin/orders/chrome";
+import { darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { CUSTOMERS } from "@/data/mock/customers";
 import { createGiftCard, getCatalogVersion, listGiftCards, subscribeCatalog } from "@/data/mock/catalog-session";
@@ -96,7 +96,6 @@ export function GiftCardsScreen() {
         </>
       )}
       <div className="min-h-10 flex-1" />
-      <AssistantDock />
       {open ? (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4" onClick={() => setOpen(false)}>
           <div role="dialog" aria-label="יצירת כרטיס מתנה" className="w-full max-w-[440px] rounded-2xl bg-white p-5" onClick={(event) => event.stopPropagation()}>

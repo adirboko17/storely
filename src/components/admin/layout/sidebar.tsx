@@ -17,7 +17,7 @@ function itemActive(pathname: string, item: NavItem) {
 
 export function Sidebar({ navItems }: { navItems: NavItem[] }) {
   const pathname = usePathname();
-  const { narrow, toggleNav, menu, toggleMenu, toast } = useAdmin();
+  const { narrow, toggleNav, menu, toggleMenu, toast, openSearch } = useAdmin();
   useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
   const unfulfilled = unfulfilledCount();
   const profileOpen = menu === "profile";
@@ -46,17 +46,19 @@ export function Sidebar({ navItems }: { navItems: NavItem[] }) {
         </button>
       </div>
 
-      <div className="mb-2.5 flex h-[34px] items-center gap-2 rounded-[10px] bg-[#303030] px-2.5 text-[#b5b5b5] hover:bg-[#3a3a3a]">
-        <Icon name="search" size={16} strokeWidth={1.8} />
-        <input
+      <div className="mb-2.5 w-full rounded-[10px] bg-[#303030] hover:bg-[#3a3a3a]">
+        <button
           id="admin-search"
-          placeholder="חיפוש"
-          className="min-w-0 flex-1 border-0 text-sm text-white outline-none placeholder:text-[#b5b5b5]"
-          style={{ backgroundColor: "transparent", color: "#fff" }}
-        />
-        <span dir="ltr" className="text-xs font-semibold text-[#b5b5b5]">
-          Ctrl K
-        </span>
+          type="button"
+          onClick={openSearch}
+          className="flex h-10 w-full items-center gap-2.5 rounded-[10px] bg-transparent px-3 text-start text-sm text-white"
+        >
+          <Icon name="search" size={16} strokeWidth={1.8} className="shrink-0 text-[#b5b5b5]" />
+          <span className="min-w-0 flex-1 text-[#b5b5b5]">חיפוש</span>
+          <span dir="ltr" className="text-xs font-semibold text-[#b5b5b5]">
+            Ctrl K
+          </span>
+        </button>
       </div>
 
       {navItems.map((item) => {

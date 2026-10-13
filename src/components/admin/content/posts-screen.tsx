@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useSyncExternalStore } from "react";
-import { AssistantDock, darkButton, softButton } from "@/components/admin/orders/chrome";
+import { darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { getPostsVersion, listPosts, subscribePosts } from "@/data/mock/content-session";
 
@@ -53,7 +53,6 @@ export function PostsScreen() {
         )}
       </div>
       <div className="flex-1" />
-      <AssistantDock />
     </div>
   );
 }

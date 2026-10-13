@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { notFound } from "next/navigation";
-import { AssistantDock } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
 import {
@@ -183,7 +182,6 @@ export function CollectionEditorScreen({ collectionKey }: { collectionKey: strin
         </aside>
       </div>
       <div className="flex-1" />
-      <AssistantDock />
     </div>
   );
 }

@@ -1,10 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { Icon } from "@/components/ui/icon";
-import { assistantDestination } from "@/lib/navigation/nav";
 
 export const softButton =
   "inline-flex h-[30px] items-center gap-1 rounded-[10px] border-0 bg-white px-3 text-sm font-semibold text-ink shadow-[0_0_0_1px_rgba(0,0,0,.1),0_1px_1px_rgba(0,0,0,.04)] hover:bg-[#f7f7f7]";
@@ -35,58 +31,9 @@ function Chevron({ direction }: { direction: "up" | "down" | "left" | "right" })
   );
 }
 
-export function AssistantPill() {
-  const router = useRouter();
-  const { toast } = useAdmin();
-  const [query, setQuery] = useState("");
-  const ready = query.trim().length > 0;
-
-  function send() {
-    const text = query.trim();
-    if (!text) return;
-    setQuery("");
-    const destination = assistantDestination(text);
-    if (!destination) {
-      toast("העוזר יוכל לענות על שאלות כאלה בשלב הבא");
-      return;
-    }
-    router.push(destination.href);
-    toast(destination.toast);
-  }
-
-  return (
-    <div className="pointer-events-auto flex h-11 w-full max-w-[400px] items-center gap-2 rounded-[14px] bg-white py-0 pr-3 pl-2 shadow-[0_0_0_1px_rgba(0,0,0,.08),0_6px_18px_rgba(0,0,0,.12)]">
-      <span className="grid size-6 shrink-0 place-items-center rounded-lg bg-[#ede7fb] text-[#5b3fc4]">
-        <Icon name="spark" size={14} strokeWidth={1.8} />
-      </span>
-      <input
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.shiftKey) {
-            event.preventDefault();
-            send();
-          }
-        }}
-        placeholder="שאלו את העוזר"
-        className="h-8 min-w-0 flex-1 border-0 bg-transparent text-sm text-ink outline-none"
-      />
-      <button
-        type="button"
-        aria-label="שליחה"
-        onClick={send}
-        className="grid size-7 place-items-center rounded-lg border-0"
-        style={{ background: ready ? "#303030" : "#f1f1f1", color: ready ? "#fff" : "#b5b5b5" }}
-      >
-        <Icon name="send" size={16} strokeWidth={1.9} />
-      </button>
-    </div>
-  );
-}
-
 export function IndexDock({ pageLabel }: { pageLabel: string }) {
   return (
-    <div className="sticky bottom-2.5 z-[5] flex items-center gap-3 px-3 pointer-events-none">
+    <div className="sticky bottom-2.5 z-[5] flex px-3 pointer-events-none">
       <div className="pointer-events-auto flex h-10 items-center gap-1.5 rounded-xl bg-white px-1.5 shadow-[0_0_0_1px_rgba(0,0,0,.08),0_4px_14px_rgba(0,0,0,.1)]">
         <button type="button" disabled aria-label="הקודם" className="grid size-7 place-items-center rounded-lg border-0 bg-transparent text-[#b5b5b5]">
           <Chevron direction="right" />
@@ -98,18 +45,6 @@ export function IndexDock({ pageLabel }: { pageLabel: string }) {
           <Chevron direction="left" />
         </button>
       </div>
-      <div className="flex flex-1 justify-center">
-        <AssistantPill />
-      </div>
-      <div className="w-[120px]" />
-    </div>
-  );
-}
-
-export function AssistantDock() {
-  return (
-    <div className="sticky bottom-2.5 z-[5] flex justify-center pointer-events-none">
-      <AssistantPill />
     </div>
   );
 }

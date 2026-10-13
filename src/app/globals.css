@@ -108,13 +108,27 @@ select {
   color: #fff;
 }
 
-#admin-search::placeholder {
-  color: #b5b5b5;
+#admin-command-search {
+  background-color: transparent;
+  color: #303030;
+}
+
+#admin-command-search::placeholder {
+  color: #8a8a8a;
 }
 
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 1px;
+}
+
+#admin-search:focus,
+#admin-search:focus-visible,
+#admin-command-search:focus,
+#admin-command-search:focus-visible {
+  outline: none !important;
+  outline-offset: 0;
+  box-shadow: none;
 }
 
 .storely-link {

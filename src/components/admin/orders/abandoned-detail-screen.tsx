@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSyncExternalStore } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
-import { AssistantDock, CopyIcon, softButton } from "@/components/admin/orders/chrome";
+import { CopyIcon, softButton } from "@/components/admin/orders/chrome";
 import { Icon } from "@/components/ui/icon";
 import { abandonedSlug } from "@/data/mock/abandoned";
 import { getOrderSessionVersion, listLiveCheckouts, patchCheckout, subscribeOrderSession } from "@/data/mock/order-session";
@@ -263,7 +263,6 @@ export function AbandonedDetailScreen({ checkoutId }: { checkoutId: string }) {
         </aside>
       </div>
       <div className="flex-1" />
-      <AssistantDock />
     </div>
   );
 }

@@ -6,7 +6,6 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { notFound } from "next/navigation";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
-import { AssistantDock } from "@/components/admin/orders/chrome";
 import {
   getCatalogProduct,
   getCatalogVersion,
@@ -439,7 +438,6 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
           </div>
         </aside>
       </div>
-      <AssistantDock />
     </div>
   );
 }

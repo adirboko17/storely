@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { notFound } from "next/navigation";
-import { AssistantDock, darkButton, softButton } from "@/components/admin/orders/chrome";
+import { darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { customerSpent } from "@/components/admin/customers/customers-list-screen";
 import { getPeopleVersion, getPerson, listPeople, patchProfile, profileOf, subscribePeople } from "@/data/mock/people-session";
@@ -184,7 +184,6 @@ export function CustomerProfileScreen({ customerId }: { customerId: number }) {
         </aside>
       </div>
       <div className="flex-1" />
-      <AssistantDock />
       {addressOpen ? (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4" onClick={() => setAddressOpen(false)}>
           <div role="dialog" aria-label="כתובת" className="w-full max-w-[440px] rounded-2xl bg-white p-5" onClick={(event) => event.stopPropagation()}>

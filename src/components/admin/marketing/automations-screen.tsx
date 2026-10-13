@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useSyncExternalStore } from "react";
-import { AssistantDock, darkButton, softButton } from "@/components/admin/orders/chrome";
+import { darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { createFlow, getMarketingVersion, listFlows, subscribeMarketing, toggleFlow } from "@/data/mock/marketing-session";
 import { formatInteger, formatMoney0 } from "@/lib/formatting/money";
@@ -65,7 +65,6 @@ export function AutomationsScreen() {
         </div>
       </div>
       <div className="flex-1" />
-      <AssistantDock />
     </div>
   );
 }
