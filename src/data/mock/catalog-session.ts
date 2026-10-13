@@ -123,6 +123,10 @@ async function uploadProductMedia(storeId: string, productId: string, media: str
       paths.push(existing);
       continue;
     }
+    if (/^https:\/\//i.test(item)) {
+      paths.push(item);
+      continue;
+    }
     if (!item.startsWith("data:image/")) continue;
     const blob = await fetch(item).then((response) => response.blob());
     const extension = blob.type === "image/jpeg" ? "jpg" : blob.type.split("/")[1];
@@ -140,9 +144,8 @@ async function uploadProductMedia(storeId: string, productId: string, media: str
     media_paths: paths,
   });
   if (error) throw new Error("שמירת התמונות נכשלה");
-  if (Array.isArray(removed) && removed.length > 0) {
-    await supabase.storage.from(mediaBucket).remove(removed.filter((path): path is string => typeof path === "string"));
-  }
+  const stale = Array.isArray(removed) ? removed.filter((path): path is string => typeof path === "string" && !path.startsWith("http")) : [];
+  if (stale.length > 0) await supabase.storage.from(mediaBucket).remove(stale);
   return paths.map(publicMediaUrl);
 }
 

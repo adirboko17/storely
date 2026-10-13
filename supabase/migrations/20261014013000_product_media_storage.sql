@@ -94,7 +94,7 @@ begin
     select 1
     from public.products as product
     where product.store_id = target_store
-      and product.id = product_id
+      and product.id = save_store_product_media.product_id
   ) then
     raise exception 'המוצר לא נמצא' using errcode = '42501';
   end if;
@@ -102,8 +102,13 @@ begin
   if media_paths is not null then
     foreach object_path in array media_paths loop
       if object_path is null
-        or left(object_path, length(prefix)) <> prefix
-        or substring(object_path from length(prefix) + 1) !~ '^[A-Za-z0-9._-]+$'
+        or not (
+          object_path ~* '^https://'
+          or (
+            left(object_path, length(prefix)) = prefix
+            and substring(object_path from length(prefix) + 1) ~ '^[A-Za-z0-9._-]+$'
+          )
+        )
       then
         raise exception 'נתיב מדיה לא תקין' using errcode = '22023';
       end if;
@@ -114,17 +119,17 @@ begin
   into removed
   from public.product_media as media
   where media.store_id = target_store
-    and media.product_id = product_id
+    and media.product_id = save_store_product_media.product_id
     and not (media.path = any (coalesce(media_paths, '{}'::text[])));
 
   delete from public.product_media as media
   where media.store_id = target_store
-    and media.product_id = product_id;
+    and media.product_id = save_store_product_media.product_id;
 
   if media_paths is not null then
     foreach object_path in array media_paths loop
       insert into public.product_media (store_id, product_id, path, position)
-      values (target_store, product_id, object_path, next_position);
+      values (target_store, save_store_product_media.product_id, object_path, next_position);
       next_position := next_position + 1;
     end loop;
   end if;
