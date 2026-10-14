@@ -12,7 +12,9 @@ const TEMPLATES = [
   { key: "cart" as const, name: "עגלה נטושה", detail: "תזכורת שעה אחרי שהלקוח עזב עגלה מלאה, ותזכורת שנייה עם הנחה.", channels: ["דוא״ל", "SMS"] },
   { key: "welcome" as const, name: "סדרת ברוכים הבאים", detail: "היכרות עם המותג וקוד הנחה לרכישה ראשונה.", channels: ["דוא״ל"] },
   { key: "thanks" as const, name: "תודה על הרכישה", detail: "הודעת תודה, ואחרי שבוע בקשה לביקורת.", channels: ["דוא״ל"] },
-  { key: "blank" as const, name: "אוטומציה ריקה", detail: "בנו אוטומציה משלכם מאפס.", channels: [] as string[] },
+  { key: "campaign" as const, name: "מבצע לקהל", detail: "הודעה לכל הלקוחות, למנויים או לפלח. למשל מבצע חדש.", channels: ["דוא״ל"] },
+  { key: "winback" as const, name: "החזרת לקוח", detail: "לקוח שלא קנה כבר 30 יום.", channels: ["דוא״ל", "SMS"] },
+  { key: "blank" as const, name: "אוטומציה ריקה", detail: "בוחרים טריגר ובונים את השלבים.", channels: [] as string[] },
 ];
 
 export function AutomationsScreen({ messaging }: { messaging: StoreMessagingStatus }) {
@@ -68,7 +70,7 @@ export function AutomationsScreen({ messaging }: { messaging: StoreMessagingStat
           })}
         </div>
         <h2 className="m-0 mt-2.5 text-[15px] font-semibold">התחילו מתבנית</h2>
-        <div className="grid gap-3 min-[800px]:grid-cols-4">
+        <div className="grid gap-3 min-[800px]:grid-cols-3">
           {TEMPLATES.map((template) => (
             <button key={template.key} type="button" className="flex flex-col gap-2 rounded-[14px] border-0 bg-white p-3.5 text-start text-ink shadow-[0_0_0_1px_rgba(0,0,0,.08)]" onClick={() => { const flow = createFlow(template.key); router.push(`/admin/marketing/automations/${flow.id}`); }}>
               <b>{template.name}</b>

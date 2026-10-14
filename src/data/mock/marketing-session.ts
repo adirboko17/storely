@@ -9,11 +9,15 @@ export type IntegrationState = {
   body: string;
 };
 
+export type FlowRule = { field: string; op: string; value: string };
+
 export type FlowStep =
   | { type: "wait"; value: string; unit: string }
-  | { type: "cond"; text: string }
+  | { type: "cond"; text?: string; match?: "all" | "any"; rules?: FlowRule[]; yes?: FlowStep[]; no?: FlowStep[] }
+  | { type: "ab"; percent: number; a?: FlowStep[]; b?: FlowStep[] }
   | { type: "email"; subject: string; preview: string; body: string }
-  | { type: "sms"; text: string };
+  | { type: "sms"; text: string }
+  | { type: "end" };
 
 export type Flow = {
   id: number;
@@ -37,10 +41,28 @@ export const INTEGRATIONS = [
 const email = (subject: string, preview: string, body: string): FlowStep => ({ type: "email", subject, preview, body });
 const sms = (text: string): FlowStep => ({ type: "sms", text });
 
+export const FLOW_TRIGGERS = [
+  { id: "cart", group: "אירוע", label: "הלקוח נטש עגלה", detail: "עגלה מלאה שלא הפכה להזמנה" },
+  { id: "checkout", group: "אירוע", label: "התחיל תשלום ולא סיים", detail: "הגיע לקופה ולא שילם" },
+  { id: "paid", group: "אירוע", label: "הזמנה שולמה", detail: "אחרי תשלום שהתקבל" },
+  { id: "fulfilled", group: "אירוע", label: "הזמנה סופקה", detail: "אחרי שהמשלוח יצא" },
+  { id: "subscribed", group: "אירוע", label: "לקוח נרשם לדיוור", detail: "הצטרפות לרשימת התפוצה" },
+  { id: "created", group: "אירוע", label: "לקוח חדש נוצר", detail: "הרשמה או הזמנה ראשונה" },
+  { id: "browse", group: "אירוע", label: "צפה במוצר ולא קנה", detail: "עניין במוצר בלי רכישה" },
+  { id: "winback", group: "אירוע", label: "לא קנה 30 יום", detail: "לקוח שקט שכדאי להחזיר" },
+  { id: "all", group: "קהל", label: "כל הלקוחות", detail: "מבצע, עדכון או הודעה לכל הרשימה" },
+  { id: "subs", group: "קהל", label: "כל המנויים לדיוור", detail: "רק מי שאישר לקבל דיוור" },
+  { id: "vip", group: "קהל", label: "פלח: לקוחות VIP", detail: "הפלח השמור של לקוחות VIP" },
+  { id: "fresh", group: "קהל", label: "פלח: לקוחות חדשים", detail: "לקוחות מהתקופה האחרונה" },
+  { id: "repeat", group: "קהל", label: "פלח: רכשו יותר מפעמיים", detail: "לקוחות שחזרו לקנות" },
+] as const;
+
 const TEMPLATES: Array<Omit<Flow, "id" | "on" | "stats"> & { key: string }> = [
   { key: "cart", name: "עגלה נטושה", trigger: "הלקוח נטש עגלה", steps: [{ type: "wait", value: "1", unit: "שעות" }, email("שכחתם משהו בעגלה?", "המוצרים שבחרתם עדיין מחכים", "היי {first_name}, שמרנו את העגלה."), { type: "wait", value: "1", unit: "ימים" }, sms("היי {first_name}, העגלה שלך עדיין מחכה. 10% הנחה: {checkout_url}")] },
   { key: "welcome", name: "סדרת ברוכים הבאים", trigger: "לקוח נרשם לדיוור", steps: [email("ברוכים הבאים ל-Storely", "10% הנחה לרכישה הראשונה", "שמחים שהצטרפתם."), { type: "wait", value: "3", unit: "ימים" }, email("הסיפור שמאחורי הסטודיו", "איך נולד כל ספל", "רצינו לשתף איך אנחנו עובדים.")] },
   { key: "thanks", name: "תודה על הרכישה", trigger: "הזמנה שולמה", steps: [{ type: "wait", value: "2", unit: "שעות" }, email("תודה על ההזמנה", "ההזמנה שלכם בדרך", "אנחנו כבר אורזים אותה."), { type: "wait", value: "7", unit: "ימים" }, email("איך היה?", "נשמח לביקורת", "נקדיש דקה לביקורת על המוצר.")] },
+  { key: "campaign", name: "מבצע לקהל", trigger: "כל הלקוחות", steps: [email("מבצע חדש בחנות", "רק להשבוע", "היי {first_name}, יש לנו מבצע חדש.")] },
+  { key: "winback", name: "החזרת לקוח", trigger: "לא קנה 30 יום", steps: [email("התגעגענו", "מתנה לחזרה", "היי {first_name}, עבר זמן מאז הקנייה האחרונה."), { type: "wait", value: "3", unit: "ימים" }, sms("היי {first_name}, מחכים לך עם הטבה.")] },
 ];
 
 type Snapshot = {
@@ -93,7 +115,7 @@ export function disconnectIntegration(key: string) {
 }
 
 export function listFlows() {
-  return current.flows.map((flow) => ({ ...flow, steps: flow.steps.map((step) => ({ ...step })) }));
+  return current.flows.map((flow) => ({ ...flow, steps: flow.steps.map((step) => structuredClone(step)) }));
 }
 
 export function getFlow(id: number) {
@@ -109,13 +131,13 @@ export function toggleFlow(id: number) {
   publish({ ...current, flows: current.flows.map((flow) => (flow.id === id ? { ...flow, on: !flow.on } : flow)) });
 }
 
-export function createFlow(template: "cart" | "welcome" | "thanks" | "blank") {
+export function createFlow(template: "cart" | "welcome" | "thanks" | "campaign" | "winback" | "blank") {
   const source = TEMPLATES.find((item) => item.key === template);
   const id = Math.max(0, ...current.flows.map((flow) => flow.id)) + 1;
   const flow: Flow = {
     id,
     name: source?.name ?? "אוטומציה חדשה",
-    trigger: source?.trigger ?? "הלקוח נטש עגלה",
+    trigger: source?.trigger ?? "בחרו טריגר",
     on: false,
     steps: source ? source.steps.map((step) => ({ ...step })) : [],
     stats: null,
