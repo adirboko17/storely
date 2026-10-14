@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { enterClientStore, updatePlatformStore } from "@/app/platform/actions";
 import { darkButton, softButton } from "@/components/admin/orders/chrome";
+import { StoreMessagingCard } from "@/components/platform/store-messaging-card";
 import type { PlatformStore } from "@/components/platform/types";
+import type { StoreMessagingStatus } from "@/data/live/messaging";
 import { storeConnectionPrompt } from "@/tracking/connection-prompt";
 
 const field = "h-[34px] w-full rounded-[10px] border border-[#c9c9c9] bg-white px-3 text-sm text-ink outline-none focus-visible:border-[#1a1a1a]";
@@ -12,10 +14,12 @@ const card = "rounded-2xl bg-white p-4 shadow-[0_0_0_1px_rgba(0,0,0,.09),0_1px_2
 
 export function StoreDetailScreen({
   store,
+  messaging,
   supabaseUrl,
   publishableKey,
 }: {
   store: PlatformStore;
+  messaging: StoreMessagingStatus;
   supabaseUrl: string;
   publishableKey: string;
 }) {
@@ -165,6 +169,9 @@ export function StoreDetailScreen({
           ) : null}
         </aside>
       </form>
+      <div className="mx-auto w-full max-w-[1120px] px-4 pb-12 min-[1000px]:px-6">
+        <StoreMessagingCard storeId={store.id} messaging={messaging} />
+      </div>
     </div>
   );
 }

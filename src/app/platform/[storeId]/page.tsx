@@ -4,6 +4,7 @@ import { io } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { StoreDetailScreen } from "@/components/platform/store-detail-screen";
 import type { PlatformStore } from "@/components/platform/types";
+import { emptyMessaging, parseMessaging } from "@/data/live/messaging";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -24,13 +25,17 @@ async function StoreDetail({ params }: { params: Promise<{ storeId: string }> })
   if (!/^[0-9a-f-]{36}$/i.test(storeId)) notFound();
 
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc("list_platform_overview");
+  const [{ data, error }, { data: messaging }] = await Promise.all([
+    supabase.rpc("list_platform_overview"),
+    supabase.rpc("store_messaging_status", { target_store: storeId }),
+  ]);
   if (error || !Array.isArray(data)) redirect("/login");
   const store = (data as PlatformStore[]).find((item) => item.id === storeId);
   if (!store) notFound();
   return (
     <StoreDetailScreen
       store={store}
+      messaging={messaging == null ? emptyMessaging() : parseMessaging(messaging)}
       supabaseUrl={process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}
       publishableKey={process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? ""}
     />

@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { parseMessaging, type StoreMessagingStatus } from "@/data/live/messaging";
 import { parseTraffic, type StoreTraffic } from "@/data/live/traffic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -67,6 +68,15 @@ export async function loadStoreAttribution(): Promise<AttributionChannel[]> {
       days,
     }];
   });
+}
+
+export async function loadStoreMessaging(): Promise<StoreMessagingStatus | null> {
+  const storeId = await resolveAdminStoreId();
+  if (!storeId) return null;
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("store_messaging_status", { target_store: storeId });
+  if (error || data == null) return null;
+  return parseMessaging(data);
 }
 
 export async function loadStoreTraffic(): Promise<StoreTraffic | null> {

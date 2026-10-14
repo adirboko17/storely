@@ -5,6 +5,7 @@ import { useSyncExternalStore } from "react";
 import { darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { createFlow, getMarketingVersion, listFlows, subscribeMarketing, toggleFlow } from "@/data/mock/marketing-session";
+import { channelLabel, type StoreMessagingStatus } from "@/data/live/messaging";
 import { formatInteger, formatMoney0 } from "@/lib/formatting/money";
 
 const TEMPLATES = [
@@ -14,13 +15,15 @@ const TEMPLATES = [
   { key: "blank" as const, name: "אוטומציה ריקה", detail: "בנו אוטומציה משלכם מאפס.", channels: [] as string[] },
 ];
 
-export function AutomationsScreen() {
+export function AutomationsScreen({ messaging }: { messaging: StoreMessagingStatus }) {
   const router = useRouter();
   const { toast } = useAdmin();
   useSyncExternalStore(subscribeMarketing, getMarketingVersion, () => 0);
   const flows = listFlows();
   const sent = flows.reduce((sum, flow) => sum + (flow.stats?.[0] ?? 0), 0);
   const revenue = flows.reduce((sum, flow) => sum + (flow.stats?.[3] ?? 0), 0);
+  const emailOn = messaging.email.saved && messaging.email.marketing;
+  const smsOn = messaging.sms.saved && messaging.sms.marketing;
 
   return (
     <div className="flex min-h-full flex-col">
@@ -31,10 +34,21 @@ export function AutomationsScreen() {
           <button type="button" className={darkButton} onClick={() => { const flow = createFlow("blank"); router.push(`/admin/marketing/automations/${flow.id}`); }}>יצירת אוטומציה</button>
         </div>
         <div className="grid overflow-hidden rounded-[14px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,.08)] min-[800px]:grid-cols-4">
-          {[["אוטומציות פעילות", String(flows.filter((flow) => flow.on).length)], ["הודעות שנשלחו (30 יום)", formatInteger(sent)], ["הכנסות מאוטומציות", formatMoney0(revenue)], ["יתרת SMS", "4,820"]].map(([label, value]) => (
-            <div key={label} className="flex flex-col gap-1 border-e border-[#ebebeb] px-[18px] py-3.5"><span className="text-[13px] text-[#4a4a4a]">{label}</span><b dir="ltr" className="text-right text-lg">{value}</b></div>
+          {([
+            ["אוטומציות פעילות", String(flows.filter((flow) => flow.on).length), false],
+            ["הודעות שנשלחו (30 יום)", formatInteger(sent), false],
+            ["הכנסות מאוטומציות", formatMoney0(revenue), false],
+            ["מייל מרקטינג", channelLabel(messaging.email), true],
+          ] as const).map(([label, value, connected]) => (
+            <div key={label} className="flex flex-col gap-1 border-e border-[#ebebeb] px-[18px] py-3.5"><span className="text-[13px] text-[#4a4a4a]">{label}</span><b className="text-lg" style={connected ? { color: emailOn ? "#0c5132" : "#8e1f0b" } : undefined}>{value}</b></div>
           ))}
         </div>
+        <p className="m-0 text-sm text-[#4a4a4a]">
+          {emailOn ? "מייל האוטומציות מחובר." : "מייל האוטומציות עדיין לא מחובר. מחברים את Resend בכרטיס החנות בסופר אדמין."}
+          {" "}SMS: {channelLabel(messaging.sms)}.{smsOn ? "" : " מחברים את Pulseem באותו כרטיס."}
+          {messaging.email.login ? " כניסה עם קוד למייל מסומנת לאתר הזה." : ""}
+          {messaging.sms.login ? " כניסה עם קוד ב-SMS מסומנת לאתר הזה." : ""}
+        </p>
         <h2 className="m-0 mt-1.5 text-[15px] font-semibold">האוטומציות שלכם</h2>
         <div className="overflow-hidden rounded-[14px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
           <div className="grid h-[34px] grid-cols-[minmax(0,1fr)_110px_90px_90px_90px_110px_50px] items-center gap-2.5 bg-[#f7f7f7] px-4 text-[13px] font-semibold text-[#4a4a4a]"><span>שם</span><span>ערוץ</span><span className="text-left">נשלחו</span><span className="text-left">פתיחה</span><span className="text-left">הקלקה</span><span className="text-left">הכנסות</span><span>פעיל</span></div>
