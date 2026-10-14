@@ -11,6 +11,7 @@ export function TrafficPoller({ storeId }: { storeId: string }) {
       const next = await loadStoreTraffic();
       if (!stopped && next) setStoreTraffic(next);
     }
+    void pull();
     const timer = window.setInterval(() => void pull(), 20000);
     return () => {
       stopped = true;

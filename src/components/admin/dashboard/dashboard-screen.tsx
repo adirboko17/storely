@@ -7,9 +7,10 @@ import { MetricPreview } from "@/components/admin/dashboard/metric-preview";
 import { SalesChart } from "@/components/admin/dashboard/sales-chart";
 import { Card } from "@/components/ui/card";
 import { getStoreIdentity, getStoreIdentityVersion, subscribeStoreIdentity } from "@/data/live/store-identity";
-import { getStoreTrafficVersion, subscribeStoreTraffic } from "@/data/live/traffic";
+import { getStoreTraffic, getStoreTrafficVersion, subscribeStoreTraffic } from "@/data/live/traffic";
 import { getOrderSessionVersion, subscribeOrderSession } from "@/data/mock/order-session";
 import { attentionCounts } from "@/data/mock/orders";
+import { formatInteger } from "@/lib/formatting/money";
 import { getAdminActor } from "@/platform/actor";
 import {
   DEFAULT_METRIC_SLOTS,
@@ -60,6 +61,7 @@ export function DashboardScreen({
   const span = useMemo(() => spanFromWindow(dashboardWindow), [dashboardWindow]);
   const rangeLabel = dashboardWindow.label;
   const trafficVersion = useSyncExternalStore(subscribeStoreTraffic, getStoreTrafficVersion, getStoreTrafficVersion);
+  const visitorsNow = getStoreTraffic().now.visitors;
   const metricCards = useMemo(() => {
     void trafficVersion;
     return dashboardMetrics(span, slots);
@@ -217,8 +219,8 @@ export function DashboardScreen({
           href="/admin/analytics/live"
           className="inline-flex min-w-[120px] flex-1 items-center justify-end gap-1.5 rounded-lg px-2 py-1 text-sm text-ink no-underline hover:bg-[#f1f1f1] hover:no-underline"
         >
-          מבקרים כעת <b>0</b>
-          <span className="size-[9px] animate-[pulse-dot_2s_ease-in-out_infinite] rounded-full border-2 border-[#29845a]" />
+          מבקרים כעת <b dir="ltr">{formatInteger(visitorsNow)}</b>
+          <span className={`size-[9px] animate-[pulse-dot_2s_ease-in-out_infinite] rounded-full border-2 border-[#29845a] ${visitorsNow > 0 ? "bg-[#29845a]" : ""}`} />
         </Link>
       </div>
 
