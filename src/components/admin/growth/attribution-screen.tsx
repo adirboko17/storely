@@ -1,49 +1,74 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import type { AttributionChannel } from "@/app/admin/traffic";
+import { formatInteger, formatMoney0 } from "@/lib/formatting/money";
 
-const LINES: Array<{ label: string; color: string; path: string }> = [];
+const COLORS = ["#2a5bd7", "#1fa7e8", "#6b3fe0", "#0c5132", "#8e1f0b"];
 
-const ROWS: string[][] = [];
+function linePath(values: number[], max: number) {
+  if (values.length < 2) return "";
+  return values
+    .map((value, index) => {
+      const x = (index / (values.length - 1)) * 1000;
+      const y = 220 - (max ? (value / max) * 190 : 0);
+      return `${index ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(" ");
+}
 
-export function AttributionScreen() {
+function bucket(days: number[], size: number) {
+  const groups: number[] = [];
+  for (let index = 0; index < days.length; index += size) {
+    groups.push(days.slice(index, index + size).reduce((sum, value) => sum + value, 0));
+  }
+  return groups.length ? groups : [0];
+}
+
+export function AttributionScreen({ channels }: { channels: AttributionChannel[] }) {
   const { toast } = useAdmin();
   const [granularity, setGranularity] = useState<"יומי" | "שבועי" | "חודשי">("יומי");
-  const [metric, setMetric] = useState(0);
   const [hidden, setHidden] = useState<number[]>([]);
   const [banner, setBanner] = useState(true);
   const [asc, setAsc] = useState(false);
-  const metrics = ["ביקורים לפי 5 הערוצים המובילים לאורך זמן", "הזמנות לפי 5 הערוצים המובילים לאורך זמן", "מכירות לפי 5 הערוצים המובילים לאורך זמן"];
-  const rows = [...ROWS].sort((a, b) => (asc ? Number(a[4].replace(/,/g, "")) - Number(b[4].replace(/,/g, "")) : Number(b[4].replace(/,/g, "")) - Number(a[4].replace(/,/g, ""))));
+  const rows = useMemo(
+    () => [...channels].sort((a, b) => (asc ? a.visits - b.visits : b.visits - a.visits)),
+    [asc, channels],
+  );
+  const top = rows.slice(0, 5);
+  const series = top.map((row) => (granularity === "יומי" ? row.days : granularity === "שבועי" ? bucket(row.days, 7) : bucket(row.days, 30)));
+  const max = Math.max(...series.flat(), 1);
 
   return (
     <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4 px-5 py-6">
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="m-0 flex-1 text-[22px] leading-7 font-bold">ייחוס</h1>
         <button type="button" className="h-[30px] rounded-[10px] border-0 bg-[#ebebeb] px-3 text-sm font-semibold" onClick={() => setGranularity((current) => (current === "יומי" ? "שבועי" : current === "שבועי" ? "חודשי" : "יומי"))}>{granularity}</button>
-        <select className="h-[30px] rounded-[10px] border-0 bg-[#ebebeb] px-2 text-sm font-semibold" defaultValue="lndc" onChange={() => toast("מודל הייחוס עודכן")}>
+        <select className="h-[30px] rounded-[10px] border-0 bg-[#ebebeb] px-2 text-sm font-semibold" defaultValue="lndc" onChange={() => toast("הערוץ נשמר לפי הקליק האחרון שאינו כניסה ישירה")}>
           <option value="lndc">קליק אחרון ללא ישיר</option>
-          <option value="last">קליק אחרון</option>
-          <option value="first">קליק ראשון</option>
         </select>
-        <button type="button" className="h-[30px] rounded-[10px] border-0 bg-white px-3 text-sm font-semibold shadow-[0_0_0_1px_rgba(0,0,0,.1)]" onClick={() => toast("הדוח נשלח להדפסה")}>הדפסה</button>
+        <button type="button" className="h-[30px] rounded-[10px] border-0 bg-white px-3 text-sm font-semibold shadow-[0_0_0_1px_rgba(0,0,0,.1)]" onClick={() => window.print()}>הדפסה</button>
       </div>
       {banner ? (
         <div className="flex items-center gap-2 rounded-[14px] bg-[#d8f3fb] px-4 py-3 text-[#0b3b4b]">
-          <span className="flex-1">הייחוס מבוסס על ביקורים ב-30 הימים האחרונים. שינוי המודל מעדכן את הטבלה מיד.</span>
+          <span className="flex-1">הייחוס מבוסס על ביקורים ב-30 הימים האחרונים. כניסה ישירה לא מוחקת קמפיין או הפניה שכבר נרשמו.</span>
           <button type="button" aria-label="סגירה" className="border-0 bg-transparent" onClick={() => setBanner(false)}>×</button>
         </div>
       ) : null}
       <div className="rounded-[14px] bg-white p-4 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
-        <button type="button" className="border-0 bg-transparent p-0 text-sm font-semibold" onClick={() => setMetric((index) => (index + 1) % metrics.length)}>{metrics[metric]}</button>
+        <span className="text-sm font-semibold">ביקורים לפי הערוצים המובילים</span>
+        {top.length === 0 ? <p className="m-0 mt-6 text-sm text-ink-secondary">אין ביקורים ב-30 הימים האחרונים.</p> : null}
         <svg viewBox="0 0 1000 240" className="mt-3 h-[240px] w-full" aria-hidden>
-          {LINES.map((line, index) => <path key={line.label} d={line.path} fill="none" stroke={line.color} strokeWidth={index === 0 ? 2 : 1.6} opacity={hidden.includes(index) ? 0 : 1} />)}
+          {series.map((values, index) => (
+            <path key={top[index]?.channel} d={linePath(values, max)} fill="none" stroke={COLORS[index % COLORS.length]} strokeWidth={index === 0 ? 2 : 1.6} opacity={hidden.includes(index) ? 0 : 1} />
+          ))}
         </svg>
         <div className="mt-2 flex flex-wrap gap-3">
-          {LINES.map((line, index) => (
-            <button key={line.label} type="button" className="inline-flex items-center gap-1.5 border-0 bg-transparent text-[13px]" style={{ opacity: hidden.includes(index) ? 0.4 : 1 }} onClick={() => setHidden((current) => current.includes(index) ? current.filter((item) => item !== index) : [...current, index])}>
-              <span className="size-2 rounded-full" style={{ background: line.color }} />{line.label}
+          {top.map((row, index) => (
+            <button key={row.channel} type="button" className="inline-flex items-center gap-1.5 border-0 bg-transparent text-[13px]" style={{ opacity: hidden.includes(index) ? 0.4 : 1 }} onClick={() => setHidden((current) => current.includes(index) ? current.filter((item) => item !== index) : [...current, index])}>
+              <span className="size-2 rounded-full" style={{ background: COLORS[index % COLORS.length] }} />
+              {row.channel}
             </button>
           ))}
         </div>
@@ -58,13 +83,30 @@ export function AttributionScreen() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row[0]} className="border-t border-[#ebebeb]">
-                <td className="px-3 py-2"><span className="me-2 inline-grid size-4 place-items-center rounded text-[10px] font-bold text-white" style={{ background: row[2] }}>{row[3]}</span>{row[0]}</td>
-                <td className="px-3">{row[1]}</td>
-                {row.slice(4).map((cell) => <td key={cell} dir="ltr" className="px-3 text-right">{cell}</td>)}
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={9} className="px-3 py-8 text-ink-secondary">עדיין אין ביקורים להציג.</td>
               </tr>
-            ))}
+            ) : rows.map((row, index) => {
+              const conversion = row.visits ? (row.orders / row.visits) * 100 : 0;
+              const average = row.orders ? row.sales / row.orders : 0;
+              return (
+                <tr key={`${row.channel}-${row.type}`} className="border-t border-[#ebebeb]">
+                  <td className="px-3 py-2">
+                    <span className="me-2 inline-grid size-4 place-items-center rounded text-[10px] font-bold text-white" style={{ background: COLORS[index % COLORS.length] }}>{row.channel.slice(0, 1)}</span>
+                    {row.channel}
+                  </td>
+                  <td className="px-3">{row.type}</td>
+                  <td dir="ltr" className="px-3 text-right">{formatInteger(row.visits)}</td>
+                  <td dir="ltr" className="px-3 text-right">{formatMoney0(row.sales)}</td>
+                  <td dir="ltr" className="px-3 text-right">{formatInteger(row.orders)}</td>
+                  <td dir="ltr" className="px-3 text-right">{conversion.toFixed(1)}%</td>
+                  <td dir="ltr" className="px-3 text-right">{formatMoney0(average)}</td>
+                  <td dir="ltr" className="px-3 text-right">{formatInteger(row.fresh)}</td>
+                  <td dir="ltr" className="px-3 text-right">{formatInteger(row.returning)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

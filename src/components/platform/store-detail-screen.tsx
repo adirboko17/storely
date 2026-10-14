@@ -5,23 +5,31 @@ import { useActionState, useState } from "react";
 import { enterClientStore, updatePlatformStore } from "@/app/platform/actions";
 import { darkButton, softButton } from "@/components/admin/orders/chrome";
 import type { PlatformStore } from "@/components/platform/types";
+import { storeConnectionPrompt } from "@/tracking/connection-prompt";
 
 const field = "h-[34px] w-full rounded-[10px] border border-[#c9c9c9] bg-white px-3 text-sm text-ink outline-none focus-visible:border-[#1a1a1a]";
 const card = "rounded-2xl bg-white p-4 shadow-[0_0_0_1px_rgba(0,0,0,.09),0_1px_2px_rgba(0,0,0,.04)]";
 
-export function StoreDetailScreen({ store }: { store: PlatformStore }) {
+export function StoreDetailScreen({
+  store,
+  supabaseUrl,
+  publishableKey,
+}: {
+  store: PlatformStore;
+  supabaseUrl: string;
+  publishableKey: string;
+}) {
   const owner = store.members.find((member) => member.roleKey === "owner") ?? store.members[0];
   const name = store.displayName || store.name;
   const [state, action, pending] = useActionState(updatePlatformStore, null);
   const [status, setStatus] = useState(store.status === "disabled" ? "disabled" : "active");
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"key" | "prompt" | null>(null);
   const active = status === "active";
 
-  async function copyKey() {
-    if (!store.trackingKey) return;
-    await navigator.clipboard.writeText(store.trackingKey);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1500);
+  async function copyText(value: string, kind: "key" | "prompt") {
+    await navigator.clipboard.writeText(value);
+    setCopied(kind);
+    window.setTimeout(() => setCopied(null), 1500);
   }
 
   return (
@@ -122,10 +130,28 @@ export function StoreDetailScreen({ store }: { store: PlatformStore }) {
               <div dir="ltr" className="truncate rounded-[10px] bg-[#f6f6f6] px-3 py-2 text-left text-[13px] text-ink">
                 {store.trackingKey}
               </div>
-              <button type="button" onClick={() => void copyKey()} className={`${softButton} self-start`}>
-                {copied ? "הועתק" : "העתקה"}
+              <button type="button" onClick={() => void copyText(store.trackingKey!, "key")} className={`${softButton} self-start`}>
+                {copied === "key" ? "הועתק" : "העתקת מפתח"}
               </button>
-              <span className="text-[13px] text-ink-secondary">נשמר בשרת האתר.</span>
+              <button
+                type="button"
+                onClick={() =>
+                  void copyText(
+                    storeConnectionPrompt({
+                      storeName: name,
+                      trackingKey: store.trackingKey!,
+                      hosts: [store.previewHost || store.hostname || "", store.primaryHost || ""],
+                      supabaseUrl,
+                      publishableKey,
+                    }),
+                    "prompt",
+                  )
+                }
+                className={`${softButton} self-start`}
+              >
+                {copied === "prompt" ? "הועתק" : "העתקת חיבור לאתר"}
+              </button>
+              <span className="text-[13px] text-ink-secondary">מדביקים את החיבור בקורסור של האתר החדש. המפתח נשמר בשרת שלו.</span>
             </div>
           ) : null}
           {owner ? (

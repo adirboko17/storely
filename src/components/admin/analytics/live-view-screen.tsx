@@ -1,50 +1,108 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { LiveGlobe } from "@/components/admin/analytics/live-globe";
 import { getStoreTraffic, subscribeStoreTraffic } from "@/data/live/traffic";
 import { formatInteger, formatMoney0 } from "@/lib/formatting/money";
 
+const grow = "transition-[height,width] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none";
+
+function useCount(value: number) {
+  const [shown, setShown] = useState(0);
+  const shownRef = useRef(0);
+
+  useEffect(() => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const from = shownRef.current;
+    if (reduce || from === value) {
+      shownRef.current = value;
+      setShown(value);
+      return;
+    }
+    const start = performance.now();
+    let frame = 0;
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - start) / 720);
+      const eased = 1 - (1 - progress) ** 3;
+      const next = from + (value - from) * eased;
+      shownRef.current = next;
+      setShown(next);
+      if (progress < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [value]);
+
+  return shown;
+}
+
+function CountText({ value, format }: { value: number; format: (value: number) => string }) {
+  const shown = useCount(value);
+  return (
+    <b dir="ltr" className="tabular-nums">
+      {format(shown)}
+    </b>
+  );
+}
+
 export function LiveViewScreen() {
   const [cities, setCities] = useState(false);
+  const [drawn, setDrawn] = useState(false);
   const traffic = useSyncExternalStore(subscribeStoreTraffic, getStoreTraffic, getStoreTraffic);
   const now = traffic.now;
   const visitorTotal = now.newVisitors + now.returningVisitors;
   const newWidth = visitorTotal ? (now.newVisitors / visitorTotal) * 100 : 0;
   const funnelMax = Math.max(now.carts, now.checkouts, now.purchased, 1);
   const locationMax = Math.max(...now.locations.map((place) => place.count), 1);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setDrawn(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   return (
-    <div className="grid min-h-full min-[1000px]:grid-cols-[500px_minmax(0,1fr)]">
+    <div className="grid min-h-full min-[1000px]:h-[calc(100dvh-0.75rem)] min-[1000px]:grid-cols-[minmax(320px,420px)_minmax(0,1fr)] min-[1000px]:overflow-hidden">
       <div className="flex flex-col gap-2.5 overflow-y-auto border-e border-[#ebebeb] px-3.5 py-2.5">
         <div className="flex items-center gap-2">
           <h1 className="m-0 text-[15px] font-bold">צפייה חיה</h1>
-          <span className="inline-flex items-center gap-1 text-[13px] text-ink-secondary"><span className="size-[7px] animate-pulse rounded-full bg-[#1fa7e8]" />ממש עכשיו</span>
+          <span className="inline-flex items-center gap-1 text-[13px] text-ink-secondary">
+            <span className="size-[7px] animate-pulse rounded-full bg-[#1fa7e8]" />
+            ממש עכשיו
+          </span>
         </div>
         <div className="grid grid-cols-2 gap-2.5">
-          {[
-            ["מבקרים כעת", formatInteger(now.visitors)],
-            ["סך המכירות", formatMoney0(now.sales)],
-            ["ביקורים", formatInteger(now.visits)],
-            ["הזמנות", formatInteger(now.orders)],
-          ].map(([label, value]) => (
+          {(
+            [
+              ["מבקרים כעת", now.visitors, formatInteger],
+              ["סך המכירות", now.sales, formatMoney0],
+              ["ביקורים", now.visits, formatInteger],
+              ["הזמנות", now.orders, formatInteger],
+            ] as const
+          ).map(([label, value, format]) => (
             <div key={label} className="flex min-h-[74px] flex-col justify-end gap-1 rounded-[14px] bg-white p-3.5 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
               <span className="text-sm font-semibold underline decoration-dotted underline-offset-[3px]">{label}</span>
-              <span className="flex items-center gap-1.5"><b dir="ltr">{value}</b></span>
+              <span className="flex items-center gap-1.5">
+                <CountText value={value} format={format} />
+              </span>
             </div>
           ))}
         </div>
         <div className="rounded-[14px] bg-white p-3.5 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
           <span className="text-sm font-semibold underline decoration-dotted underline-offset-[3px]">התנהגות לקוחות</span>
           <div className="mt-2.5 grid grid-cols-3">
-            {[
-              ["עגלות פעילות", formatInteger(now.carts), `${(now.carts / funnelMax) * 100}%`],
-              ["בתהליך תשלום", formatInteger(now.checkouts), `${(now.checkouts / funnelMax) * 100}%`],
-              ["רכשו", formatInteger(now.purchased), `${(now.purchased / funnelMax) * 100}%`],
-            ].map(([label, value, height], index) => (
+            {(
+              [
+                ["עגלות פעילות", now.carts],
+                ["בתהליך תשלום", now.checkouts],
+                ["רכשו", now.purchased],
+              ] as const
+            ).map(([label, value], index) => (
               <div key={label} className="flex flex-col gap-0.5 px-2.5" style={{ borderInlineStart: index ? "1px solid #ebebeb" : undefined }}>
                 <span className="text-[13px] text-[#4a4a4a]">{label}</span>
-                <b>{value}</b>
-                <div className="mt-7 flex h-[110px] items-end"><div className="w-full rounded-t-sm bg-[#2a5bd7]" style={{ height }} /></div>
+                <CountText value={value} format={formatInteger} />
+                <div className="mt-7 flex h-[110px] items-end">
+                  <div className={`w-full rounded-t-sm bg-[#2a5bd7] ${grow}`} style={{ height: drawn ? `${(value / funnelMax) * 100}%` : "0%" }} />
+                </div>
               </div>
             ))}
           </div>
@@ -55,20 +113,32 @@ export function LiveViewScreen() {
           {now.locations.map((place) => (
             <div key={place.label} className="flex flex-col gap-1">
               <span className="text-xs text-ink-secondary">{place.label}</span>
-              <div className="flex items-center gap-2"><div className="h-3 rounded-sm bg-[#1fa7e8]" style={{ width: `${Math.max(4, (place.count / locationMax) * 78)}%` }} /><span className="text-xs text-ink-secondary">{formatInteger(place.count)}</span></div>
+              <div className="flex items-center gap-2">
+                <div className={`h-3 rounded-sm bg-[#1fa7e8] ${grow}`} style={{ width: drawn ? `${Math.max(4, (place.count / locationMax) * 78)}%` : "0%" }} />
+                <span className="text-xs text-ink-secondary">
+                  <CountText value={place.count} format={formatInteger} />
+                </span>
+              </div>
             </div>
           ))}
         </div>
         <div className="flex flex-col gap-2.5 rounded-[14px] bg-white p-3.5 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
           <span className="self-start text-sm font-semibold underline decoration-dotted underline-offset-[3px]">לקוחות חדשים מול חוזרים</span>
           <div className="flex h-3 overflow-hidden rounded-sm bg-[#f1f1f1]">
-            <div className="h-full bg-[#2a5bd7]" style={{ width: `${newWidth}%` }} />
-            <div className="h-full bg-[#8eb8f5]" style={{ width: `${visitorTotal ? 100 - newWidth : 0}%` }} />
+            <div className={`h-full bg-[#2a5bd7] ${grow}`} style={{ width: drawn ? `${newWidth}%` : "0%" }} />
+            <div className={`h-full bg-[#8eb8f5] ${grow}`} style={{ width: drawn && visitorTotal ? `${100 - newWidth}%` : "0%" }} />
           </div>
-          <div className="flex justify-between text-xs text-ink-secondary"><span>חדשים {formatInteger(now.newVisitors)}</span><span>חוזרים {formatInteger(now.returningVisitors)}</span></div>
+          <div className="flex justify-between text-xs text-ink-secondary">
+            <span className="inline-flex items-center gap-1">
+              חדשים <CountText value={now.newVisitors} format={formatInteger} />
+            </span>
+            <span className="inline-flex items-center gap-1">
+              חוזרים <CountText value={now.returningVisitors} format={formatInteger} />
+            </span>
+          </div>
         </div>
       </div>
-      <div className="relative hidden min-h-[640px] overflow-hidden bg-white min-[1000px]:block">
+      <div className="relative hidden min-h-[70vh] overflow-hidden bg-white min-[1000px]:block min-[1000px]:min-h-0">
         <LiveGlobe labels={cities} />
         <div className="absolute top-3 left-3 z-20 flex gap-1.5">
           <div className="flex h-[34px] w-[280px] items-center gap-2 rounded-[10px] bg-white px-2.5 text-[#616161] shadow-[0_0_0_1px_rgba(0,0,0,.12)]">
@@ -85,8 +155,14 @@ export function LiveViewScreen() {
           </button>
         </div>
         <div className="pointer-events-none absolute bottom-4 left-14 z-20 flex gap-4 text-xs text-[#8a8a8a]">
-          <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-[#6b3fe0] opacity-60" />הזמנות</span>
-          <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-[#7fd0f2]" />מבקרים כעת</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-[#6b3fe0] opacity-60" />
+            הזמנות
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-[#7fd0f2]" />
+            מבקרים כעת
+          </span>
         </div>
       </div>
     </div>

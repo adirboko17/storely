@@ -29,6 +29,46 @@ async function resolveAdminStoreId() {
   return row?.store_id ?? null;
 }
 
+export type AttributionChannel = {
+  channel: string;
+  type: string;
+  visits: number;
+  orders: number;
+  sales: number;
+  fresh: number;
+  returning: number;
+  days: number[];
+};
+
+export async function loadStoreAttribution(): Promise<AttributionChannel[]> {
+  const storeId = await resolveAdminStoreId();
+  if (!storeId) return [];
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("store_attribution_snapshot", { target_store: storeId });
+  if (error || !Array.isArray(data)) return [];
+  return data.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    const channel = typeof row.channel === "string" ? row.channel : "";
+    if (!channel) return [];
+    const number = (value: unknown) => {
+      const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : 0;
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const days = Array.isArray(row.days) ? row.days.map(number) : [];
+    return [{
+      channel,
+      type: typeof row.type === "string" ? row.type : "",
+      visits: number(row.visits),
+      orders: number(row.orders),
+      sales: number(row.sales),
+      fresh: number(row.fresh),
+      returning: number(row.returning),
+      days,
+    }];
+  });
+}
+
 export async function loadStoreTraffic(): Promise<StoreTraffic | null> {
   const storeId = await resolveAdminStoreId();
   if (!storeId) return null;

@@ -95,7 +95,7 @@ export function LiveGlobe({ labels }: { labels: boolean }) {
       if (!context) return;
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
       context.clearRect(0, 0, width, height);
-      const radius = Math.min(width, height) * 0.43 * scale;
+      const radius = Math.min(width, height) * 0.48 * scale;
       const cx = width / 2;
       const cy = height / 2;
 

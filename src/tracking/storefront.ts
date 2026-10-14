@@ -11,6 +11,10 @@ export type StorefrontEventInput = {
   country?: string;
   city?: string;
   amount?: number;
+  referrer?: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
 };
 
 /**
@@ -36,6 +40,10 @@ export async function recordStorefrontEvent(input: StorefrontEventInput) {
       country: input.country ?? "",
       city: input.city ?? "",
       amount: input.amount ?? null,
+      referrer: input.referrer ?? "",
+      utm_source: input.utmSource ?? "",
+      utm_medium: input.utmMedium ?? "",
+      utm_campaign: input.utmCampaign ?? "",
     }),
   });
   if (!response.ok) return false;

@@ -28,5 +28,11 @@ async function StoreDetail({ params }: { params: Promise<{ storeId: string }> })
   if (error || !Array.isArray(data)) redirect("/login");
   const store = (data as PlatformStore[]).find((item) => item.id === storeId);
   if (!store) notFound();
-  return <StoreDetailScreen store={store} />;
+  return (
+    <StoreDetailScreen
+      store={store}
+      supabaseUrl={process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}
+      publishableKey={process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? ""}
+    />
+  );
 }
