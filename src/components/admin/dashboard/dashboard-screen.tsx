@@ -7,6 +7,8 @@ import { MetricPreview } from "@/components/admin/dashboard/metric-preview";
 import { SalesChart } from "@/components/admin/dashboard/sales-chart";
 import { Card } from "@/components/ui/card";
 import { getStoreIdentity, getStoreIdentityVersion, subscribeStoreIdentity } from "@/data/live/store-identity";
+import { getStoreTrafficVersion, subscribeStoreTraffic } from "@/data/live/traffic";
+import { getOrderSessionVersion, subscribeOrderSession } from "@/data/mock/order-session";
 import { attentionCounts } from "@/data/mock/orders";
 import { getAdminActor } from "@/platform/actor";
 import {
@@ -57,8 +59,16 @@ export function DashboardScreen({
   const metric = slots[active] ?? "sales";
   const span = useMemo(() => spanFromWindow(dashboardWindow), [dashboardWindow]);
   const rangeLabel = dashboardWindow.label;
-  const metricCards = useMemo(() => dashboardMetrics(span, slots), [span, slots]);
-  const chart = useMemo(() => buildMetricChart(span, metric, hover), [span, metric, hover]);
+  const trafficVersion = useSyncExternalStore(subscribeStoreTraffic, getStoreTrafficVersion, getStoreTrafficVersion);
+  const metricCards = useMemo(() => {
+    void trafficVersion;
+    return dashboardMetrics(span, slots);
+  }, [span, slots, trafficVersion]);
+  const chart = useMemo(() => {
+    void trafficVersion;
+    return buildMetricChart(span, metric, hover);
+  }, [span, metric, hover, trafficVersion]);
+  useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, getOrderSessionVersion);
   const counts = attentionCounts();
   const hello = useSyncExternalStore(subscribeToClock, readGreeting, serverGreeting);
   useSyncExternalStore(subscribeStoreIdentity, getStoreIdentityVersion, getStoreIdentityVersion);

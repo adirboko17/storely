@@ -17,15 +17,15 @@ import {
 } from "@/components/admin/analytics/analytics-widgets";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { Icon } from "@/components/ui/icon";
-import { getOrderSessionVersion, listLiveCheckouts, listResolvedOrders, subscribeOrderSession } from "@/data/mock/order-session";
-import { buildOverview } from "@/lib/analytics/overview";
+import { getStoreTraffic, subscribeStoreTraffic } from "@/data/live/traffic";
+import { buildTrafficOverview } from "@/lib/analytics/overview";
 import { formatMoney0 } from "@/lib/formatting/money";
 
 export function AnalyticsScreen() {
   const router = useRouter();
   const { toast } = useAdmin();
-  const version = useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
-  const overview = useMemo(() => buildOverview(listResolvedOrders(), listLiveCheckouts()), [version]);
+  const traffic = useSyncExternalStore(subscribeStoreTraffic, getStoreTraffic, getStoreTraffic);
+  const overview = useMemo(() => buildTrafficOverview(traffic), [traffic]);
 
   return (
     <div className="flex min-h-full flex-col gap-3 px-3.5 pt-2.5 pb-8">
@@ -55,13 +55,13 @@ export function AnalyticsScreen() {
           {hasValues(overview.products) ? <Bars rows={overview.products} money /> : <EmptyState />}
         </Panel>
 
-        <Panel title="ביקורים לאורך זמן" info="ביקורים שנרשמו כהגעה לתשלום: הזמנות ועגלות שננטשו.">
+        <Panel title="ביקורים לאורך זמן" info="צפיות בעמודים מהאתר המחובר, גם מדומיין Vercel וגם מהדומיין האמיתי.">
           <LineChart format="integer" current={overview.sessionHours.current} previous={overview.sessionHours.previous} total={overview.sessionsTotal} delta={overview.sessionsDelta} currentLabel={overview.currentLabel} previousLabel={overview.previousLabel} />
         </Panel>
-        <Panel title="שיעור המרה לאורך זמן" info="אחוז הביקורים שהגיעו לתשלום והסתיימו בהזמנה.">
+        <Panel title="שיעור המרה לאורך זמן" info="אחוז הביקורים שהסתיימו ברכישה. שני הדומיינים של החנות נספרים יחד.">
           <LineChart format="percent" current={overview.conversionHours.current} previous={overview.conversionHours.previous} total={overview.conversion} delta={overview.conversionDelta} currentLabel={overview.currentLabel} previousLabel={overview.previousLabel} />
         </Panel>
-        <Panel title="פירוט שיעור המרה" info="השלבים מחושבים מההזמנות ומהעגלות שננטשו היום, בלי ביקורים שלא הגיעו לתשלום.">
+        <Panel title="פירוט שיעור המרה" info="השלבים של היום: ביקור, הוספה לעגלה, תשלום, רכישה.">
           <Funnel steps={overview.funnel} />
         </Panel>
 

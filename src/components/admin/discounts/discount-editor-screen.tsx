@@ -63,16 +63,19 @@ export function DiscountEditorScreen({ discountId, kind }: { discountId: number 
     }
     setSaving(true);
     const id = existing?.id ?? nextDiscountId();
-    window.setTimeout(() => {
-      const next = { ...draft, id };
-      saveDiscount(next);
-      setDraft(next);
-      setSaved(next);
-      setSaving(false);
-      setError("");
-      toast("ההנחה נשמרה");
-      if (discountId == null) router.replace(`/admin/discounts/${id}`);
-    }, 500);
+    void saveDiscount({ ...draft, id })
+      .then((next) => {
+        setDraft(next);
+        setSaved(next);
+        setSaving(false);
+        setError("");
+        toast("ההנחה נשמרה");
+        if (discountId == null) router.replace(`/admin/discounts/${id}`);
+      })
+      .catch(() => {
+        setSaving(false);
+        setError("שמירת ההנחה נכשלה");
+      });
   }
 
   useUnsavedEditor(dirty, saving, save, () => { setDraft(saved); setError(""); });

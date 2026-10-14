@@ -1,5 +1,6 @@
 import { CUSTOMERS } from "@/data/mock/customers";
 import { getStoreIdentity } from "@/data/live/store-identity";
+import { isHydrating, writeStore } from "@/data/live/write";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { Customer } from "@/types/commerce";
 
@@ -49,9 +50,30 @@ export function getPeopleVersion() {
   return current.version;
 }
 
-export function replacePeople(people: Customer[]) {
+export function replacePeople(people: Customer[], profiles: Record<number, PersonProfile> = {}) {
   CUSTOMERS.splice(0, CUSTOMERS.length, ...people.map((person) => ({ ...person })));
-  publish({ added: [], profiles: {} });
+  publish({ added: [], profiles });
+}
+
+function persistPerson(person: Customer, profile: PersonProfile) {
+  if (!person.sourceId || isHydrating()) return;
+  void writeStore("save_store_customer", {
+    customer_id: person.sourceId,
+    customer_name: person.name,
+    customer_email: person.email,
+    customer_phone: person.phone,
+    customer_street: person.street,
+    customer_city: person.city,
+    customer_zip: person.zip,
+    replace_profile: true,
+    customer_note: profile.note,
+    customer_tags: profile.tags,
+    customer_subscribed: profile.subscribed,
+    customer_credit: profile.credit,
+    customer_locale: profile.language ?? "he",
+    customer_sms: profile.sms ?? false,
+    customer_whatsapp: profile.whatsapp ?? false,
+  });
 }
 
 export function listPeople() {
@@ -70,7 +92,9 @@ export function patchProfile(id: number, patch: Partial<PersonProfile>) {
   const person = getPerson(id);
   if (!person) return;
   const base = profileOf(person);
-  publish({ ...current, profiles: { ...current.profiles, [id]: { ...base, ...patch } } });
+  const next = { ...base, ...patch };
+  publish({ ...current, profiles: { ...current.profiles, [id]: next } });
+  persistPerson(person, next);
 }
 
 export function addPerson(input: Pick<Customer, "name" | "email" | "phone" | "city"> & Partial<Pick<Customer, "street" | "zip">>) {

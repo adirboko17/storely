@@ -1,3 +1,5 @@
+import { isHydrating, writeStore } from "@/data/live/write";
+
 export type IntegrationState = {
   id: string;
   token: string;
@@ -57,6 +59,14 @@ const listeners = new Set<() => void>();
 function publish(next: Omit<Snapshot, "version">) {
   current = { ...next, version: current.version + 1 };
   listeners.forEach((listener) => listener());
+  if (isHydrating()) return;
+  void writeStore("save_store_sections", {
+    sections: { marketing: { connected: current.connected, flows: current.flows } },
+  });
+}
+
+export function replaceMarketing(next: Omit<Snapshot, "version">) {
+  publish(next);
 }
 
 export function subscribeMarketing(listener: () => void) {

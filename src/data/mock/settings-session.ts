@@ -1,4 +1,5 @@
 import { getStoreIdentity } from "@/data/live/store-identity";
+import { isHydrating, writeStore } from "@/data/live/write";
 
 export type PolicyKind = "return" | "privacy" | "terms" | "shipping" | "contact" | "legal" | "purchase";
 
@@ -69,6 +70,23 @@ const listeners = new Set<() => void>();
 function publish(next: Omit<State, "version">) {
   current = { ...next, version: current.version + 1 };
   listeners.forEach((listener) => listener());
+  if (isHydrating()) return;
+  void writeStore("save_store_sections", {
+    sections: {
+      policies: current.policies,
+      shipping: {
+        rules: current.rules,
+        profiles: current.profiles,
+        estimates: current.estimates,
+        localDelivery: current.localDelivery,
+        pickup: current.pickup,
+      },
+    },
+  });
+}
+
+export function replaceSettings(next: Omit<State, "version">) {
+  publish(next);
 }
 
 export function subscribeSettings(listener: () => void) {

@@ -1,5 +1,6 @@
 import { listCatalogProducts } from "@/data/mock/catalog-session";
 import type { LiveCheckout } from "@/data/mock/order-session";
+import type { StoreTraffic } from "@/data/live/traffic";
 import type { ResolvedOrder } from "@/lib/orders/present";
 
 export type Delta = number | null;
@@ -279,5 +280,68 @@ export function buildOverview(orders: ResolvedOrder[], checkouts: LiveCheckout[]
     marketing: [...marketingMap.entries()].map(([label, item]) => ({ label, value: item.value, color: item.color })).sort((a, b) => b.value - a.value),
     cohorts,
     sellThrough,
+  };
+}
+
+export function buildTrafficOverview(traffic: StoreTraffic): AnalyticsOverview {
+  const today = traffic.today;
+  const yesterday = traffic.yesterday;
+  const conversionToday = today.visits ? (today.orders / today.visits) * 100 : 0;
+  const conversionYesterday = yesterday.visits ? (yesterday.orders / yesterday.visits) * 100 : 0;
+  const aovToday = today.orders ? today.sales / today.orders : 0;
+  const aovYesterday = yesterday.orders ? yesterday.sales / yesterday.orders : 0;
+  const steps = [
+    { label: "ביקורים", count: today.visits },
+    { label: "הוסיפו לעגלה", count: today.carts },
+    { label: "הגיעו לתשלום", count: today.checkouts },
+    { label: "רכשו", count: today.orders },
+  ];
+  return {
+    refreshed: new Date().toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }),
+    currentLabel: dateLabel(0),
+    previousLabel: dateLabel(1),
+    salesTotal: today.sales,
+    salesDelta: change(today.sales, yesterday.sales),
+    salesHours: { current: today.salesByHour, previous: yesterday.salesByHour },
+    breakdown: [
+      { label: "מכירות ברוטו", value: today.sales, delta: change(today.sales, yesterday.sales) },
+      { label: "הנחות", value: 0, delta: null },
+      { label: "ביטולי מכירות", value: 0, delta: null },
+      { label: "מכירות נטו", value: today.sales, delta: change(today.sales, yesterday.sales) },
+      { label: "דמי משלוח", value: 0, delta: null },
+      { label: "עמלות החזרה", value: 0, delta: null },
+      { label: "מסים", value: 0, delta: null },
+      { label: "סך המכירות", value: today.sales, delta: change(today.sales, yesterday.sales), strong: true },
+    ],
+    channels: [],
+    aov: aovToday,
+    aovDelta: change(aovToday, aovYesterday),
+    aovHours: {
+      current: today.salesByHour.map((value, index) => (today.ordersByHour[index] ? value / (today.ordersByHour[index] ?? 1) : 0)),
+      previous: yesterday.salesByHour.map((value, index) => (yesterday.ordersByHour[index] ? value / (yesterday.ordersByHour[index] ?? 1) : 0)),
+    },
+    products: [],
+    sessionsTotal: today.visits,
+    sessionsDelta: change(today.visits, yesterday.visits),
+    sessionHours: { current: today.visitsByHour, previous: yesterday.visitsByHour },
+    conversion: conversionToday,
+    conversionDelta: change(conversionToday, conversionYesterday),
+    conversionHours: {
+      current: today.visitsByHour.map((visits, index) => (visits ? ((today.ordersByHour[index] ?? 0) / visits) * 100 : 0)),
+      previous: yesterday.visitsByHour.map((visits, index) => (visits ? ((yesterday.ordersByHour[index] ?? 0) / visits) * 100 : 0)),
+    },
+    funnel: steps.map((step) => ({
+      ...step,
+      rate: today.visits ? (step.count / today.visits) * 100 : 0,
+      delta: null,
+    })),
+    locations: today.locations.map((place) => ({ label: place.label, value: place.count, delta: null })),
+    socialSales: [],
+    socialSessions: [],
+    referrerSales: [],
+    referrerSessions: [],
+    marketing: [],
+    cohorts: [],
+    sellThrough: [],
   };
 }

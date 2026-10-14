@@ -24,8 +24,14 @@ export function NewStoreScreen() {
           <input name="storeName" required minLength={2} className={field} placeholder="סטודיו לבנה" />
         </label>
         <label className="flex flex-col gap-1 text-sm font-semibold">
-          דומיין
-          <input name="hostname" required dir="ltr" className={`${field} text-left`} placeholder="lavana.localhost" />
+          דומיין Vercel
+          <input name="hostname" required dir="ltr" className={`${field} text-left`} placeholder="my-shop.vercel.app" />
+          <span className="font-normal text-[#616161]">זה הדומיין בזמן הפיתוח. התנועה ממנו נספרת לחנות הזו.</span>
+        </label>
+        <label className="flex flex-col gap-1 text-sm font-semibold">
+          דומיין אמיתי
+          <input name="primaryHost" dir="ltr" className={`${field} text-left`} placeholder="shop.co.il" />
+          <span className="font-normal text-[#616161]">אפשר להשאיר ריק ולחבר אותו כשהאתר מוכן. שני הדומיינים נספרים יחד.</span>
         </label>
         <label className="flex flex-col gap-1 text-sm font-semibold">
           שם הבעלים

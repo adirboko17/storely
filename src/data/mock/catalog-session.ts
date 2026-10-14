@@ -1,5 +1,6 @@
 import { PRODUCTS } from "@/data/mock/products";
 import { getStoreIdentity } from "@/data/live/store-identity";
+import { isHydrating, writeStore } from "@/data/live/write";
 import { COLLECTION_SEEDS } from "@/lib/catalog/present";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { Product, ProductStatus } from "@/types/commerce";
@@ -8,6 +9,7 @@ export type GiftCard = {
   code: string;
   value: number;
   customer: string;
+  balance?: number;
 };
 
 export type CollectionCondition = {
@@ -80,16 +82,40 @@ export function getCatalogProduct(id: number) {
   return product ? cloneProduct(product) : null;
 }
 
-export function replaceCatalogProducts(products: Product[]) {
+export function replaceCatalogProducts(
+  products: Product[],
+  extras?: {
+    giftCards?: GiftCard[];
+    collections?: Record<string, CollectionDraft>;
+    hiddenCollections?: string[];
+    extraCollections?: string[];
+  },
+) {
   const next = products.map(cloneProduct);
   publish({
     ...current,
     products: next,
-    giftCards: [],
-    collections: {},
-    hiddenCollections: [],
-    extraCollections: [],
+    giftCards: extras?.giftCards ?? [],
+    collections: extras?.collections ?? {},
+    hiddenCollections: extras?.hiddenCollections ?? [],
+    extraCollections: extras?.extraCollections ?? [],
   });
+}
+
+function collectionPayload(key: string, draft: CollectionDraft, hidden: boolean) {
+  const productIds = draft.ids.flatMap((id) => {
+    const product = current.products.find((item) => item.id === id);
+    return product?.sourceId ? [product.sourceId] : [];
+  });
+  return {
+    title: draft.title || key,
+    description: draft.description,
+    productIds,
+    conditions: draft.conditions,
+    excludeOutOfStock: draft.excludeOutOfStock,
+    image: draft.image,
+    hidden,
+  };
 }
 
 function rememberProductSource(localId: number, sourceId: string) {
@@ -235,7 +261,9 @@ export function listGiftCards() {
 }
 
 export function createGiftCard(card: GiftCard) {
-  publish({ ...current, giftCards: [card, ...current.giftCards] });
+  const giftCards = [{ ...card, balance: card.value }, ...current.giftCards];
+  publish({ ...current, giftCards });
+  if (!isHydrating()) void writeStore("save_store_sections", { sections: { gift_cards: giftCards } });
 }
 
 export function listExtraCollections() {
@@ -260,13 +288,26 @@ export function getCollectionDraft(key: string) {
 export function saveCollectionDraft(key: string, draft: CollectionDraft) {
   const known = COLLECTION_SEEDS.some((seed) => seed.title === key) || current.extraCollections.includes(key);
   const extra = known ? current.extraCollections : [key, ...current.extraCollections];
+  const saved = { ...draft, ids: [...draft.ids], conditions: draft.conditions.map((item) => ({ ...item })) };
   publish({
     ...current,
     extraCollections: extra,
-    collections: { ...current.collections, [key]: { ...draft, ids: [...draft.ids], conditions: draft.conditions.map((item) => ({ ...item })) } },
+    hiddenCollections: current.hiddenCollections.filter((item) => item !== key),
+    collections: { ...current.collections, [key]: saved },
   });
+  if (!isHydrating()) void writeStore("save_store_collection", { collection: collectionPayload(key, saved, false) });
 }
 
 export function hideCollection(key: string) {
-  publish({ ...current, hiddenCollections: current.hiddenCollections.includes(key) ? current.hiddenCollections : [...current.hiddenCollections, key] });
+  const hiddenCollections = current.hiddenCollections.includes(key) ? current.hiddenCollections : [...current.hiddenCollections, key];
+  publish({ ...current, hiddenCollections });
+  const draft = current.collections[key] ?? {
+    title: key,
+    description: "",
+    ids: [],
+    conditions: [],
+    excludeOutOfStock: false,
+    image: "",
+  };
+  if (!isHydrating()) void writeStore("save_store_collection", { collection: collectionPayload(key, draft, true) });
 }

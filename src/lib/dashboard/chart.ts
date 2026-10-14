@@ -309,8 +309,42 @@ function derive(sales: number[], orders: number[], sessions: number[], seed: num
 
 let liveMetrics = false;
 
+type LiveTrafficSeries = {
+  salesHours: number[];
+  ordersHours: number[];
+  sessionsHours: number[];
+  previousSalesHours: number[];
+  previousOrdersHours: number[];
+  previousSessionsHours: number[];
+  salesDays: number[];
+  ordersDays: number[];
+  sessionsDays: number[];
+  previousSalesDays: number[];
+  previousOrdersDays: number[];
+  previousSessionsDays: number[];
+};
+
+let liveSeries: LiveTrafficSeries | null = null;
+
 export function enableLiveMetrics() {
   liveMetrics = true;
+}
+
+export function setLiveTrafficSeries(next: LiveTrafficSeries | null) {
+  liveSeries = next;
+}
+
+function paintLive(target: Series, sales: number[], orders: number[], sessions: number[]) {
+  target.sales = sales;
+  target.orders = orders;
+  target.sessions = sessions;
+  target.net = sales;
+  target.total = sales;
+  target.conv = orders.map((value, index) => {
+    const visits = sessions[index] ?? 0;
+    return visits ? (value / visits) * 100 : 0;
+  });
+  target.aov = orders.map((value, index) => (value ? (sales[index] ?? 0) / value : 0));
 }
 
 function periodTotal(series: Series, id: MetricId) {
@@ -352,7 +386,27 @@ function buildBundle(range: RangeId | ChartSpan) {
   const pointCount = span.hourly ? 24 : Math.max(2, Math.min(span.days, 366));
   const hourly = span.hourly;
   if (liveMetrics) {
-    return { pointCount, hourly, end: span.end, current: emptySeries(pointCount), previous: emptySeries(pointCount) };
+    const current = emptySeries(pointCount);
+    const previous = emptySeries(pointCount);
+    if (liveSeries && hourly && pointCount === 24) {
+      paintLive(current, liveSeries.salesHours, liveSeries.ordersHours, liveSeries.sessionsHours);
+      paintLive(previous, liveSeries.previousSalesHours, liveSeries.previousOrdersHours, liveSeries.previousSessionsHours);
+    } else if (liveSeries && !hourly && pointCount > 0 && pointCount <= liveSeries.salesDays.length) {
+      const windowFor = (earlier: number[], recent: number[]) => {
+        const timeline = earlier.concat(recent);
+        const end = timeline.length;
+        return {
+          current: timeline.slice(end - pointCount),
+          previous: timeline.slice(end - pointCount * 2, end - pointCount),
+        };
+      };
+      const sales = windowFor(liveSeries.previousSalesDays, liveSeries.salesDays);
+      const orders = windowFor(liveSeries.previousOrdersDays, liveSeries.ordersDays);
+      const sessions = windowFor(liveSeries.previousSessionsDays, liveSeries.sessionsDays);
+      paintLive(current, sales.current, orders.current, sessions.current);
+      paintLive(previous, sales.previous, orders.previous, sessions.previous);
+    }
+    return { pointCount, hourly, end: span.end, current, previous };
   }
   const make = (seed: number, base: number, factor: number) => {
     const random = rng(seed + pointCount * 13);

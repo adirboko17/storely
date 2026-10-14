@@ -190,18 +190,19 @@ function generatedOrders(): Order[] {
 
 export const ORDERS: Order[] = [];
 
+function linePrice(order: Order, productIndex: number) {
+  return order.lineFallbacks?.find((line) => line.id === productIndex)?.price ?? PRODUCTS.find((product) => product.id === productIndex)?.price ?? PRODUCTS[productIndex]?.price ?? 0;
+}
+
 export function toOrderView(order: Order): OrderView {
-  const subtotal = order.items.reduce((sum, [productIndex, quantity]) => {
-    const product = PRODUCTS[productIndex];
-    return sum + (product ? product.price * quantity : 0);
-  }, 0);
-  const discountAmount = order.discount ? Math.round(subtotal * order.discount[1]) / 100 : 0;
-  const shipCost = SHIPPING_RATES[order.ship] ?? 0;
-  const total = Math.round((subtotal - discountAmount + shipCost) * 100) / 100;
+  const subtotal = order.items.reduce((sum, [productIndex, quantity]) => sum + linePrice(order, productIndex) * quantity, 0);
+  const discountAmount = order.discountAmount ?? (order.discount ? Math.round(subtotal * order.discount[1]) / 100 : 0);
+  const shipCost = order.shipCost ?? SHIPPING_RATES[order.ship] ?? 0;
+  const total = order.totalAmount ?? Math.round((subtotal - discountAmount + shipCost) * 100) / 100;
   const quantity = order.items.reduce((sum, [, qty]) => sum + qty, 0);
   return {
     ...order,
-    customerName: CUSTOMERS[order.customerIndex]?.name ?? "",
+    customerName: order.customerName || CUSTOMERS[order.customerIndex]?.name || "",
     subtotal,
     discountAmount,
     shipCost,

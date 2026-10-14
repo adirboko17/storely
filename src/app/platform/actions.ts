@@ -16,10 +16,11 @@ const KNOWN_ERRORS = [
   "חסר דומיין",
   "הדומיין לא תקין",
   "הדומיין כבר תפוס",
+  "סוג דומיין לא תקין",
 ];
 
-function readableError(message: string) {
-  return KNOWN_ERRORS.find((item) => message.includes(item)) ?? "לא הצלחנו לפתוח את האתר";
+function readableError(message: string, fallback = "לא הצלחנו לפתוח את האתר") {
+  return KNOWN_ERRORS.find((item) => message.includes(item)) ?? fallback;
 }
 
 async function requireOperator() {
@@ -37,9 +38,31 @@ export async function createPlatformStore(_previous: { error: string } | null, f
     owner_email: String(formData.get("ownerEmail") ?? ""),
     owner_password: String(formData.get("ownerPassword") ?? ""),
     site_host: String(formData.get("hostname") ?? ""),
+    primary_host: String(formData.get("primaryHost") ?? ""),
   });
   if (error) return { error: readableError(error.message) };
   redirect("/platform");
+}
+
+export async function updatePlatformStore(_previous: { error: string } | null, formData: FormData) {
+  const supabase = await requireOperator();
+  const storeId = String(formData.get("storeId") ?? "");
+  const status = String(formData.get("status") ?? "");
+  if (!/^[0-9a-f-]{36}$/i.test(storeId) || (status !== "active" && status !== "disabled")) {
+    return { error: "לא הצלחנו לשמור את הפרטים" };
+  }
+  const { error } = await supabase.rpc("update_platform_store", {
+    target_store: storeId,
+    store_name: String(formData.get("storeName") ?? ""),
+    owner_name: String(formData.get("ownerName") ?? ""),
+    owner_email: String(formData.get("ownerEmail") ?? ""),
+    owner_password: String(formData.get("ownerPassword") ?? ""),
+    site_host: String(formData.get("hostname") ?? ""),
+    primary_host: String(formData.get("primaryHost") ?? ""),
+    store_status: status,
+  });
+  if (error) return { error: readableError(error.message, "לא הצלחנו לשמור את הפרטים") };
+  redirect(`/platform/${storeId}`);
 }
 
 export async function enterClientStore(formData: FormData) {

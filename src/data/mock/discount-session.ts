@@ -1,7 +1,10 @@
 export type DiscountKind = "order" | "product" | "ship" | "bxgy";
 
+import { isHydrating, writeStore } from "@/data/live/write";
+
 export type Discount = {
   id: number;
+  sourceId?: string;
   code: string;
   type: DiscountKind;
   valueType: "pct" | "fixed";
@@ -80,9 +83,47 @@ export function discountSummary(discount: Discount) {
   return `${head}. ${min}.`;
 }
 
-export function saveDiscount(discount: Discount) {
-  const exists = current.discounts.some((item) => item.id === discount.id);
-  publish(exists ? current.discounts.map((item) => (item.id === discount.id ? discount : item)) : [discount, ...current.discounts]);
+function discountPayload(discount: Discount) {
+  return {
+    id: discount.sourceId ?? null,
+    code: discount.code,
+    kind: discount.type,
+    valueType: discount.valueType,
+    value: Number(discount.value) || 0,
+    method: discount.method,
+    eligibility: discount.eligibility,
+    segment: discount.segment,
+    minType: discount.minType,
+    minValue: Number(discount.minValue) || 0,
+    once: discount.once,
+    limit: discount.limit,
+    limitN: Number(discount.limitN) || 0,
+    start: discount.start,
+    hasEnd: discount.hasEnd,
+    end: discount.end,
+    combProduct: discount.combProduct,
+    combOrder: discount.combOrder,
+    combShip: discount.combShip,
+    applies: discount.applies,
+    collections: discount.collections,
+    bxBuy: discount.bxBuy,
+    bxGet: discount.bxGet,
+    bxColl: discount.bxColl,
+  };
+}
+
+function rememberDiscountSource(localId: number, sourceId: string) {
+  publish(current.discounts.map((item) => (item.id === localId ? { ...item, sourceId } : item)));
+}
+
+export async function saveDiscount(discount: Discount) {
+  const next = { ...discount, collections: [...discount.collections] };
+  const exists = current.discounts.some((item) => item.id === next.id);
+  publish(exists ? current.discounts.map((item) => (item.id === next.id ? next : item)) : [next, ...current.discounts]);
+  if (isHydrating()) return next;
+  const saved = await writeStore("save_store_discount", { discount: discountPayload(next) });
+  if (typeof saved === "string" && saved !== next.sourceId) rememberDiscountSource(next.id, saved);
+  return { ...next, sourceId: typeof saved === "string" ? saved : next.sourceId };
 }
 
 export function nextDiscountId() {
@@ -90,11 +131,17 @@ export function nextDiscountId() {
 }
 
 export function removeDiscounts(ids: number[]) {
+  const sourceIds = current.discounts.flatMap((item) => (ids.includes(item.id) && item.sourceId ? [item.sourceId] : []));
   publish(current.discounts.filter((item) => !ids.includes(item.id)));
+  if (sourceIds.length > 0) void writeStore("delete_store_discounts", { discount_ids: sourceIds });
 }
 
 export function deactivateDiscounts(ids: number[]) {
-  publish(current.discounts.map((item) => (ids.includes(item.id) ? { ...item, hasEnd: true, end: "2026-10-12" } : item)));
+  const next = current.discounts.map((item) => (ids.includes(item.id) ? { ...item, hasEnd: true, end: "2026-10-12" } : item));
+  publish(next);
+  next.filter((item) => ids.includes(item.id)).forEach((item) => {
+    void writeStore("save_store_discount", { discount: discountPayload(item) });
+  });
 }
 
 export const KIND_LABEL: Record<DiscountKind, string> = {

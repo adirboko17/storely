@@ -41,10 +41,15 @@ export type Order = {
   id: number;
   date: string;
   customerIndex: number;
+  customerName?: string;
   channel: string;
   items: [number, number][];
+  lineFallbacks?: Array<{ id: number; title: string; price: number; variant: string; sku: string }>;
   discount?: [string, number];
+  discountAmount?: number;
   ship: string;
+  shipCost?: number;
+  totalAmount?: number;
   pay: PayStatus;
   fulfillment: FulfillmentStatus;
   note?: string;

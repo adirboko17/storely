@@ -8,6 +8,7 @@ import { StoreHydrator } from "@/components/admin/store-hydrator";
 import { PlatformReturnBar } from "@/components/platform/return-bar";
 import type { PlatformStore } from "@/components/platform/types";
 import type { StoreSnapshot } from "@/data/live/apply-store";
+import { emptyTraffic, parseTraffic } from "@/data/live/traffic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveAdminNavigation } from "@/platform/navigation";
 import { getAdminSession } from "@/platform/session";
@@ -70,7 +71,10 @@ async function AdminFrame({ children }: { children: React.ReactNode }) {
     knownEmail = user.email ?? "";
   }
 
-  const { data: snapshot } = await supabase.rpc("store_admin_snapshot", { target_store: storeId });
+  const [{ data: snapshot }, { data: traffic }] = await Promise.all([
+    supabase.rpc("store_admin_snapshot", { target_store: storeId }),
+    supabase.rpc("store_traffic_snapshot", { target_store: storeId }),
+  ]);
   const liveSnapshot: StoreSnapshot =
     snapshot && typeof snapshot === "object" && !Array.isArray(snapshot) ? { ...(snapshot as StoreSnapshot) } : {};
   if (!presentText(liveSnapshot.name, knownStore)) {
@@ -89,7 +93,7 @@ async function AdminFrame({ children }: { children: React.ReactNode }) {
   const navItems = resolveAdminNavigation(getAdminSession());
 
   return (
-    <StoreHydrator storeId={storeId} snapshot={liveSnapshot}>
+    <StoreHydrator storeId={storeId} snapshot={liveSnapshot} traffic={traffic == null ? emptyTraffic() : parseTraffic(traffic)}>
       <AdminProvider>
         <AdminShell navItems={navItems}>
           {enteredName ? <PlatformReturnBar name={enteredName} /> : null}

@@ -1,3 +1,5 @@
+import { isHydrating, writeStore } from "@/data/live/write";
+
 export type Post = {
   id: number;
   title: string;
@@ -22,6 +24,11 @@ const listeners = new Set<() => void>();
 function publish(posts: Post[]) {
   current = { version: current.version + 1, posts };
   listeners.forEach((listener) => listener());
+  if (!isHydrating()) void writeStore("save_store_sections", { sections: { posts } });
+}
+
+export function replacePosts(posts: Post[]) {
+  publish(posts.map(copyPost));
 }
 
 export function subscribePosts(listener: () => void) {

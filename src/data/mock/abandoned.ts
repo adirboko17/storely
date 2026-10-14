@@ -150,5 +150,5 @@ export function abandonedSlug(id: string) {
 
 export function findAbandoned(raw: string) {
   const key = raw.startsWith("#") ? raw : `#${raw}`;
-  return ABANDONED.find((checkout) => checkout.id === key) ?? null;
+  return ABANDONED.find((checkout) => checkout.id === raw || checkout.id === key || abandonedSlug(checkout.id) === raw) ?? null;
 }

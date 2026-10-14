@@ -13,6 +13,9 @@ export type PlatformStore = {
   environment: string;
   displayName: string;
   hostname: string | null;
+  previewHost: string | null;
+  primaryHost: string | null;
+  trackingKey: string | null;
   domainVerified: boolean;
   modules: Array<{ id: string; enabled: boolean }>;
   members: PlatformMember[];

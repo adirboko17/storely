@@ -49,7 +49,7 @@ export function PlatformShell({ email, children }: { email: string; children: Re
 
           <div className="px-2 pt-1 pb-1 text-[13px] font-semibold text-[#8a8a8a]">הפלטפורמה</div>
           {NAV.map((item) => {
-            const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
+            const active = item.href === "/platform" ? pathname === "/platform" || /^\/platform\/[0-9a-f-]{36}$/i.test(pathname) : pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}
