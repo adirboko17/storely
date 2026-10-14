@@ -1,3 +1,4 @@
+import { reportById } from "@/lib/analytics/reports";
 import type { IconName } from "@/lib/icons";
 
 export type NavChild = {
@@ -15,6 +16,7 @@ export type NavItem = {
   icon: IconName;
   section?: string;
   children?: NavChild[];
+  viewStore?: boolean;
 };
 
 export const NAV_ITEMS: NavItem[] = [
@@ -38,7 +40,7 @@ export const NAV_ITEMS: NavItem[] = [
     match: "/admin/products",
     icon: "tag",
     children: [
-      { key: "collections", label: "אוספים", href: "/admin/products/collections" },
+      { key: "collections", label: "קטגוריות", href: "/admin/products/collections" },
       { key: "inventory", label: "מלאי", href: "/admin/products/inventory" },
       { key: "giftcards", label: "כרטיסי מתנה", href: "/admin/products/gift-cards" },
     ],
@@ -70,6 +72,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: "megaphone",
     children: [
       { key: "integrations", label: "אינטגרציות", href: "/admin/marketing/integrations" },
+      { key: "emails", label: "מיילים ו-SMS", href: "/admin/marketing/emails" },
       { key: "automations", label: "אוטומציות", href: "/admin/marketing/automations" },
     ],
   },
@@ -100,12 +103,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/admin/online-store",
     match: "/admin/online-store",
     icon: "store",
-    children: [
-      { key: "pages", label: "עמודים", href: "/admin/online-store/pages" },
-      { key: "menus", label: "תפריטי ניווט", href: "/admin/online-store/menus" },
-      { key: "homecontent", label: "תוכן דף הבית", href: "/admin/online-store/home" },
-      { key: "banners", label: "באנרים", href: "/admin/online-store/banners" },
-    ],
+    viewStore: true,
   },
 ];
 
@@ -116,9 +114,11 @@ const TITLES: Record<string, string> = {
   "/admin/orders/abandoned": "עגלות נטושות",
   "/admin/products": "מוצרים",
   "/admin/products/new": "מוצר חדש",
-  "/admin/products/collections": "אוספים",
+  "/admin/products/collections": "קטגוריות",
   "/admin/products/inventory": "מלאי",
   "/admin/products/gift-cards": "כרטיסי מתנה",
+  "/admin/products/gift-cards/new": "יצירת כרטיס מתנה",
+  "/admin/products/gift-cards/product": "יצירת מוצר כרטיס מתנה",
   "/admin/customers": "לקוחות",
   "/admin/customers/new": "לקוח חדש",
   "/admin/customers/segments": "פלחים",
@@ -126,6 +126,7 @@ const TITLES: Record<string, string> = {
   "/admin/growth": "צמיחה",
   "/admin/growth/attribution": "ייחוס",
   "/admin/marketing/integrations": "אינטגרציות",
+  "/admin/marketing/emails": "מיילים ו-SMS",
   "/admin/marketing/automations": "אוטומציות",
   "/admin/discounts": "הנחות",
   "/admin/discounts/new": "הנחה חדשה",
@@ -134,12 +135,9 @@ const TITLES: Record<string, string> = {
   "/admin/analytics": "ניתוח נתונים",
   "/admin/analytics/reports": "דוחות",
   "/admin/analytics/live": "צפייה חיה",
-  "/admin/online-store": "חנות אונליין",
-  "/admin/online-store/pages": "עמודים",
-  "/admin/online-store/menus": "תפריטי ניווט",
-  "/admin/online-store/home": "תוכן דף הבית",
-  "/admin/online-store/banners": "באנרים",
   "/admin/settings": "הגדרות",
+  "/admin/settings/users": "משתמשים",
+  "/admin/settings/users/new": "הוספת משתמש",
   "/admin/settings/policies": "פוליסות",
   "/admin/settings/shipping": "משלוחים",
   "/admin/design-system": "מערכת עיצוב ומפרט",
@@ -149,12 +147,20 @@ export function titleForPath(path: string) {
   if (TITLES[path]) return TITLES[path];
   if (/^\/admin\/orders\/abandoned\/[^/]+$/.test(path)) return "עגלה נטושה";
   if (/^\/admin\/orders\/\d+$/.test(path)) return "הזמנה";
-  if (/^\/admin\/products\/collections\/[^/]+$/.test(path)) return "אוסף";
+  if (/^\/admin\/products\/gift-cards\/(?!new$|product$)[^/]+$/.test(path)) return "כרטיס מתנה";
+  if (/^\/admin\/products\/collections\/[^/]+$/.test(path)) return "קטגוריה";
   if (/^\/admin\/products\/[^/]+$/.test(path)) return "מוצר";
   if (/^\/admin\/customers\/[^/]+$/.test(path)) return "לקוח";
   if (/^\/admin\/discounts\/[^/]+$/.test(path)) return "הנחה";
   if (/^\/admin\/content\/posts\/[^/]+$/.test(path)) return "פוסט";
   if (/^\/admin\/marketing\/automations\/[^/]+$/.test(path)) return "אוטומציה";
+  if (/^\/admin\/marketing\/emails\/[^/]+$/.test(path)) return "מייל";
+  if (/^\/admin\/marketing\/sms\/[^/]+$/.test(path)) return "SMS";
+  if (/^\/admin\/settings\/users\/[^/]+$/.test(path)) return "עריכת משתמש";
+  if (/^\/admin\/analytics\/reports\/[^/]+$/.test(path)) {
+    const report = reportById(path.slice("/admin/analytics/reports/".length));
+    return report?.name ?? "דוח";
+  }
   return "מודול";
 }
 

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { LiveGlobe } from "@/components/admin/analytics/live-globe";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { LiveGlobe, visitorCoordinates } from "@/components/admin/analytics/live-globe";
 import { getStoreTraffic, subscribeStoreTraffic } from "@/data/live/traffic";
+import { getSettings, getSettingsVersion, subscribeSettings } from "@/data/mock/settings-session";
 import { formatInteger, formatMoney0 } from "@/lib/formatting/money";
 
 const grow = "transition-[height,width] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none";
@@ -49,11 +50,25 @@ export function LiveViewScreen() {
   const [cities, setCities] = useState(false);
   const [drawn, setDrawn] = useState(false);
   const traffic = useSyncExternalStore(subscribeStoreTraffic, getStoreTraffic, getStoreTraffic);
+  const settingsVersion = useSyncExternalStore(subscribeSettings, getSettingsVersion, () => 0);
   const now = traffic.now;
   const visitorTotal = now.newVisitors + now.returningVisitors;
   const newWidth = visitorTotal ? (now.newVisitors / visitorTotal) * 100 : 0;
   const funnelMax = Math.max(now.carts, now.checkouts, now.purchased, 1);
   const locationMax = Math.max(...now.locations.map((place) => place.count), 1);
+  const visitors = useMemo(
+    () =>
+      now.locations.flatMap((place) => {
+        const coordinates = visitorCoordinates(place.label);
+        return coordinates && place.count > 0 ? [{ name: place.label, coordinates }] : [];
+      }),
+    [now.locations],
+  );
+  const store = useMemo(() => {
+    const address = getSettings().profiles.map((profile) => `${profile.location?.name ?? ""} ${profile.location?.address ?? ""}`).join(" ");
+    const coordinates = visitorCoordinates(address) ?? visitorCoordinates("תל אביב");
+    return coordinates ? { name: "החנות", coordinates } : null;
+  }, [settingsVersion]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setDrawn(true));
@@ -139,7 +154,7 @@ export function LiveViewScreen() {
         </div>
       </div>
       <div className="relative hidden min-h-[70vh] overflow-hidden bg-white min-[1000px]:block min-[1000px]:min-h-0">
-        <LiveGlobe labels={cities} />
+        <LiveGlobe labels={cities} visitors={visitors} store={store} />
         <div className="absolute top-3 left-3 z-20 flex gap-1.5">
           <div className="flex h-[34px] w-[280px] items-center gap-2 rounded-[10px] bg-white px-2.5 text-[#616161] shadow-[0_0_0_1px_rgba(0,0,0,.12)]">
             <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
@@ -156,11 +171,7 @@ export function LiveViewScreen() {
         </div>
         <div className="pointer-events-none absolute bottom-4 left-14 z-20 flex gap-4 text-xs text-[#8a8a8a]">
           <span className="inline-flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-[#6b3fe0] opacity-60" />
-            הזמנות
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-[#7fd0f2]" />
+            <span className="size-3 bg-[#2f9ed4]" style={{ clipPath: "polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%)" }} />
             מבקרים כעת
           </span>
         </div>

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useSyncExternalStore } from "react";
 import { darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
-import { createFlow, getMarketingVersion, listFlows, subscribeMarketing, toggleFlow } from "@/data/mock/marketing-session";
+import { createFlow, getMarketingVersion, listFlows, subscribeMarketing, toggleFlow, triggerTitle } from "@/data/mock/marketing-session";
 import { channelLabel, type StoreMessagingStatus } from "@/data/live/messaging";
 import { formatInteger, formatMoney0 } from "@/lib/formatting/money";
 
@@ -13,7 +13,7 @@ const TEMPLATES = [
   { key: "welcome" as const, name: "סדרת ברוכים הבאים", detail: "היכרות עם המותג וקוד הנחה לרכישה ראשונה.", channels: ["דוא״ל"] },
   { key: "thanks" as const, name: "תודה על הרכישה", detail: "הודעת תודה, ואחרי שבוע בקשה לביקורת.", channels: ["דוא״ל"] },
   { key: "campaign" as const, name: "מבצע לקהל", detail: "הודעה לכל הלקוחות, למנויים או לפלח. למשל מבצע חדש.", channels: ["דוא״ל"] },
-  { key: "winback" as const, name: "החזרת לקוח", detail: "לקוח שלא קנה כבר 30 יום.", channels: ["דוא״ל", "SMS"] },
+  { key: "winback" as const, name: "החזרת לקוח", detail: "לקוח שלא קנה כבר תקופה שאתם בוחרים.", channels: ["דוא״ל", "SMS"] },
   { key: "blank" as const, name: "אוטומציה ריקה", detail: "בוחרים טריגר ובונים את השלבים.", channels: [] as string[] },
 ];
 
@@ -58,7 +58,7 @@ export function AutomationsScreen({ messaging }: { messaging: StoreMessagingStat
             const channels = [...new Set(flow.steps.filter((step) => step.type === "email" || step.type === "sms").map((step) => step.type))];
             return (
               <div key={flow.id} className="grid cursor-pointer grid-cols-[minmax(0,1fr)_110px_90px_90px_90px_110px_50px] items-center gap-2.5 border-t border-[#f1f1f1] px-4 py-2.5 hover:bg-[#f7f7f7]" onClick={() => router.push(`/admin/marketing/automations/${flow.id}`)}>
-                <div><b className="block">{flow.name}</b><span className="text-xs text-ink-secondary">טריגר: {flow.trigger}</span></div>
+                <div><b className="block">{flow.name}</b><span className="text-xs text-ink-secondary">טריגר: {triggerTitle(flow.trigger, flow.lookback)}</span></div>
                 <div className="flex gap-1">{channels.map((channel) => <span key={channel} className="inline-flex h-5 items-center rounded-md px-[7px] text-xs font-semibold" style={{ background: channel === "email" ? "#e0f0ff" : "#ede7fb", color: channel === "email" ? "#00527c" : "#5b3fc4" }}>{channel === "email" ? "דוא״ל" : "SMS"}</span>)}</div>
                 <span className="text-left">{flow.stats ? formatInteger(flow.stats[0]) : "—"}</span>
                 <span dir="ltr" className="text-left">{flow.stats?.[1] ?? "—"}</span>

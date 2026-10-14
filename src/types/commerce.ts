@@ -40,6 +40,7 @@ export type Customer = {
 export type Order = {
   id: number;
   date: string;
+  at?: string;
   customerIndex: number;
   customerName?: string;
   channel: string;

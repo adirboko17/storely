@@ -11,6 +11,7 @@ export type AbandonedCheckout = {
   id: string;
   day: string;
   date: string;
+  at?: string;
   name: string;
   email: string;
   phone: string;

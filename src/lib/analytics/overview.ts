@@ -31,10 +31,16 @@ export type CohortRow = {
   rates: Array<number | null>;
 };
 
+export type AnalyticsWindow = {
+  start: Date;
+  end: Date;
+};
+
 export type AnalyticsOverview = {
   refreshed: string;
   currentLabel: string;
   previousLabel: string;
+  axis: string[];
   salesTotal: number;
   salesDelta: Delta;
   salesHours: { current: number[]; previous: number[] };
@@ -235,6 +241,7 @@ export function buildOverview(orders: ResolvedOrder[], checkouts: LiveCheckout[]
     refreshed: new Date().toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }),
     currentLabel: dateLabel(0),
     previousLabel: dateLabel(1),
+    axis: ["00:00", "06:00", "12:00", "18:00"],
     salesTotal: tally.today.total,
     salesDelta: change(tally.today.total, tally.yesterday.total),
     salesHours: { current: salesCurrent, previous: salesPrevious },
@@ -283,59 +290,154 @@ export function buildOverview(orders: ResolvedOrder[], checkouts: LiveCheckout[]
   };
 }
 
-export function buildTrafficOverview(traffic: StoreTraffic): AnalyticsOverview {
-  const today = traffic.today;
-  const yesterday = traffic.yesterday;
-  const conversionToday = today.visits ? (today.orders / today.visits) * 100 : 0;
-  const conversionYesterday = yesterday.visits ? (yesterday.orders / yesterday.visits) * 100 : 0;
-  const aovToday = today.orders ? today.sales / today.orders : 0;
-  const aovYesterday = yesterday.orders ? yesterday.sales / yesterday.orders : 0;
+const AXIS_HOURS = ["00:00", "06:00", "12:00", "18:00"];
+const DAY_MS = 86400000;
+
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function shiftDays(date: Date, amount: number) {
+  const next = startOfDay(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+function dayOffset(date: Date, today: Date) {
+  return Math.round((startOfDay(today).getTime() - startOfDay(date).getTime()) / DAY_MS);
+}
+
+function atOffset(recent: number[], earlier: number[], offset: number) {
+  if (offset < 0) return 0;
+  const series = offset < recent.length ? recent : earlier;
+  const index = (offset < recent.length ? recent.length - 1 - offset : earlier.length - 1 - (offset - recent.length));
+  return index >= 0 && index < series.length ? series[index] ?? 0 : 0;
+}
+
+function spanPoints(recent: number[], earlier: number[], from: number, to: number) {
+  const points: number[] = [];
+  for (let offset = from; offset >= to; offset -= 1) points.push(atOffset(recent, earlier, offset));
+  return points;
+}
+
+function per(numerator: number[], denominator: number[], scale = 1) {
+  return numerator.map((value, index) => {
+    const base = denominator[index] ?? 0;
+    return base ? (value / base) * scale : 0;
+  });
+}
+
+function formatDay(date: Date) {
+  const months = ["ינו׳", "פבר׳", "מרץ", "אפר׳", "מאי", "יוני", "יולי", "אוג׳", "ספט׳", "אוק׳", "נוב׳", "דצמ׳"];
+  return `${date.getDate()} ב${months[date.getMonth()]}`;
+}
+
+function formatSpan(start: Date, end: Date) {
+  if (start.getTime() === end.getTime()) return `${formatDay(start)} ${start.getFullYear()}`;
+  return `${formatDay(start)}–${formatDay(end)}`;
+}
+
+function axisFor(start: Date, end: Date, hourly: boolean) {
+  if (hourly) return AXIS_HOURS;
+  const span = Math.round((end.getTime() - start.getTime()) / DAY_MS);
+  return [0, 1, 2, 3].map((step) => formatDay(shiftDays(start, Math.round((span * step) / 3))));
+}
+
+export function buildTrafficOverview(traffic: StoreTraffic, window: AnalyticsWindow, today = new Date()): AnalyticsOverview {
+  const anchor = startOfDay(today);
+  const start = startOfDay(window.start);
+  const end = startOfDay(window.end);
+  const from = dayOffset(start, anchor);
+  const to = dayOffset(end, anchor);
+  const length = from - to + 1;
+  const hourlyToday = from === 0 && to === 0;
+  const hourlyYesterday = from === 1 && to === 1;
+  const hourly = hourlyToday || hourlyYesterday;
+  const previousStart = shiftDays(start, -length);
+  const previousEnd = shiftDays(start, -1);
+  const salesCurrent = hourlyToday
+    ? traffic.today.salesByHour
+    : hourlyYesterday
+      ? traffic.yesterday.salesByHour
+      : spanPoints(traffic.days.sales, traffic.days.previousSales, from, to);
+  const salesPrevious = hourlyToday
+    ? traffic.yesterday.salesByHour
+    : spanPoints(traffic.days.sales, traffic.days.previousSales, from + length, to + length);
+  const ordersCurrent = hourlyToday
+    ? traffic.today.ordersByHour
+    : hourlyYesterday
+      ? traffic.yesterday.ordersByHour
+      : spanPoints(traffic.days.orders, traffic.days.previousOrders, from, to);
+  const ordersPrevious = hourlyToday
+    ? traffic.yesterday.ordersByHour
+    : spanPoints(traffic.days.orders, traffic.days.previousOrders, from + length, to + length);
+  const visitsCurrent = hourlyToday
+    ? traffic.today.visitsByHour
+    : hourlyYesterday
+      ? traffic.yesterday.visitsByHour
+      : spanPoints(traffic.days.visits, traffic.days.previousVisits, from, to);
+  const visitsPrevious = hourlyToday
+    ? traffic.yesterday.visitsByHour
+    : spanPoints(traffic.days.visits, traffic.days.previousVisits, from + length, to + length);
+  const salesTotal = sum(salesCurrent);
+  const salesBefore = sum(salesPrevious);
+  const ordersTotal = sum(ordersCurrent);
+  const ordersBefore = sum(ordersPrevious);
+  const visitsTotal = sum(visitsCurrent);
+  const visitsBefore = sum(visitsPrevious);
+  const aov = ordersTotal ? salesTotal / ordersTotal : 0;
+  const aovBefore = ordersBefore ? salesBefore / ordersBefore : 0;
+  const conversion = visitsTotal ? (ordersTotal / visitsTotal) * 100 : 0;
+  const conversionBefore = visitsBefore ? (ordersBefore / visitsBefore) * 100 : 0;
+  const carts = hourlyToday ? traffic.today.carts : 0;
+  const checkouts = hourlyToday ? traffic.today.checkouts : 0;
   const steps = [
-    { label: "ביקורים", count: today.visits },
-    { label: "הוסיפו לעגלה", count: today.carts },
-    { label: "הגיעו לתשלום", count: today.checkouts },
-    { label: "רכשו", count: today.orders },
+    { label: "ביקורים", count: visitsTotal },
+    { label: "הוסיפו לעגלה", count: carts },
+    { label: "הגיעו לתשלום", count: checkouts },
+    { label: "רכשו", count: ordersTotal },
   ];
   return {
     refreshed: new Date().toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }),
-    currentLabel: dateLabel(0),
-    previousLabel: dateLabel(1),
-    salesTotal: today.sales,
-    salesDelta: change(today.sales, yesterday.sales),
-    salesHours: { current: today.salesByHour, previous: yesterday.salesByHour },
+    currentLabel: formatSpan(start, end),
+    previousLabel: formatSpan(previousStart, previousEnd),
+    axis: axisFor(start, end, hourly),
+    salesTotal,
+    salesDelta: change(salesTotal, salesBefore),
+    salesHours: { current: salesCurrent, previous: hourlyYesterday ? salesCurrent.map(() => 0) : salesPrevious },
     breakdown: [
-      { label: "מכירות ברוטו", value: today.sales, delta: change(today.sales, yesterday.sales) },
+      { label: "מכירות ברוטו", value: salesTotal, delta: change(salesTotal, salesBefore) },
       { label: "הנחות", value: 0, delta: null },
       { label: "ביטולי מכירות", value: 0, delta: null },
-      { label: "מכירות נטו", value: today.sales, delta: change(today.sales, yesterday.sales) },
+      { label: "מכירות נטו", value: salesTotal, delta: change(salesTotal, salesBefore) },
       { label: "דמי משלוח", value: 0, delta: null },
       { label: "עמלות החזרה", value: 0, delta: null },
       { label: "מסים", value: 0, delta: null },
-      { label: "סך המכירות", value: today.sales, delta: change(today.sales, yesterday.sales), strong: true },
+      { label: "סך המכירות", value: salesTotal, delta: change(salesTotal, salesBefore), strong: true },
     ],
     channels: [],
-    aov: aovToday,
-    aovDelta: change(aovToday, aovYesterday),
+    aov,
+    aovDelta: change(aov, aovBefore),
     aovHours: {
-      current: today.salesByHour.map((value, index) => (today.ordersByHour[index] ? value / (today.ordersByHour[index] ?? 1) : 0)),
-      previous: yesterday.salesByHour.map((value, index) => (yesterday.ordersByHour[index] ? value / (yesterday.ordersByHour[index] ?? 1) : 0)),
+      current: per(salesCurrent, ordersCurrent),
+      previous: per(hourlyYesterday ? salesCurrent.map(() => 0) : salesPrevious, hourlyYesterday ? ordersCurrent.map(() => 0) : ordersPrevious),
     },
     products: [],
-    sessionsTotal: today.visits,
-    sessionsDelta: change(today.visits, yesterday.visits),
-    sessionHours: { current: today.visitsByHour, previous: yesterday.visitsByHour },
-    conversion: conversionToday,
-    conversionDelta: change(conversionToday, conversionYesterday),
+    sessionsTotal: visitsTotal,
+    sessionsDelta: change(visitsTotal, visitsBefore),
+    sessionHours: { current: visitsCurrent, previous: hourlyYesterday ? visitsCurrent.map(() => 0) : visitsPrevious },
+    conversion,
+    conversionDelta: change(conversion, conversionBefore),
     conversionHours: {
-      current: today.visitsByHour.map((visits, index) => (visits ? ((today.ordersByHour[index] ?? 0) / visits) * 100 : 0)),
-      previous: yesterday.visitsByHour.map((visits, index) => (visits ? ((yesterday.ordersByHour[index] ?? 0) / visits) * 100 : 0)),
+      current: per(ordersCurrent, visitsCurrent, 100),
+      previous: per(hourlyYesterday ? ordersCurrent.map(() => 0) : ordersPrevious, hourlyYesterday ? visitsCurrent.map(() => 0) : visitsPrevious, 100),
     },
     funnel: steps.map((step) => ({
       ...step,
-      rate: today.visits ? (step.count / today.visits) * 100 : 0,
+      rate: visitsTotal ? (step.count / visitsTotal) * 100 : 0,
       delta: null,
     })),
-    locations: today.locations.map((place) => ({ label: place.label, value: place.count, delta: null })),
+    locations: hourlyToday ? traffic.today.locations.map((place) => ({ label: place.label, value: place.count, delta: null })) : [],
     socialSales: [],
     socialSessions: [],
     referrerSales: [],

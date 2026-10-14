@@ -2,17 +2,20 @@
 
 import type { ReactNode } from "react";
 import { Icon } from "@/components/ui/icon";
+import { cn } from "@/lib/cn";
 
 export function SettingsDialog({
   title,
   onClose,
   children,
   footer,
+  className,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  className?: string;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/45 px-4 py-8" onMouseDown={onClose}>
@@ -20,7 +23,7 @@ export function SettingsDialog({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="my-auto w-full max-w-[760px] rounded-2xl bg-white text-ink shadow-[0_24px_70px_rgba(0,0,0,.28)]"
+        className={cn("my-auto w-full max-w-[760px] rounded-2xl bg-white text-ink shadow-[0_24px_70px_rgba(0,0,0,.28)]", className)}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 pt-4 pb-2">

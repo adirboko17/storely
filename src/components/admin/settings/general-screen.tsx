@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { uploadStoreLogo } from "@/data/live/email-media";
 import { getStoreIdentity, getStoreIdentityVersion, subscribeStoreIdentity } from "@/data/live/store-identity";
+import { brandPalette, getSettings, getSettingsVersion, setBrandColor, setStoreLogo, subscribeSettings } from "@/data/mock/settings-session";
 import { Card } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 
@@ -12,7 +14,12 @@ const selectClass =
 export function GeneralSettingsScreen() {
   const { toast } = useAdmin();
   useSyncExternalStore(subscribeStoreIdentity, getStoreIdentityVersion, getStoreIdentityVersion);
+  useSyncExternalStore(subscribeSettings, getSettingsVersion, () => 0);
   const store = getStoreIdentity();
+  const logo = getSettings().logo;
+  const colors = brandPalette();
+  const file = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
   const [region, setRegion] = useState("israel");
   const [units, setUnits] = useState("metric");
   const [weight, setWeight] = useState("kg");
@@ -21,6 +28,52 @@ export function GeneralSettingsScreen() {
   return (
     <div data-screen-label="Settings general" className="mx-auto flex w-full max-w-[760px] flex-col gap-6 px-6 py-8">
       <h1 className="m-0 text-xl font-bold text-ink-strong">כללי</h1>
+
+      <section className="flex flex-col gap-2">
+        <div>
+          <h2 className="m-0 text-sm font-semibold text-ink">לוגו</h2>
+          <p className="m-0 mt-0.5 text-[13px] text-ink-secondary">הלוגו שמופיע ליד שם החשבון בתפריט ובמיילים. בלוק הלוגו במייל מושך אותו מכאן.</p>
+        </div>
+        <Card className="flex items-center gap-4 px-4 py-4">
+          <div className="grid h-16 w-28 shrink-0 place-items-center overflow-hidden rounded-xl bg-[#f6f6f6]">
+            {logo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logo} alt="" className="max-h-14 max-w-24 object-contain" />
+            ) : (
+              <span className="text-[12px] text-ink-secondary">אין לוגו</span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <input ref={file} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" className="hidden" onChange={(event) => {
+              const next = event.target.files?.[0];
+              event.target.value = "";
+              if (!next) return;
+              setUploading(true);
+              void uploadStoreLogo(store.storeId, next)
+                .then((url) => { setStoreLogo(url); toast("הלוגו נשמר"); })
+                .catch((error: unknown) => toast(error instanceof Error ? error.message : "העלאת הלוגו נכשלה"))
+                .finally(() => setUploading(false));
+            }} />
+            <button type="button" disabled={uploading} onClick={() => file.current?.click()} className="h-8 rounded-lg border-0 bg-[#1a1a1a] px-3 text-sm font-semibold text-white disabled:opacity-60">{uploading ? "מעלים…" : logo ? "החלפת לוגו" : "העלאת לוגו"}</button>
+            {logo ? <button type="button" onClick={() => { setStoreLogo(""); toast("הלוגו הוסר"); }} className="h-8 rounded-lg border-0 bg-[#f1f1f1] px-3 text-sm font-semibold text-ink">הסרה</button> : null}
+          </div>
+        </Card>
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <div>
+          <h2 className="m-0 text-sm font-semibold text-ink">צבעי מותג</h2>
+          <p className="m-0 mt-0.5 text-[13px] text-ink-secondary">שבעה צבעים שנשמרים לחנות ומופיעים בכל בחירת צבע במיילים.</p>
+        </div>
+        <Card className="flex flex-wrap gap-3 px-4 py-4">
+          {colors.map((color, index) => (
+            <label key={index} className="relative grid size-9 cursor-pointer place-items-center rounded-full" style={{ background: color, boxShadow: "0 0 0 1px rgba(0,0,0,.16)" }}>
+              <span className="sr-only">צבע {index + 1}</span>
+              <input type="color" value={color} onChange={(event) => setBrandColor(index, event.target.value)} className="absolute inset-0 cursor-pointer opacity-0" />
+            </label>
+          ))}
+        </Card>
+      </section>
 
       <section className="flex flex-col gap-2">
         <div>

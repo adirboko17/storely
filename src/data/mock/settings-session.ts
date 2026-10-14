@@ -43,7 +43,19 @@ type State = {
   estimates: boolean;
   localDelivery: boolean;
   pickup: boolean;
+  logo: string;
+  colors: string[];
 };
+
+export const DEFAULT_BRAND_COLORS = ["#1a1a1a", "#303030", "#ffffff", "#8e1f0b", "#0c5132", "#005bd3", "#5b3fc4"];
+
+export function normalizeBrandColors(value: unknown) {
+  const saved = Array.isArray(value) ? value : [];
+  return DEFAULT_BRAND_COLORS.map((fallback, index) => {
+    const color = saved[index];
+    return typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color) ? color.toLowerCase() : fallback;
+  });
+}
 
 const emptyPolicies = (): Record<PolicyKind, string> => ({
   return: "",
@@ -63,6 +75,8 @@ let current: State = {
   estimates: false,
   localDelivery: false,
   pickup: false,
+  logo: "",
+  colors: [...DEFAULT_BRAND_COLORS],
 };
 
 const listeners = new Set<() => void>();
@@ -225,6 +239,28 @@ export function deleteShipRate(profileId: string, zoneId: string, rateId: string
         : profile,
     ),
   });
+}
+
+export function brandPalette() {
+  return normalizeBrandColors(current.colors);
+}
+
+export function setBrandColor(index: number, color: string) {
+  if (!/^#[0-9a-fA-F]{6}$/.test(color)) return;
+  const colors = brandPalette();
+  if (index < 0 || index >= colors.length) return;
+  colors[index] = color.toLowerCase();
+  current = { ...current, colors, version: current.version + 1 };
+  listeners.forEach((listener) => listener());
+  if (isHydrating()) return;
+  void writeStore("save_store_brand_colors", { colors });
+}
+
+export function setStoreLogo(logo: string) {
+  current = { ...current, logo, version: current.version + 1 };
+  listeners.forEach((listener) => listener());
+  if (isHydrating()) return;
+  void writeStore("save_store_logo", { logo_url: logo });
 }
 
 export function setShippingFlag(key: "estimates" | "localDelivery" | "pickup", value: boolean) {

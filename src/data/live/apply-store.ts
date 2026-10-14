@@ -1,10 +1,10 @@
 import { replaceCatalogProducts, type CollectionCondition, type CollectionDraft, type GiftCard } from "@/data/mock/catalog-session";
 import { replacePosts, type Post } from "@/data/mock/content-session";
 import { blankDiscount, replaceDiscounts, type Discount, type DiscountKind } from "@/data/mock/discount-session";
-import { replaceMarketing, type Flow, type IntegrationState } from "@/data/mock/marketing-session";
+import { absorbLegacyEmails, parseEmails, parseSms, replaceMarketing, type Flow, type IntegrationState } from "@/data/mock/marketing-session";
 import { replaceAbandoned, replaceLiveOrders } from "@/data/mock/order-session";
 import { replacePeople, type PersonProfile } from "@/data/mock/people-session";
-import { replaceSettings, type PolicyKind, type ReturnRule, type ShipProfile } from "@/data/mock/settings-session";
+import { normalizeBrandColors, replaceSettings, type PolicyKind, type ReturnRule, type ShipProfile } from "@/data/mock/settings-session";
 import { beginHydration, endHydration } from "@/data/live/write";
 import { claimStore, setStoreIdentity } from "@/data/live/store-identity";
 import { enableLiveMetrics } from "@/lib/dashboard/chart";
@@ -28,6 +28,8 @@ export type StoreSnapshot = {
   marketing?: unknown;
   posts?: unknown;
   giftCards?: unknown;
+  logoUrl?: unknown;
+  brandColors?: unknown;
 };
 
 function row(value: unknown) {
@@ -173,6 +175,7 @@ function mapOrder(value: unknown, products: Product[], customers: Customer[]): O
   return {
     id: number,
     date: hebrewWhen(item?.createdAt),
+    at: text(item?.createdAt),
     customerIndex: customer?.id ?? -1,
     customerName: text(item?.customerName) || customer?.name || "",
     channel: text(item?.channel) || "חנות אונליין",
@@ -211,6 +214,7 @@ function mapCheckout(value: unknown): AbandonedCheckout | null {
     id,
     day: hebrewWhen(item?.updatedAt).startsWith("היום") ? "היום" : hebrewWhen(item?.updatedAt).startsWith("אתמול") ? "אתמול" : "לפני כן",
     date: hebrewWhen(item?.updatedAt),
+    at: text(item?.updatedAt),
     name: text(item?.name),
     email: text(item?.email),
     phone: text(item?.phone),
@@ -380,12 +384,19 @@ function mapGiftCards(value: unknown): GiftCard[] {
     const item = row(entry);
     const code = text(item?.code);
     if (!code) return [];
-    return [{ code, value: amount(item?.value), balance: amount(item?.balance ?? item?.value), customer: text(item?.customer) }];
+    return [{
+      code,
+      value: amount(item?.value),
+      balance: amount(item?.balance ?? item?.value),
+      customer: text(item?.customer),
+      expires: text(item?.expires),
+      note: text(item?.note),
+    }];
   });
 }
 
 export function applyStoreSnapshot(storeId: string, snapshot: StoreSnapshot) {
-  const mark = [snapshot.name, snapshot.ownerName, snapshot.ownerEmail, snapshot.hostname, Array.isArray(snapshot.orders) ? snapshot.orders.length : 0, Array.isArray(snapshot.products) ? snapshot.products.length : 0].map(String).join("|");
+  const mark = [snapshot.name, snapshot.ownerName, snapshot.ownerEmail, snapshot.hostname, snapshot.logoUrl, JSON.stringify(snapshot.brandColors ?? ""), Array.isArray(snapshot.orders) ? snapshot.orders.length : 0, Array.isArray(snapshot.products) ? snapshot.products.length : 0].map(String).join("|");
   if (!claimStore(storeId, mark)) return;
   const products = Array.isArray(snapshot.products) ? snapshot.products.map(mapProduct) : [];
   const customers = Array.isArray(snapshot.customers) ? snapshot.customers.map(mapCustomer) : [];
@@ -409,6 +420,7 @@ export function applyStoreSnapshot(storeId: string, snapshot: StoreSnapshot) {
   const shipping = mapShipping(snapshot.shipping);
   const marketing = row(snapshot.marketing);
   const flows = Array.isArray(marketing?.flows) ? marketing.flows.filter((flow): flow is Flow => Boolean(row(flow)?.name)) : [];
+  const library = absorbLegacyEmails(flows, parseEmails(marketing?.emails), parseSms(marketing?.sms));
   const connected = row(marketing?.connected) ?? {};
   beginHydration();
   try {
@@ -422,9 +434,9 @@ export function applyStoreSnapshot(storeId: string, snapshot: StoreSnapshot) {
     replaceDiscounts(discounts);
     replaceLiveOrders(orders, events);
     replaceAbandoned(checkouts);
-    replaceSettings({ policies: mapPolicies(snapshot.policies), ...shipping });
+    replaceSettings({ policies: mapPolicies(snapshot.policies), ...shipping, logo: text(snapshot.logoUrl), colors: normalizeBrandColors(snapshot.brandColors) });
     replacePosts(mapPosts(snapshot.posts));
-    replaceMarketing({ connected: connected as Record<string, IntegrationState>, flows });
+    replaceMarketing({ connected: connected as Record<string, IntegrationState>, flows: library.flows, emails: library.emails, sms: library.sms });
     enableLiveMetrics();
     setStoreIdentity({
       storeId,

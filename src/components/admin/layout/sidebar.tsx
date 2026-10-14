@@ -7,7 +7,7 @@ import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { Icon } from "@/components/ui/icon";
 import { AccountMenu } from "@/components/admin/layout/account-menu";
 import { getOrderSessionVersion, subscribeOrderSession, unfulfilledCount } from "@/data/mock/order-session";
-import { getStoreIdentity, getStoreIdentityVersion, subscribeStoreIdentity } from "@/data/live/store-identity";
+import { getStoreIdentity, getStoreIdentityVersion, storefrontHref, subscribeStoreIdentity } from "@/data/live/store-identity";
 import { cn } from "@/lib/cn";
 import { pathMatches, type NavItem } from "@/lib/navigation/nav";
 
@@ -23,18 +23,25 @@ export function Sidebar({
   pinned = false,
   expandable = false,
   seam = false,
+  showSettings = true,
+  accountName = "",
+  accountEmail = "",
 }: {
   navItems: NavItem[];
   rail?: boolean;
   pinned?: boolean;
   expandable?: boolean;
   seam?: boolean;
+  showSettings?: boolean;
+  accountName?: string;
+  accountEmail?: string;
 }) {
   const pathname = usePathname();
   const { narrow, toggleNav, menu, toggleMenu, openSearch } = useAdmin();
   useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
   useSyncExternalStore(subscribeStoreIdentity, getStoreIdentityVersion, getStoreIdentityVersion);
   const store = getStoreIdentity();
+  const storefront = storefrontHref(store.hostname);
   const unfulfilled = unfulfilledCount();
   const profileOpen = menu === "profile";
   const settingsOn = pathname.startsWith("/admin/settings");
@@ -75,16 +82,33 @@ export function Sidebar({
         </button>
         {navItems.map((item) => {
           const state = itemActive(pathname, item);
+          const className = cn(
+            "relative grid size-8 place-items-center rounded-lg no-underline hover:bg-[#2a2a2a] hover:text-white hover:no-underline",
+            state.moduleOn ? "bg-[#303030] text-white" : "text-[#e3e3e3]",
+          );
+          if (item.viewStore) {
+            if (!storefront) return null;
+            return (
+              <a
+                key={item.key}
+                href={storefront}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={item.label}
+                title={item.label}
+                className="grid size-8 place-items-center rounded-lg text-[#e3e3e3] no-underline hover:bg-[#2a2a2a] hover:text-white hover:no-underline"
+              >
+                <Icon name={item.icon} className="opacity-85" />
+              </a>
+            );
+          }
           return (
           <Link
             key={item.key}
             href={item.href}
             aria-label={item.label}
             title={item.label}
-            className={cn(
-              "relative grid size-8 place-items-center rounded-lg no-underline hover:bg-[#2a2a2a] hover:text-white hover:no-underline",
-              state.moduleOn ? "bg-[#303030] text-white" : "text-[#e3e3e3]",
-            )}
+            className={className}
           >
             <Icon name={item.icon} className="opacity-85" />
             {item.key === "orders" && unfulfilled > 0 ? (
@@ -96,17 +120,19 @@ export function Sidebar({
           );
         })}
         <div className="min-h-4 flex-1" />
-        <Link
-          href="/admin/settings"
-          aria-label="הגדרות"
-          title="הגדרות"
-          className={cn(
-            "grid size-8 place-items-center rounded-lg no-underline hover:bg-[#2a2a2a] hover:text-white hover:no-underline",
-            settingsOn ? "bg-[#303030] text-white" : "text-[#e3e3e3]",
-          )}
-        >
-          <Icon name="settings" />
-        </Link>
+        {showSettings ? (
+          <Link
+            href="/admin/settings"
+            aria-label="הגדרות"
+            title="הגדרות"
+            className={cn(
+              "grid size-8 place-items-center rounded-lg no-underline hover:bg-[#2a2a2a] hover:text-white hover:no-underline",
+              settingsOn ? "bg-[#303030] text-white" : "text-[#e3e3e3]",
+            )}
+          >
+            <Icon name="settings" />
+          </Link>
+        ) : null}
       </nav>
     );
   }
@@ -151,17 +177,29 @@ export function Sidebar({
 
       {navItems.map((item) => {
         const state = itemActive(pathname, item);
+        const rowClass = cn(
+          "flex h-8 w-full items-center gap-2.5 rounded-lg px-2 text-start text-sm no-underline hover:bg-[#2a2a2a] hover:no-underline",
+          state.filled ? "bg-[#303030] font-semibold text-white" : "font-medium",
+          state.moduleOn ? "text-white" : "text-[#e3e3e3]",
+          state.moduleOn && !state.filled ? "font-semibold" : "",
+        );
         return (
           <div key={item.key} className="flex flex-col">
-            <Link
-              href={item.href}
-              className={cn(
-                "flex h-8 w-full items-center gap-2.5 rounded-lg px-2 text-start text-sm no-underline hover:bg-[#2a2a2a] hover:no-underline",
-                state.filled ? "bg-[#303030] font-semibold text-white" : "font-medium",
-                state.moduleOn ? "text-white" : "text-[#e3e3e3]",
-                state.moduleOn && !state.filled ? "font-semibold" : "",
-              )}
-            >
+            {item.viewStore ? (
+              storefront ? (
+                <a
+                  href={storefront}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex h-8 w-full items-center gap-2.5 rounded-lg px-2 text-start text-sm font-medium text-[#e3e3e3] no-underline hover:bg-[#2a2a2a] hover:no-underline"
+                >
+                  <Icon name={item.icon} className="shrink-0 opacity-85" />
+                  <span className="min-w-0 flex-1">{item.label}</span>
+                  <Icon name="eye" size={16} strokeWidth={1.7} className="shrink-0 text-[#b5b5b5]" />
+                </a>
+              ) : null
+            ) : (
+            <Link href={item.href} className={rowClass}>
               <Icon name={item.icon} className="shrink-0 opacity-85" />
               <span className="flex-1">{item.label}</span>
               {item.key === "orders" && unfulfilled > 0 ? (
@@ -170,6 +208,7 @@ export function Sidebar({
                 </span>
               ) : null}
             </Link>
+            )}
             {item.children?.length ? (
               <div
                 data-nav-sub={item.key}
@@ -217,23 +256,25 @@ export function Sidebar({
 
       <div className="min-h-4 flex-1" />
 
-      <Link
-        href="/admin/settings"
-        className={cn(
-          "flex h-8 w-full items-center gap-2.5 rounded-lg px-2 text-start text-sm font-medium text-[#e3e3e3] no-underline hover:bg-[#2a2a2a] hover:no-underline",
-          settingsOn && "bg-[#303030]",
-        )}
-      >
-        <Icon name="settings" />
-        הגדרות
-      </Link>
+      {showSettings ? (
+        <Link
+          href="/admin/settings"
+          className={cn(
+            "flex h-8 w-full items-center gap-2.5 rounded-lg px-2 text-start text-sm font-medium text-[#e3e3e3] no-underline hover:bg-[#2a2a2a] hover:no-underline",
+            settingsOn && "bg-[#303030]",
+          )}
+        >
+          <Icon name="settings" />
+          הגדרות
+        </Link>
+      ) : null}
 
       <AccountMenu
         open={profileOpen}
         onToggle={() => toggleMenu("profile")}
-        name={store.ownerName}
+        name={accountName || store.ownerName}
         storeName={store.name}
-        email={store.ownerEmail}
+        email={accountEmail || store.ownerEmail}
       />
     </nav>
   );

@@ -1,7 +1,8 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, ViewTransition } from "react";
+import { canOpenAdminPath, type StoreAccess } from "@/platform/access";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { SearchDialog } from "@/components/admin/layout/search-dialog";
 import { SettingsSidebar } from "@/components/admin/layout/settings-sidebar";
@@ -34,9 +35,29 @@ const pageMotion = `
 }
 `;
 
-export function AdminShell({ children, navItems }: { children: React.ReactNode; navItems: NavItem[] }) {
+export function AdminShell({
+  children,
+  navItems,
+  access,
+  accountName,
+  accountEmail,
+}: {
+  children: React.ReactNode;
+  navItems: NavItem[];
+  access: StoreAccess;
+  accountName: string;
+  accountEmail: string;
+}) {
   const pathname = usePathname();
-  const { narrow, navCollapsed, navOpen, toggleNav, menu, closeMenu, searchOpen } = useAdmin();
+  const router = useRouter();
+  const { narrow, navCollapsed, navOpen, toggleNav, menu, closeMenu } = useAdmin();
+  const showSettings = access?.settings ?? true;
+
+  useEffect(() => {
+    if (!access || canOpenAdminPath(pathname, access)) return;
+    const next = navItems.find((item) => !item.viewStore)?.href;
+    if (next && next !== pathname) router.replace(next);
+  }, [access, navItems, pathname, router]);
   const settings = pathname.startsWith("/admin/settings");
   const [open, setOpen] = useState(settings);
   const [present, setPresent] = useState(settings);
@@ -85,7 +106,7 @@ export function AdminShell({ children, navItems }: { children: React.ReactNode; 
                   open ? "pointer-events-none opacity-0 duration-150" : "opacity-100 delay-100 duration-200",
                 )}
               >
-                <Sidebar navItems={navItems} pinned />
+                <Sidebar navItems={navItems} pinned showSettings={showSettings} accountName={accountName} accountEmail={accountEmail} />
               </div>
               <div
                 className={cn(
@@ -93,7 +114,7 @@ export function AdminShell({ children, navItems }: { children: React.ReactNode; 
                   open ? "opacity-100 delay-75 duration-200" : "pointer-events-none opacity-0 duration-100",
                 )}
               >
-                <Sidebar navItems={navItems} rail seam />
+                <Sidebar navItems={navItems} rail seam showSettings={showSettings} accountName={accountName} accountEmail={accountEmail} />
               </div>
             </div>
             <div
@@ -111,12 +132,12 @@ export function AdminShell({ children, navItems }: { children: React.ReactNode; 
                   open ? "opacity-100" : "opacity-0",
                 )}
               >
-                <SettingsSidebar />
+                <SettingsSidebar accountName={accountName} accountEmail={accountEmail} />
               </div>
             </div>
           </div>
         ) : narrow ? (
-          <Sidebar navItems={navItems} />
+          <Sidebar navItems={navItems} showSettings={showSettings} accountName={accountName} accountEmail={accountEmail} />
         ) : (
           <div
             className={cn(
@@ -132,7 +153,7 @@ export function AdminShell({ children, navItems }: { children: React.ReactNode; 
                 navCollapsed ? "pointer-events-none opacity-0 delay-[200ms] duration-150" : "opacity-100 duration-200",
               )}
             >
-              <Sidebar navItems={navItems} pinned />
+              <Sidebar navItems={navItems} pinned showSettings={showSettings} accountName={accountName} accountEmail={accountEmail} />
             </div>
             <div
               inert={!navCollapsed}
@@ -141,7 +162,7 @@ export function AdminShell({ children, navItems }: { children: React.ReactNode; 
                 navCollapsed ? "opacity-100 delay-[200ms] duration-150" : "pointer-events-none opacity-0 duration-120",
               )}
             >
-              <Sidebar navItems={navItems} rail expandable />
+              <Sidebar navItems={navItems} rail expandable showSettings={showSettings} accountName={accountName} accountEmail={accountEmail} />
             </div>
           </div>
         )
@@ -166,7 +187,7 @@ export function AdminShell({ children, navItems }: { children: React.ReactNode; 
         <div className="fixed inset-0 z-[25] bg-black/35" onClick={toggleNav} />
       ) : null}
       <ToastViewport />
-      {searchOpen ? <SearchDialog navItems={navItems} /> : null}
+      <SearchDialog navItems={navItems} showSettings={showSettings} />
     </div>
   );
 }

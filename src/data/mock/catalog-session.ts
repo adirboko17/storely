@@ -10,6 +10,8 @@ export type GiftCard = {
   value: number;
   customer: string;
   balance?: number;
+  expires?: string;
+  note?: string;
 };
 
 export type CollectionCondition = {
@@ -262,6 +264,22 @@ export function listGiftCards() {
 
 export function createGiftCard(card: GiftCard) {
   const giftCards = [{ ...card, balance: card.value }, ...current.giftCards];
+  publish({ ...current, giftCards });
+  if (!isHydrating()) void writeStore("save_store_sections", { sections: { gift_cards: giftCards } });
+}
+
+export function updateGiftCard(code: string, card: GiftCard) {
+  const giftCards = current.giftCards.map((item) => {
+    if (item.code !== code) return item;
+    const untouched = item.balance == null || item.balance === item.value;
+    return { ...item, ...card, balance: untouched ? card.value : Math.min(item.balance ?? card.value, card.value) };
+  });
+  publish({ ...current, giftCards });
+  if (!isHydrating()) void writeStore("save_store_sections", { sections: { gift_cards: giftCards } });
+}
+
+export function deleteGiftCard(code: string) {
+  const giftCards = current.giftCards.filter((item) => item.code !== code);
   publish({ ...current, giftCards });
   if (!isHydrating()) void writeStore("save_store_sections", { sections: { gift_cards: giftCards } });
 }

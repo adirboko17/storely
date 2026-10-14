@@ -32,6 +32,13 @@ export function getStoreIdentity() {
   return current;
 }
 
+export function storefrontHref(hostname: string) {
+  const host = hostname.trim().replace(/^https?:\/\//i, "").split("/")[0]?.trim() ?? "";
+  if (!host) return "";
+  const local = /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host) || host.endsWith(".localhost");
+  return `${local ? "http" : "https"}://${host}`;
+}
+
 export function storeMark(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return `${parts[0]?.[0] ?? ""}${parts[1]?.[0] ?? ""}`;

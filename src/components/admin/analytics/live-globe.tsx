@@ -1,17 +1,164 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { geoDistance, geoEquirectangular, geoOrthographic, geoPath } from "d3-geo";
+import { geoContains, geoDistance, geoEquirectangular, geoOrthographic, geoPath } from "d3-geo";
 import { feature } from "topojson-client";
+import { COUNTRY_NAMES } from "@/components/admin/analytics/country-names";
 
-const CITIES: Array<{ name: string; coordinates: [number, number]; main?: boolean }> = [
-  { name: "תל אביב", coordinates: [34.78, 32.08], main: true },
-  { name: "חיפה", coordinates: [34.99, 32.79] },
-  { name: "ירושלים", coordinates: [35.21, 31.77] },
-  { name: "באר שבע", coordinates: [34.79, 31.25] },
-];
+const PLACES: Record<string, [number, number]> = {
+  "תל אביב": [34.78, 32.08],
+  "תל אביב-יפו": [34.78, 32.08],
+  "tel aviv": [34.78, 32.08],
+  "חיפה": [34.99, 32.79],
+  haifa: [34.99, 32.79],
+  "ירושלים": [35.21, 31.77],
+  jerusalem: [35.21, 31.77],
+  "באר שבע": [34.79, 31.25],
+  "beer sheva": [34.79, 31.25],
+  "נתניה": [34.86, 32.33],
+  netanya: [34.86, 32.33],
+  "ראשון לציון": [34.79, 31.97],
+  "פתח תקווה": [34.89, 32.09],
+  "אשדוד": [34.65, 31.8],
+  ashdod: [34.65, 31.8],
+  "אשקלון": [34.57, 31.67],
+  "רחובות": [34.81, 31.89],
+  "הרצליה": [34.84, 32.16],
+  "רמת גן": [34.82, 32.07],
+  "ramat gan": [34.82, 32.07],
+  "פתח תקווה": [34.89, 32.09],
+  "petah tikva": [34.89, 32.09],
+  "ראשון לציון": [34.79, 31.97],
+  "rishon lezion": [34.79, 31.97],
+  "בת ים": [34.75, 32.02],
+  "bat yam": [34.75, 32.02],
+  "הרצליה": [34.84, 32.16],
+  herzliya: [34.84, 32.16],
+  "רחובות": [34.81, 31.89],
+  rehovot: [34.81, 31.89],
+  "כפר סבא": [34.91, 32.18],
+  "kfar saba": [34.91, 32.18],
+  "רעננה": [34.87, 32.18],
+  raanana: [34.87, 32.18],
+  "מודיעין": [35.01, 31.9],
+  modiin: [35.01, 31.9],
+  "בני ברק": [34.83, 32.08],
+  "bnei brak": [34.83, 32.08],
+  "בני-ברק": [34.83, 32.08],
+  "חולון": [34.78, 32.01],
+  holon: [34.78, 32.01],
+  "בת ים": [34.75, 32.02],
+  "כפר סבא": [34.91, 32.18],
+  "רעננה": [34.87, 32.18],
+  "מודיעין": [35.01, 31.9],
+  "אילת": [34.95, 29.56],
+  eilat: [34.95, 29.56],
+  "ישראל": [35.0, 31.5],
+  israel: [35.0, 31.5],
+  "ארצות הברית": [-98.5, 39.8],
+  "united states": [-98.5, 39.8],
+  usa: [-98.5, 39.8],
+  "בריטניה": [-1.5, 52.5],
+  "united kingdom": [-1.5, 52.5],
+  "צרפת": [2.2, 46.2],
+  france: [2.2, 46.2],
+  "גרמניה": [10.4, 51.1],
+  germany: [10.4, 51.1],
+  "קנדה": [-106, 56],
+  canada: [-106, 56],
+};
 
-type LandPoints = { pts: Array<[number, number]>; step: number };
+export type LiveVisitor = { name: string; coordinates: [number, number] };
+
+function placeKey(label: string) {
+  return label.toLowerCase().replace(/['’.\-]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+export function visitorCoordinates(label: string): [number, number] | null {
+  const key = placeKey(label);
+  if (!key || key === "לא ידוע") return null;
+  if (PLACES[key]) return PLACES[key];
+  for (const part of key.split(",")) {
+    const piece = part.trim();
+    if (PLACES[piece]) return PLACES[piece];
+  }
+  const names = Object.keys(PLACES).sort((left, right) => right.length - left.length);
+  const match = names.find((name) => key.includes(name));
+  return match ? PLACES[match] : null;
+}
+
+type LandPoints = { pts: Array<[number, number]>; names: string[]; step: number };
+
+type CountryGeometry = { type: string; coordinates: unknown };
+type CountryFeature = { id?: string | number; geometry?: CountryGeometry };
+
+function countryLabel(id: string) {
+  if (id === "275") return "ישראל";
+  return COUNTRY_NAMES[id] ?? "";
+}
+
+function polygonRings(geometry: CountryGeometry) {
+  if (geometry.type === "Polygon") return [geometry.coordinates as number[][][]];
+  if (geometry.type === "MultiPolygon") return geometry.coordinates as number[][][][];
+  return [];
+}
+
+function ringBox(ring: number[][]) {
+  let minLon = 180;
+  let maxLon = -180;
+  let minLat = 90;
+  let maxLat = -90;
+  for (const point of ring) {
+    const lon = point[0] ?? 0;
+    const lat = point[1] ?? 0;
+    if (lon < minLon) minLon = lon;
+    if (lon > maxLon) maxLon = lon;
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+  }
+  return { minLon, maxLon, minLat, maxLat };
+}
+
+function indexCountries(features: CountryFeature[]) {
+  const cell = 4;
+  const buckets = new Map<string, Array<{ name: string; feature: { type: "Feature"; geometry: CountryGeometry } }>>();
+  for (const item of features) {
+    const id = String(item.id ?? "").padStart(3, "0");
+    const name = countryLabel(id);
+    if (!name || !item.geometry) continue;
+    const featureShape = { type: "Feature" as const, geometry: item.geometry };
+    const record = { name, feature: featureShape };
+    for (const polygon of polygonRings(item.geometry)) {
+      const ring = polygon[0];
+      if (!ring?.length) continue;
+      const west = ring.filter((point) => (point[0] ?? 0) < 0);
+      const east = ring.filter((point) => (point[0] ?? 0) >= 0);
+      const width = Math.max(...ring.map((point) => point[0] ?? 0)) - Math.min(...ring.map((point) => point[0] ?? 0));
+      const groups = width > 180 && west.length && east.length ? [west, east] : [ring];
+      for (const group of groups) {
+        const box = ringBox(group);
+        const x0 = Math.floor(box.minLon / cell);
+        const x1 = Math.floor(box.maxLon / cell);
+        const y0 = Math.floor(box.minLat / cell);
+        const y1 = Math.floor(box.maxLat / cell);
+        for (let x = x0; x <= x1; x += 1) {
+          for (let y = y0; y <= y1; y += 1) {
+            const key = `${x},${y}`;
+            const list = buckets.get(key);
+            if (list) {
+              if (!list.includes(record)) list.push(record);
+            } else buckets.set(key, [record]);
+          }
+        }
+      }
+    }
+  }
+  return (lon: number, lat: number) => {
+    const list = buckets.get(`${Math.floor(lon / cell)},${Math.floor(lat / cell)}`) ?? [];
+    const match = list.find((item) => geoContains(item.feature, [lon, lat]));
+    return match?.name ?? "";
+  };
+}
 
 let landPromise: Promise<LandPoints> | null = null;
 
@@ -40,17 +187,27 @@ function loadLand() {
         const row = Math.min(height - 1, Math.max(0, Math.floor(((90 - lat) / 180) * height)));
         return pixels[(row * width + column) * 4 + 3] > 100;
       };
-      const step = 1.15;
+      const countriesResponse = await fetch("/globe/countries-110m.json");
+      if (!countriesResponse.ok) throw new Error("map");
+      const countriesTopo = (await countriesResponse.json()) as { objects: { countries: unknown } };
+      const countries = feature(countriesTopo, countriesTopo.objects.countries) as unknown as {
+        features: Array<{ id?: string | number; geometry?: { type: string; coordinates: unknown } }>;
+      };
+      const countryAt = indexCountries(countries.features);
+      const step = 0.82;
       const pts: Array<[number, number]> = [];
+      const names: string[] = [];
       for (let lat = -84; lat <= 84; lat += step * 0.866) {
         const row = Math.round((lat + 84) / (step * 0.866));
         const lonStep = step / Math.cos((lat * Math.PI) / 180);
         const offset = (row % 2) * (lonStep / 2);
         for (let lon = -180 + offset; lon < 180; lon += lonStep) {
-          if (isLand(lon, lat)) pts.push([lon, lat]);
+          if (!isLand(lon, lat)) continue;
+          pts.push([lon, lat]);
+          names.push(countryAt(lon, lat));
         }
       }
-      return { pts, step };
+      return { pts, names, step };
     })().catch((error: unknown) => {
       landPromise = null;
       throw error;
@@ -59,14 +216,16 @@ function loadLand() {
   return landPromise;
 }
 
-export function LiveGlobe({ labels }: { labels: boolean }) {
+export function LiveGlobe({ labels, visitors, store }: { labels: boolean; visitors: LiveVisitor[]; store: LiveVisitor | null }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const loadRef = useRef<HTMLDivElement>(null);
   const zoomInRef = useRef<HTMLButtonElement>(null);
   const zoomOutRef = useRef<HTMLButtonElement>(null);
-  const apiRef = useRef<{ zoom: (factor: number) => void; setLabels: (value: boolean) => void } | null>(null);
+  const visitorsRef = useRef(visitors);
+  const storeRef = useRef(store);
+  const apiRef = useRef<{ zoom: (factor: number) => void; setLabels: (value: boolean) => void; redraw: () => void } | null>(null);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -74,13 +233,23 @@ export function LiveGlobe({ labels }: { labels: boolean }) {
     const overlay = overlayRef.current;
     if (!root || !canvas || !overlay) return;
 
-    let rotation: [number, number] = [-35, -27];
+    let rotation: [number, number] = [-34.8, -32];
     let scale = 1;
     let land: LandPoints | null = null;
     let showLabels = false;
     let frame = 0;
     let alive = true;
     let pointer: [number, number] | null = null;
+    let hits: Array<{ x: number; y: number; name: string; size: number }> = [];
+    let hoverName = "";
+    let hoverTimer = 0;
+    const bubble = document.createElement("div");
+    bubble.className = "live-bubble";
+    root.append(bubble);
+
+    const hideBubble = () => {
+      bubble.dataset.on = "false";
+    };
 
     const render = () => {
       const width = root.clientWidth;
@@ -135,75 +304,83 @@ export function LiveGlobe({ labels }: { labels: boolean }) {
 
       const projection = geoOrthographic().scale(radius).translate([cx, cy]).rotate(rotation).clipAngle(90);
       const center: [number, number] = [-rotation[0], -rotation[1]];
-      const hex = radius * ((land.step * Math.PI) / 180) * 0.56;
+      const hex = radius * ((land.step * Math.PI) / 180) * 0.5;
+      const active = new Set<string>();
+      for (const visitor of visitorsRef.current) {
+        let nearest: [number, number] | null = null;
+        let nearestDistance = 0.045;
+        for (const point of land.pts) {
+          const distance = geoDistance(point, visitor.coordinates);
+          if (distance < nearestDistance) {
+            nearest = point;
+            nearestDistance = distance;
+          }
+        }
+        if (nearest) active.add(`${nearest[0].toFixed(2)},${nearest[1].toFixed(2)}`);
+      }
       context.save();
       context.beginPath();
       context.arc(cx, cy, radius, 0, 7);
       context.clip();
       const top = cy - radius;
       const span = 2 * radius;
-      for (const point of land.pts) {
+      const nextHits: Array<{ x: number; y: number; name: string; size: number }> = [];
+      land.pts.forEach((point, index) => {
         const distance = geoDistance(point, center);
-        if (distance > 1.56) continue;
+        if (distance > 1.56) return;
         const projected = projection(point);
-        if (!projected) continue;
+        if (!projected) return;
         const facing = Math.cos(distance);
         const shade = (projected[1] - top) / span;
-        context.fillStyle = `rgb(${Math.round(70 + shade * 55)},${Math.round(214 - shade * 30)},${Math.round(196 + shade * 44)})`;
-        const angle = Math.atan2(projected[1] - cy, projected[0] - cx);
-        context.setTransform(dpr, 0, 0, dpr, 0, 0);
-        context.translate(projected[0], projected[1]);
-        context.rotate(angle);
-        context.scale(Math.max(0.12, facing), 1);
+        const hot = active.has(`${point[0].toFixed(2)},${point[1].toFixed(2)}`);
+        context.fillStyle = hot ? "#1f8ec8" : `rgb(${Math.round(142 + shade * 18)},${Math.round(214 - shade * 10)},${Math.round(224 - shade * 8)})`;
+        const size = hex * Math.max(0.42, facing);
+        context.setTransform(dpr, 0, 0, dpr, projected[0] * dpr, projected[1] * dpr);
         context.beginPath();
         for (let index = 0; index < 6; index += 1) {
           const hexAngle = Math.PI / 6 + index * (Math.PI / 3);
-          const x = Math.cos(hexAngle) * hex;
-          const y = Math.sin(hexAngle) * hex;
+          const x = Math.cos(hexAngle) * size;
+          const y = Math.sin(hexAngle) * size;
           if (index) context.lineTo(x, y);
           else context.moveTo(x, y);
         }
         context.closePath();
         context.fill();
-      }
+        const name = land.names[index];
+        if (name) nextHits.push({ x: projected[0], y: projected[1], name, size });
+      });
+      hits = nextHits;
       context.restore();
 
-      for (const city of CITIES) {
-        if (geoDistance(city.coordinates, center) > 1.5) continue;
-        const projected = projection(city.coordinates);
+      const markers = storeRef.current ? [storeRef.current] : [];
+      for (const visitor of markers) {
+        if (geoDistance(visitor.coordinates, center) > 1.5) continue;
+        const projected = projection(visitor.coordinates);
         if (!projected) continue;
-        if (city.main) {
-          const pin = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-          pin.setAttribute("aria-label", city.name);
-          pin.setAttribute("width", "18");
-          pin.setAttribute("height", "24");
-          pin.setAttribute("viewBox", "0 0 18 24");
-          pin.setAttribute("class", "live-pin");
-          pin.style.left = `${projected[0]}px`;
-          pin.style.top = `${projected[1]}px`;
-          const shape = document.createElementNS("http://www.w3.org/2000/svg", "path");
-          shape.setAttribute("d", "M9 23s7-7.6 7-13A7 7 0 0 0 2 10c0 5.4 7 13 7 13z");
-          shape.setAttribute("fill", "#6b3fe0");
-          const hole = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-          hole.setAttribute("cx", "9");
-          hole.setAttribute("cy", "9.5");
-          hole.setAttribute("r", "3");
-          hole.setAttribute("fill", "#cdbdff");
-          pin.append(shape, hole);
-          overlay.append(pin);
-        } else {
-          const dot = document.createElement("span");
-          dot.className = "live-dot";
-          dot.style.left = `${projected[0]}px`;
-          dot.style.top = `${projected[1]}px`;
-          overlay.append(dot);
-        }
+        const pin = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        pin.setAttribute("aria-label", visitor.name);
+        pin.setAttribute("width", "18");
+        pin.setAttribute("height", "24");
+        pin.setAttribute("viewBox", "0 0 18 24");
+        pin.setAttribute("class", "live-pin");
+        pin.style.left = `${projected[0]}px`;
+        pin.style.top = `${projected[1]}px`;
+        const shape = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        shape.setAttribute("d", "M9 23s7-7.6 7-13A7 7 0 0 0 2 10c0 5.4 7 13 7 13z");
+        shape.setAttribute("fill", "#6b3fe0");
+        const hole = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        hole.setAttribute("cx", "9");
+        hole.setAttribute("cy", "9.5");
+        hole.setAttribute("r", "3");
+        hole.setAttribute("fill", "#cdbdff");
+        pin.append(shape, hole);
+        overlay.append(pin);
         if (showLabels) {
           const label = document.createElement("span");
           label.className = "live-label";
           label.style.left = `${projected[0]}px`;
-          label.style.top = `${projected[1] - (city.main ? 14 : 0)}px`;
-          label.textContent = city.name;
+          label.style.top = `${projected[1] - 14}px`;
+          label.textContent = visitor.name;
           overlay.append(label);
         }
       }
@@ -230,13 +407,60 @@ export function LiveGlobe({ labels }: { labels: boolean }) {
         showLabels = value;
         draw();
       },
+      redraw: draw,
     };
 
     const observer = new ResizeObserver(() => draw());
     observer.observe(root);
 
+    const nearest = (x: number, y: number) => {
+      let best: { x: number; y: number; name: string; size: number } | null = null;
+      let bestDistance = Infinity;
+      for (const hit of hits) {
+        const distance = Math.hypot(hit.x - x, hit.y - y);
+        if (distance <= hit.size && distance < bestDistance) {
+          best = hit;
+          bestDistance = distance;
+        }
+      }
+      return best;
+    };
+
+    const onHover = (event: PointerEvent) => {
+      if (pointer) return;
+      const bounds = canvas.getBoundingClientRect();
+      const hit = nearest(event.clientX - bounds.left, event.clientY - bounds.top);
+      if (!hit) {
+        window.clearTimeout(hoverTimer);
+        hoverName = "";
+        hideBubble();
+        return;
+      }
+      if (hit.name === hoverName) {
+        if (bubble.dataset.on === "true") {
+        bubble.style.left = `${hit.x + hit.size + 10}px`;
+        bubble.style.top = `${hit.y}px`;
+        }
+        return;
+      }
+      window.clearTimeout(hoverTimer);
+      hoverName = hit.name;
+      hideBubble();
+      const place = hit;
+      hoverTimer = window.setTimeout(() => {
+        if (!alive || hoverName !== place.name) return;
+        bubble.textContent = place.name;
+        bubble.style.left = `${place.x + place.size + 10}px`;
+        bubble.style.top = `${place.y}px`;
+        bubble.dataset.on = "true";
+      }, 1200);
+    };
+
     const onDown = (event: PointerEvent) => {
       pointer = [event.clientX, event.clientY];
+      window.clearTimeout(hoverTimer);
+      hoverName = "";
+      hideBubble();
       canvas.setPointerCapture(event.pointerId);
       canvas.classList.add("cursor-grabbing");
     };
@@ -257,6 +481,13 @@ export function LiveGlobe({ labels }: { labels: boolean }) {
       zoom(event.deltaY < 0 ? 1.12 : 1 / 1.12);
     };
 
+    const onLeave = () => {
+      window.clearTimeout(hoverTimer);
+      hoverName = "";
+      hideBubble();
+    };
+    canvas.addEventListener("pointermove", onHover);
+    canvas.addEventListener("pointerleave", onLeave);
     canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerup", onUp);
@@ -281,6 +512,10 @@ export function LiveGlobe({ labels }: { labels: boolean }) {
       apiRef.current = null;
       observer.disconnect();
       window.cancelAnimationFrame(frame);
+      window.clearTimeout(hoverTimer);
+      bubble.remove();
+      canvas.removeEventListener("pointermove", onHover);
+      canvas.removeEventListener("pointerleave", onLeave);
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
@@ -290,15 +525,21 @@ export function LiveGlobe({ labels }: { labels: boolean }) {
   }, []);
 
   useEffect(() => {
+    visitorsRef.current = visitors;
+    storeRef.current = store;
+    apiRef.current?.redraw();
+  }, [visitors, store]);
+
+  useEffect(() => {
     apiRef.current?.setLabels(labels);
   }, [labels]);
 
   return (
     <div ref={rootRef} className="absolute inset-0 overflow-hidden" style={{ touchAction: "none" }}>
       <style>{`
+        .live-bubble{position:absolute;z-index:5;translate:0 -50%;padding:8px 12px;border-radius:12px;background:#fff;color:#1a1a1a;font:600 14px Assistant,system-ui,sans-serif;box-shadow:0 12px 28px rgba(0,0,0,.16),0 0 0 1px rgba(0,0,0,.05);pointer-events:none;opacity:0;scale:.92;transition:opacity .18s ease,scale .22s cubic-bezier(.16,1,.3,1)}
+        .live-bubble[data-on="true"]{opacity:1;scale:1}
         .live-pin{position:absolute;transform:translate(-50%,-100%);pointer-events:none}
-        .live-dot{position:absolute;width:8px;height:8px;border-radius:50%;background:#7fd0f2;box-shadow:0 0 0 4px rgba(127,208,242,.3);transform:translate(-50%,-50%);animation:live-pulse 2.2s ease-in-out infinite;pointer-events:none}
-        @keyframes live-pulse{0%,100%{box-shadow:0 0 0 3px rgba(127,208,242,.35)}50%{box-shadow:0 0 0 8px rgba(127,208,242,0)}}
         .live-label{position:absolute;transform:translate(-50%,-150%);white-space:nowrap;font:600 11px Assistant,system-ui,sans-serif;background:#fff;color:#303030;padding:1px 6px;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.15);pointer-events:none}
       `}</style>
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full cursor-grab" />

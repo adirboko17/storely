@@ -12,11 +12,12 @@ import type { IconName } from "@/lib/icons";
 
 const ITEMS: Array<{ href: string; label: string; icon: IconName; exact?: boolean }> = [
   { href: "/admin/settings", label: "כללי", icon: "store", exact: true },
+  { href: "/admin/settings/users", label: "משתמשים", icon: "user" },
   { href: "/admin/settings/shipping", label: "משלוחים", icon: "truck" },
   { href: "/admin/settings/policies", label: "פוליסות", icon: "document" },
 ];
 
-export function SettingsSidebar() {
+export function SettingsSidebar({ accountName, accountEmail }: { accountName: string; accountEmail: string }) {
   const pathname = usePathname();
   const { menu, toggleMenu } = useAdmin();
   useSyncExternalStore(subscribeStoreIdentity, getStoreIdentityVersion, getStoreIdentityVersion);
@@ -84,9 +85,9 @@ export function SettingsSidebar() {
         <AccountMenu
           open={profileOpen}
           onToggle={() => toggleMenu("profile")}
-          name={store.ownerName}
+          name={accountName || store.ownerName}
           storeName={store.name}
-          email={store.ownerEmail}
+          email={accountEmail || store.ownerEmail}
         />
       </div>
     </nav>

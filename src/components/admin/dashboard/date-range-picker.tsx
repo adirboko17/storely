@@ -196,7 +196,7 @@ function MonthCalendar({
           onClick={() => onCursor(addMonths(cursor, -1))}
           className="grid size-7 place-items-center rounded-lg text-ink-secondary hover:bg-[#f1f1f1]"
         >
-          <Icon name="chevron" size={16} />
+          <Icon name="chevron" size={16} className="rotate-180" />
         </button>
         <div className="text-center text-sm font-semibold text-ink-strong">
           {MONTHS[month]} {year}
@@ -207,7 +207,7 @@ function MonthCalendar({
           onClick={() => onCursor(addMonths(cursor, 1))}
           className="grid size-7 place-items-center rounded-lg text-ink-secondary hover:bg-[#f1f1f1]"
         >
-          <Icon name="chevron" size={16} className="rotate-180" />
+          <Icon name="chevron" size={16} />
         </button>
       </div>
       <div className="grid grid-cols-7 text-center text-[12px] text-ink-secondary">
@@ -229,8 +229,8 @@ function MonthCalendar({
                 <span
                   className="absolute inset-y-0.5 bg-[#f1f1f1]"
                   style={{
-                    left: rangeStart ? "50%" : 0,
-                    right: rangeEnd ? "50%" : 0,
+                    right: rangeStart ? "50%" : 0,
+                    left: rangeEnd ? "50%" : 0,
                   }}
                 />
               ) : null}
@@ -255,11 +255,13 @@ export function DateRangePicker({
   value,
   onApply,
   onClose,
+  today = STORE_TODAY,
 }: {
   anchor: HTMLElement;
   value: DashboardWindow;
   onApply: (next: DashboardWindow) => void;
   onClose: () => void;
+  today?: Date;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [preset, setPreset] = useState(value.preset);
@@ -326,7 +328,7 @@ export function DateRangePicker({
   }
 
   function choosePreset(id: string) {
-    const range = windowForPreset(id);
+    const range = windowForPreset(id, today);
     setPreset(id);
     setAnchorDay(null);
     setOpenGroup(null);
@@ -358,7 +360,7 @@ export function DateRangePicker({
       role="dialog"
       aria-label="בחירת טווח תאריכים"
       dir="rtl"
-      className="fixed z-[70] rounded-2xl bg-white shadow-[0_0_0_1px_rgba(0,0,0,.08),0_18px_50px_rgba(0,0,0,.16)]"
+      className="fixed z-[90] rounded-2xl bg-white shadow-[0_0_0_1px_rgba(0,0,0,.08),0_18px_50px_rgba(0,0,0,.16)]"
       style={{ top: box.top, left: box.left, width: box.width }}
     >
       <div className="flex items-stretch">
@@ -413,7 +415,7 @@ export function DateRangePicker({
               <Icon name="clock" size={16} className="shrink-0 text-ink-secondary" />
             </div>
           </div>
-          <div dir="ltr" className="flex justify-center gap-6">
+          <div dir="rtl" className="flex justify-center gap-6">
             <MonthCalendar cursor={leftMonth} start={start} end={end} onCursor={setLeftMonth} onPick={pickDay} />
             <MonthCalendar cursor={rightMonth} start={start} end={end} onCursor={setRightMonth} onPick={pickDay} />
           </div>

@@ -57,7 +57,6 @@ export function QuickActions() {
     { label: "הוספת מוצר", href: "/admin/products/new" },
     { label: "יצירת הזמנה ידנית", href: "/admin/orders/drafts" },
     { label: "יצירת קוד הנחה", href: "/admin/discounts/new" },
-    { label: "עריכת באנר בדף הבית", href: "/admin/online-store/banners" },
   ];
   return (
     <div className="flex flex-col gap-2 rounded-xl bg-white p-4 shadow-[var(--shadow-card)]">

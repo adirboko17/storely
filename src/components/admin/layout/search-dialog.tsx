@@ -6,16 +6,11 @@ import { createPortal } from "react-dom";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { Icon } from "@/components/ui/icon";
 import { listPosts } from "@/data/mock/content-session";
-import {
-  getCollectionDraft,
-  listCatalogProducts,
-  listExtraCollections,
-  listHiddenCollections,
-} from "@/data/mock/catalog-session";
+import { listCatalogProducts } from "@/data/mock/catalog-session";
 import { listDiscounts } from "@/data/mock/discount-session";
 import { listResolvedOrders } from "@/data/mock/order-session";
 import { listPeople } from "@/data/mock/people-session";
-import { COLLECTION_SEEDS } from "@/lib/catalog/present";
+import { getStoreIdentity, storefrontHref } from "@/data/live/store-identity";
 import { cn } from "@/lib/cn";
 import type { NavItem } from "@/lib/navigation/nav";
 
@@ -38,6 +33,7 @@ type SearchHit = {
   hint: string;
   href: string;
   haystack: string;
+  external?: boolean;
 };
 
 const KIND_LABEL: Record<SearchKind, string> = {
@@ -60,7 +56,7 @@ function readRecents(): SearchHit[] {
       if (!item || typeof item !== "object") return [];
       const row = item as Partial<SearchHit>;
       if (!row.id || !row.kind || !isKind(row.kind) || !row.title || !row.href) return [];
-      return [{ id: row.id, kind: row.kind, title: row.title, hint: row.hint ?? "", href: row.href, haystack: row.title }];
+      return [{ id: row.id, kind: row.kind, title: row.title, hint: row.hint ?? "", href: row.href, haystack: row.title, external: row.external === true }];
     });
   } catch {
     return [];
@@ -83,10 +79,11 @@ function rank(hit: SearchHit, query: string) {
   return 9;
 }
 
-function buildHits(navItems: NavItem[]): SearchHit[] {
+function buildHits(navItems: NavItem[], storefront: string, showSettings: boolean): SearchHit[] {
   const hits: SearchHit[] = [];
+  const keys = new Set(navItems.map((item) => item.key));
 
-  for (const order of listResolvedOrders()) {
+  if (keys.has("orders")) for (const order of listResolvedOrders()) {
     hits.push({
       id: `order-${order.id}`,
       kind: "orders",
@@ -97,7 +94,7 @@ function buildHits(navItems: NavItem[]): SearchHit[] {
     });
   }
 
-  for (const product of listCatalogProducts()) {
+  if (keys.has("products")) for (const product of listCatalogProducts()) {
     hits.push({
       id: `product-${product.id}`,
       kind: "products",
@@ -108,23 +105,21 @@ function buildHits(navItems: NavItem[]): SearchHit[] {
     });
   }
 
-  const hidden = new Set(listHiddenCollections());
-  const collectionKeys = [...listExtraCollections(), ...COLLECTION_SEEDS.map((seed) => seed.title)].filter(
-    (key, index, all) => all.indexOf(key) === index && !hidden.has(key),
-  );
-  for (const key of collectionKeys) {
-    const title = getCollectionDraft(key)?.title || key;
-    hits.push({
-      id: `collection-${key}`,
-      kind: "products",
-      title,
-      hint: "אוסף",
-      href: `/admin/products/collections/${encodeURIComponent(key)}`,
-      haystack: `${title} אוסף`,
-    });
+  if (keys.has("products")) {
+    const categories = [...new Set(listCatalogProducts().map((product) => product.category.trim()).filter(Boolean))];
+    for (const title of categories) {
+      hits.push({
+        id: `category-${title}`,
+        kind: "products",
+        title,
+        hint: "קטגוריה",
+        href: "/admin/products/collections",
+        haystack: `${title} קטגוריה`,
+      });
+    }
   }
 
-  for (const person of listPeople()) {
+  if (keys.has("customers")) for (const person of listPeople()) {
     hits.push({
       id: `customer-${person.id}`,
       kind: "customers",
@@ -135,7 +130,7 @@ function buildHits(navItems: NavItem[]): SearchHit[] {
     });
   }
 
-  for (const discount of listDiscounts()) {
+  if (keys.has("discounts")) for (const discount of listDiscounts()) {
     hits.push({
       id: `discount-${discount.id}`,
       kind: "discounts",
@@ -147,6 +142,19 @@ function buildHits(navItems: NavItem[]): SearchHit[] {
   }
 
   for (const item of navItems) {
+    if (item.viewStore) {
+      if (!storefront) continue;
+      hits.push({
+        id: `page-${item.key}`,
+        kind: "pages",
+        title: item.label,
+        hint: "האתר",
+        href: storefront,
+        haystack: item.label,
+        external: true,
+      });
+      continue;
+    }
     hits.push({
       id: `page-${item.key}`,
       kind: "pages",
@@ -167,16 +175,16 @@ function buildHits(navItems: NavItem[]): SearchHit[] {
     }
   }
 
-  hits.push({
+  if (showSettings) hits.push({
     id: "page-settings",
     kind: "pages",
     title: "הגדרות",
     hint: "עמוד",
     href: "/admin/settings",
-    haystack: "הגדרות",
+    haystack: "הגדרות משתמשים",
   });
 
-  for (const post of listPosts()) {
+  if (keys.has("content")) for (const post of listPosts()) {
     hits.push({
       id: `post-${post.id}`,
       kind: "pages",
@@ -190,14 +198,31 @@ function buildHits(navItems: NavItem[]): SearchHit[] {
   return hits;
 }
 
-export function SearchDialog({ navItems }: { navItems: NavItem[] }) {
+const searchMotion = `
+.search-veil { opacity: 0; transition: opacity 180ms ease; }
+.search-panel {
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
+  transform-origin: top center;
+  transition: opacity 180ms ease, transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.search-veil[data-open="true"] { opacity: 1; }
+.search-panel[data-open="true"] { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .search-veil, .search-panel { transition: none; }
+}
+`;
+
+export function SearchDialog({ navItems, showSettings }: { navItems: NavItem[]; showSettings: boolean }) {
   const router = useRouter();
-  const { closeSearch } = useAdmin();
+  const { searchOpen, closeSearch } = useAdmin();
+  const [present, setPresent] = useState(false);
+  const [shown, setShown] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<SearchKind | null>(null);
   const [active, setActive] = useState(0);
   const [recents, setRecents] = useState<SearchHit[]>(() => readRecents());
-  const hits = useMemo(() => buildHits(navItems), [navItems]);
+  const hits = useMemo(() => buildHits(navItems, storefrontHref(getStoreIdentity().hostname), showSettings), [navItems, showSettings]);
 
   const trimmed = query.trim().toLowerCase();
   const results = useMemo(() => {
@@ -215,8 +240,32 @@ export function SearchDialog({ navItems }: { navItems: NavItem[] }) {
   const rows = showingRecents ? recents : results;
 
   useEffect(() => {
+    if (!searchOpen) return;
+    setPresent(true);
+    setQuery("");
+    setFilter(null);
+    setActive(0);
+    setRecents(readRecents());
+  }, [searchOpen]);
+
+  useEffect(() => {
+    if (searchOpen || !present) return;
+    setShown(false);
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const timer = window.setTimeout(() => setPresent(false), reduce ? 0 : 240);
+    return () => window.clearTimeout(timer);
+  }, [searchOpen, present]);
+
+  useEffect(() => {
+    if (!searchOpen || !present) return;
+    const frame = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(frame);
+  }, [searchOpen, present]);
+
+  useEffect(() => {
+    if (!shown) return;
     document.getElementById("admin-command-search")?.focus();
-  }, []);
+  }, [shown]);
 
   useEffect(() => {
     setActive(0);
@@ -229,6 +278,10 @@ export function SearchDialog({ navItems }: { navItems: NavItem[] }) {
   function openHit(hit: SearchHit) {
     setRecents(remember(hit));
     closeSearch();
+    if (hit.external) {
+      window.open(hit.href, "_blank", "noopener,noreferrer");
+      return;
+    }
     router.push(hit.href);
   }
 
@@ -249,14 +302,19 @@ export function SearchDialog({ navItems }: { navItems: NavItem[] }) {
     }
   }
 
+  if (!present) return null;
+
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-start justify-center bg-black/45 px-4 pt-[11vh]" onMouseDown={closeSearch}>
+    <div className="fixed inset-0 z-[80]">
+      <style>{searchMotion}</style>
+      <div data-open={shown} className="search-veil absolute inset-0 bg-black/45" onMouseDown={closeSearch} />
+      <div className="pointer-events-none absolute inset-0 flex items-start justify-center px-4 pt-[11vh]">
       <div
         role="dialog"
         aria-modal="true"
         aria-label="חיפוש"
-        className="flex h-[min(520px,78vh)] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl bg-white text-ink shadow-[0_24px_48px_rgba(0,0,0,.28),0_0_0_1px_rgba(0,0,0,.08)]"
-        onMouseDown={(event) => event.stopPropagation()}
+        data-open={shown}
+        className="search-panel pointer-events-auto flex h-[min(520px,78vh)] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl bg-white text-ink shadow-[0_24px_48px_rgba(0,0,0,.28),0_0_0_1px_rgba(0,0,0,.08)]"
         onKeyDown={onKeyDown}
       >
         <div className="flex items-center gap-3 border-b border-[#ebebeb] px-4">
@@ -341,6 +399,7 @@ export function SearchDialog({ navItems }: { navItems: NavItem[] }) {
           <span>פתיחה</span>
           <kbd className="grid h-5 min-w-5 place-items-center rounded-md border border-[#e3e3e3] bg-[#f7f7f7] px-1 text-xs text-[#303030]">↵</kbd>
         </div>
+      </div>
       </div>
     </div>,
     document.body,

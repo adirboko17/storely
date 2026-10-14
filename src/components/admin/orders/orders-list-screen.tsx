@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
-import { getStoreIdentity } from "@/data/live/store-identity";
+import { DateRangePicker, windowForPreset, type DashboardWindow } from "@/components/admin/dashboard/date-range-picker";
 import { ColumnsButton, IndexDock, SearchField, darkButton, menuItem, menuPanel, softButton } from "@/components/admin/orders/chrome";
+import { ExportOrdersDialog } from "@/components/admin/orders/export-orders-dialog";
 import { Icon } from "@/components/ui/icon";
 import { bulkFulfill, getOrderSessionVersion, listResolvedOrders, subscribeOrderSession } from "@/data/mock/order-session";
 import { formatMoney } from "@/lib/formatting/money";
@@ -20,6 +22,11 @@ import {
   type PayFilter,
 } from "@/lib/orders/present";
 
+function todayWindow(today: Date): DashboardWindow {
+  const range = windowForPreset("today", today) ?? { start: today, end: today };
+  return { label: "היום", preset: "today", ...range };
+}
+
 export function OrdersListScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -33,6 +40,11 @@ export function OrdersListScreen() {
   const [pay, setPay] = useState<PayFilter>(null);
   const [selected, setSelected] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [rangeOpen, setRangeOpen] = useState(false);
+  const today = useRef(new Date()).current;
+  const [range, setRange] = useState<DashboardWindow>(() => todayWindow(new Date()));
+  const rangeButton = useRef<HTMLButtonElement>(null);
   const timer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -48,7 +60,7 @@ export function OrdersListScreen() {
   }
 
   const rows = filterOrders(orders, tab, query, pay);
-  const stats = orderStats(orders);
+  const stats = orderStats(orders, range, today);
   const visibleIds = rows.map((order) => order.id);
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.includes(id));
   const viewLabel = ORDER_TABS.find((item) => item.id === tab)?.label ?? "הכל";
@@ -67,41 +79,9 @@ export function OrdersListScreen() {
       <div className="flex flex-wrap items-center gap-2 px-3.5 pt-2.5 pb-2">
         <Icon name="orders" size={18} className="text-ink" />
         <h1 className="m-0 flex-1 text-[15px] leading-5 font-bold">הזמנות</h1>
-        <button type="button" className={softButton} onClick={() => toast(`קובץ CSV יישלח אל ${getStoreIdentity().ownerEmail}`)}>
+        <button type="button" className={softButton} onClick={() => setExportOpen(true)}>
           ייצוא
         </button>
-        <div className="relative z-30">
-          <button type="button" className={softButton} onClick={() => toggleMenu("oMore")}>
-            פעולות נוספות
-            <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M6 8l4 4 4-4" />
-            </svg>
-          </button>
-          {menu === "oMore" ? (
-            <div className={`${menuPanel("end")} w-[220px]`}>
-              <button
-                type="button"
-                className={menuItem}
-                onClick={() => {
-                  closeMenu();
-                  toast("תוויות המשלוח נשלחו להדפסה");
-                }}
-              >
-                הדפסת תוויות משלוח
-              </button>
-              <button
-                type="button"
-                className={menuItem}
-                onClick={() => {
-                  closeMenu();
-                  toast("ניהול תצוגות שמורות יתווסף בשלב 4");
-                }}
-              >
-                ניהול תצוגות שמורות
-              </button>
-            </div>
-          ) : null}
-        </div>
         <Link href="/admin/orders/drafts" className={darkButton}>
           יצירת הזמנה
         </Link>
@@ -109,10 +89,31 @@ export function OrdersListScreen() {
 
       <div className="mx-3 flex overflow-x-auto rounded-xl bg-white shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
         <div className="flex shrink-0 items-center border-e border-[#ebebeb] px-4">
-          <button type="button" className="inline-flex h-[30px] items-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 text-sm font-medium text-ink hover:bg-[#f1f1f1]">
-            <Icon name="calendar" size={16} strokeWidth={1.6} />
-            היום
+          <button
+            ref={rangeButton}
+            type="button"
+            aria-expanded={rangeOpen}
+            onClick={() => setRangeOpen((open) => !open)}
+            className="inline-flex h-[30px] max-w-[220px] items-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 text-sm font-medium text-ink hover:bg-[#f1f1f1]"
+          >
+            <Icon name="calendar" size={16} strokeWidth={1.6} className="shrink-0" />
+            <span className="truncate">{range.label}</span>
           </button>
+          {rangeOpen && rangeButton.current
+            ? createPortal(
+                <DateRangePicker
+                  anchor={rangeButton.current}
+                  value={range}
+                  today={today}
+                  onClose={() => setRangeOpen(false)}
+                  onApply={(next) => {
+                    setRange(next);
+                    setRangeOpen(false);
+                  }}
+                />,
+                document.body,
+              )
+            : null}
         </div>
         {stats.map((stat) => (
           <div key={stat.label} className="flex min-w-[180px] flex-1 items-end justify-between gap-2.5 border-e border-[#ebebeb] px-4 py-3">
@@ -408,6 +409,15 @@ export function OrdersListScreen() {
 
       <div className="min-h-4 flex-1" />
       <IndexDock pageLabel={rows.length ? `1-${rows.length}` : "0"} />
+      {exportOpen ? (
+        <ExportOrdersDialog
+          orders={orders}
+          today={today}
+          initialRange={range}
+          onClose={() => setExportOpen(false)}
+          onDone={(count) => toast(count === 1 ? "הזמנה אחת ירדה לקובץ" : `${count} הזמנות ירדו לקובץ`)}
+        />
+      ) : null}
     </div>
   );
 }

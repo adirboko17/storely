@@ -101,14 +101,60 @@ export type OrderStat = {
   sparkCompare: string;
 };
 
-export function orderStats(orders: ResolvedOrder[]): OrderStat[] {
-  const today = orders.filter((order) => order.date.startsWith("היום"));
-  const returned = orders.reduce((sum, order) => sum + (order.date.startsWith("היום") ? order.refundedAmount : 0), 0);
+const HEBREW_MONTHS = ["ינו", "פבר", "מרץ", "אפר", "מאי", "יוני", "יולי", "אוג", "ספט", "אוק", "נוב", "דצמ"];
+const HEBREW_MONTHS_FULL = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
+
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function monthIndex(label: string) {
+  const key = label.replace(/['׳״"]/g, "");
+  const short = HEBREW_MONTHS.indexOf(key);
+  if (short >= 0) return short;
+  return HEBREW_MONTHS_FULL.indexOf(key);
+}
+
+export function orderDay(order: { date: string; at?: string }, today = new Date()) {
+  if (order.at) {
+    const parsed = new Date(order.at);
+    if (!Number.isNaN(parsed.getTime())) return startOfDay(parsed);
+  }
+  const dayPart = order.date.split(" ב-")[0]?.trim() ?? "";
+  if (dayPart === "היום") return startOfDay(today);
+  if (dayPart === "אתמול") {
+    const yesterday = startOfDay(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    return yesterday;
+  }
+  const match = /^(\d{1,2})\s+ב(.+)$/.exec(dayPart);
+  if (!match) return null;
+  const month = monthIndex(match[2] ?? "");
+  const day = Number(match[1]);
+  if (month < 0 || !day) return null;
+  const current = startOfDay(today);
+  let date = new Date(current.getFullYear(), month, day);
+  if (date.getTime() > current.getTime()) date = new Date(current.getFullYear() - 1, month, day);
+  return date;
+}
+
+export function orderInRange(order: { date: string; at?: string }, start: Date, end: Date, today = new Date()) {
+  const day = orderDay(order, today);
+  if (!day) return false;
+  const from = startOfDay(start).getTime();
+  const to = startOfDay(end).getTime();
+  const time = day.getTime();
+  return time >= Math.min(from, to) && time <= Math.max(from, to);
+}
+
+export function orderStats(orders: ResolvedOrder[], range?: { start: Date; end: Date }, today = new Date()): OrderStat[] {
+  const scoped = range ? orders.filter((order) => orderInRange(order, range.start, range.end, today)) : orders.filter((order) => order.date.startsWith("היום"));
+  const returned = scoped.reduce((sum, order) => sum + order.refundedAmount, 0);
   const rows: Array<[string, string]> = [
-    ["הזמנות", String(today.length)],
-    ["פריטים שהוזמנו", String(today.reduce((sum, order) => sum + order.quantity, 0))],
+    ["הזמנות", String(scoped.length)],
+    ["פריטים שהוזמנו", String(scoped.reduce((sum, order) => sum + order.quantity, 0))],
     ["החזרות", formatMoney(-returned)],
-    ["הזמנות שנשלחו", String(today.filter((order) => order.fulfillment === "fulfilled").length)],
+    ["הזמנות שנשלחו", String(scoped.filter((order) => order.fulfillment === "fulfilled").length)],
     ["הזמנות שנמסרו", "0"],
     ["זמן עד משלוח", "—"],
   ];

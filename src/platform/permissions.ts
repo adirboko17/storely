@@ -16,6 +16,8 @@ export const CORE_PERMISSIONS = [
   "content.read",
   "content.update",
   "analytics.read",
+  "analytics.live",
+  "marketing.read",
   "settings.manage",
 ] as const;
 

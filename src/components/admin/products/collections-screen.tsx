@@ -2,21 +2,19 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
-import { ColumnsButton, IndexDock, darkButton, softButton } from "@/components/admin/orders/chrome";
+import { ColumnsButton, IndexDock, darkButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { Icon } from "@/components/ui/icon";
-import {
-  getCatalogVersion,
-  getCollectionDraft,
-  listCatalogProducts,
-  listExtraCollections,
-  listHiddenCollections,
-  subscribeCatalog,
-} from "@/data/mock/catalog-session";
-import { COLLECTION_SEEDS, productInSeed } from "@/lib/catalog/present";
+import { getCatalogVersion, getCollectionDraft, listCatalogProducts, listExtraCollections, listHiddenCollections, subscribeCatalog, type CollectionCondition } from "@/data/mock/catalog-session";
 import { formatInteger } from "@/lib/formatting/money";
 
 const clearInput = { backgroundColor: "transparent", color: "#303030" } as const;
+const FIELD: Record<CollectionCondition["field"], string> = { price: "מחיר", stock: "מלאי", vendor: "ספק", category: "קטגוריה", tag: "תגית" };
+const OP: Record<string, string> = { gt: "גדול מ", lt: "קטן מ", eq: "שווה ל", has: "מכיל" };
+
+function conditionLine(condition: CollectionCondition) {
+  return `${FIELD[condition.field]} ${OP[condition.op] ?? condition.op} ${condition.value}`.trim();
+}
 
 export function CollectionsScreen() {
   const router = useRouter();
@@ -26,27 +24,30 @@ export function CollectionsScreen() {
   const hidden = listHiddenCollections();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
-  const keys = [...listExtraCollections(), ...COLLECTION_SEEDS.map((seed) => seed.title)].filter((key, index, all) => all.indexOf(key) === index && !hidden.includes(key));
+  const fromProducts = products.map((product) => product.category.trim()).filter(Boolean);
+  const keys = [...listExtraCollections(), ...fromProducts].filter((key, index, all) => all.indexOf(key) === index && !hidden.includes(key));
   const rows = keys
     .map((key) => {
-      const seed = COLLECTION_SEEDS.find((item) => item.title === key);
       const draft = getCollectionDraft(key);
-      const title = draft?.title || seed?.title || key;
-      const count = draft
-        ? products.filter((product) => (draft.conditions.length ? false : draft.ids.includes(product.id)) || (!draft.conditions.length && !draft.ids.length && seed ? productInSeed(product, seed.title) : draft.ids.includes(product.id))).length
-        : products.filter((product) => productInSeed(product, key)).length;
-      return { key, title, count, conditions: draft?.conditions.length ? draft.conditions.map((condition) => `${condition.field} ${condition.op} ${condition.value}`) : (seed?.conditions ?? []), tone: seed?.tone ?? "#fff" };
+      const title = draft?.title || key;
+      const count = draft?.conditions.length
+        ? products.filter((product) => draft.conditions.every((condition) => matchesCategory(product, condition)) && (!draft.excludeOutOfStock || product.stock > 0)).length
+        : draft?.ids.length
+          ? products.filter((product) => draft.ids.includes(product.id)).length
+          : products.filter((product) => product.category.trim() === key).length;
+      const sample = products.find((product) => product.category.trim() === title);
+      return { key, title, count, conditions: draft?.conditions.map(conditionLine) ?? [], tone: sample?.tone || "#f3f3f3" };
     })
-    .filter((row) => !query.trim() || row.title.includes(query.trim()));
+    .filter((row) => !query.trim() || row.title.includes(query.trim()))
+    .sort((a, b) => a.title.localeCompare(b.title, "he"));
   const allSelected = rows.length > 0 && rows.every((row) => selected.includes(row.key));
 
   return (
     <div className="flex min-h-full flex-col">
       <div className="flex items-center gap-2 px-3.5 pt-2.5 pb-2">
         <Icon name="tag" size={18} strokeWidth={1.6} />
-        <h1 className="m-0 flex-1 text-[15px] font-bold">אוספים</h1>
-        <button type="button" className={softButton}>פעולות נוספות</button>
-        <button type="button" className={darkButton} onClick={() => router.push("/admin/products/collections/new")}>הוספת אוסף</button>
+        <h1 className="m-0 flex-1 text-[15px] font-bold">קטגוריות</h1>
+        <button type="button" className={darkButton} onClick={() => router.push("/admin/products/collections/new")}>הוספת קטגוריה</button>
       </div>
       <div className="mx-3 flex min-h-[42px] items-center gap-1.5 rounded-xl bg-white p-1.5 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
         <button type="button" className="h-[30px] rounded-lg border-0 bg-transparent px-2 text-sm font-semibold">הכל</button>
@@ -73,19 +74,28 @@ export function CollectionsScreen() {
               return (
                 <tr key={row.key} className="h-[49px] cursor-pointer border-b border-[#ebebeb] hover:bg-[#f7f7f7]" style={{ background: on ? "#f1f1f1" : "#fff" }} onClick={() => router.push(`/admin/products/collections/${encodeURIComponent(row.key)}`)}>
                   <td className="px-2.5" onClick={(event) => event.stopPropagation()}><input type="checkbox" checked={on} onChange={() => setSelected((current) => (current.includes(row.key) ? current.filter((key) => key !== row.key) : [...current, row.key]))} className="size-4 accent-[#303030]" /></td>
-                  <td className="p-1"><span className="grid size-9 place-items-center rounded-lg shadow-[0_0_0_1px_rgba(0,0,0,.1)]" style={{ background: row.tone }} /></td>
+                  <td className="p-1"><span className="grid size-9 place-items-center rounded-lg text-[#8a8a8a] shadow-[0_0_0_1px_rgba(0,0,0,.08)]" style={{ background: row.tone }}><Icon name="tag" size={14} strokeWidth={1.6} /></span></td>
                   <td className="px-2.5 font-medium">{row.title}</td>
                   <td className="px-2.5 text-left">{formatInteger(row.count)}</td>
-                  <td className="px-2.5 py-1.5 leading-5">{row.conditions.map((condition) => <div key={condition}>{condition}</div>)}</td>
+                  <td className="px-2.5 py-1.5 leading-5 text-[#4a4a4a]">{row.conditions.map((condition) => <div key={condition}>{condition}</div>)}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
-      {rows.length === 0 ? <div className="mx-3 rounded-b-xl bg-white px-10 py-10 text-center text-ink-secondary">לא נמצאו אוספים.</div> : null}
+      {rows.length === 0 ? <div className="mx-3 rounded-b-xl bg-white px-10 py-10 text-center text-ink-secondary">אין עדיין קטגוריות.</div> : null}
       <div className="min-h-4 flex-1" />
       <IndexDock pageLabel={rows.length ? `1-${rows.length}` : "0"} />
     </div>
   );
+}
+
+function matchesCategory(product: { price: number; stock: number; vendor: string; category: string; tags: string[] }, condition: CollectionCondition) {
+  const value = condition.value.trim();
+  const number = Number(value);
+  if (condition.field === "price") return condition.op === "lt" ? product.price < number : condition.op === "eq" ? product.price === number : product.price > number;
+  if (condition.field === "stock") return condition.op === "lt" ? product.stock < number : condition.op === "eq" ? product.stock === number : product.stock > number;
+  const text = condition.field === "vendor" ? product.vendor : condition.field === "category" ? product.category : product.tags.join(" ");
+  return condition.op === "eq" ? text === value : text.includes(value);
 }

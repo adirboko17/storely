@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { CollectionEditorScreen } from "@/components/admin/products/collection-editor-screen";
 
-export const metadata: Metadata = { title: "אוסף" };
+export const metadata: Metadata = { title: "קטגוריה" };
 
 async function CollectionRoute({ params }: { params: Promise<{ key: string }> }) {
   const { key } = await params;
