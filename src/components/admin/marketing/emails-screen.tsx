@@ -48,7 +48,8 @@ const TEMPLATES: Array<{ key: string; name: string; detail: string; subject: str
 
 function usedIds(steps: FlowStep[], kind: "email" | "sms"): string[] {
   return steps.flatMap((step) => {
-    if (step.type === kind) return (kind === "email" ? step.emailId : step.smsId) ? [kind === "email" ? step.emailId ?? "" : step.smsId ?? ""] : [];
+    if (kind === "email" && step.type === "email") return step.emailId ? [step.emailId] : [];
+    if (kind === "sms" && step.type === "sms") return step.smsId ? [step.smsId] : [];
     if (step.type === "cond") return [...usedIds(step.yes ?? [], kind), ...usedIds(step.no ?? [], kind)];
     if (step.type === "ab") return [...usedIds(step.a ?? [], kind), ...usedIds(step.b ?? [], kind)];
     if (step.type === "both") return [...usedIds(step.mail ?? [], kind), ...usedIds(step.phone ?? [], kind)];

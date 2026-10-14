@@ -14,8 +14,9 @@ declare module "d3-geo" {
     context?: CanvasRenderingContext2D,
   ): (object: unknown) => void;
   export function geoDistance(a: [number, number], b: [number, number]): number;
+  export function geoContains(object: unknown, point: [number, number]): boolean;
 }
 
 declare module "topojson-client" {
-  export function feature(topology: { objects: { land: unknown } }, object: unknown): unknown;
+  export function feature(topology: { objects: Record<string, unknown> }, object: unknown): unknown;
 }

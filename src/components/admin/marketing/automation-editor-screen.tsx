@@ -75,7 +75,7 @@ function seedEmptyBoth(steps: FlowStep[]): FlowStep[] | null {
   const next = steps.map((step) => {
     if (step.type === "cond" || step.type === "ab" || step.type === "both") {
       const branches = step.type === "cond" ? (["yes", "no"] as const) : step.type === "ab" ? (["a", "b"] as const) : (["mail", "phone"] as const);
-      let copy = step;
+      let copy: FlowStep = step;
       for (const branch of branches) {
         const list = childList(step, branch) ?? [];
         const seeded = step.type === "both" && !step.mail?.length && !step.phone?.length
@@ -107,7 +107,8 @@ function blankStep(kind: StepKind): FlowStep {
 }
 
 function tone(step: FlowStep) {
-  return LIBRARY.flatMap((group) => group.items).find((item) => item.kind === step.type) ?? LIBRARY[0].items[0];
+  const items = LIBRARY.flatMap((group) => group.items.map((item) => ({ ...item })));
+  return items.find((item) => item.kind === step.type) ?? items[0];
 }
 
 function childList(step: FlowStep, branch: Branch) {
@@ -820,7 +821,7 @@ function ConditionEditor({ step, onChange }: { step: Extract<FlowStep, { type: "
   const match = step.match === "any" ? "any" : "all";
   const rules = step.rules?.length ? step.rules : [];
 
-  function write(nextRules: FlowRule[], nextMatch = match) {
+  function write(nextRules: FlowRule[], nextMatch: "all" | "any" = match) {
     onChange({ ...step, match: nextMatch, rules: nextRules, text: undefined });
   }
 

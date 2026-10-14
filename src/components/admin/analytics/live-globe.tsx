@@ -26,15 +26,11 @@ const PLACES: Record<string, [number, number]> = {
   "הרצליה": [34.84, 32.16],
   "רמת גן": [34.82, 32.07],
   "ramat gan": [34.82, 32.07],
-  "פתח תקווה": [34.89, 32.09],
   "petah tikva": [34.89, 32.09],
-  "ראשון לציון": [34.79, 31.97],
   "rishon lezion": [34.79, 31.97],
   "בת ים": [34.75, 32.02],
   "bat yam": [34.75, 32.02],
-  "הרצליה": [34.84, 32.16],
   herzliya: [34.84, 32.16],
-  "רחובות": [34.81, 31.89],
   rehovot: [34.81, 31.89],
   "כפר סבא": [34.91, 32.18],
   "kfar saba": [34.91, 32.18],
@@ -44,13 +40,8 @@ const PLACES: Record<string, [number, number]> = {
   modiin: [35.01, 31.9],
   "בני ברק": [34.83, 32.08],
   "bnei brak": [34.83, 32.08],
-  "בני-ברק": [34.83, 32.08],
   "חולון": [34.78, 32.01],
   holon: [34.78, 32.01],
-  "בת ים": [34.75, 32.02],
-  "כפר סבא": [34.91, 32.18],
-  "רעננה": [34.87, 32.18],
-  "מודיעין": [35.01, 31.9],
   "אילת": [34.95, 29.56],
   eilat: [34.95, 29.56],
   "ישראל": [35.0, 31.5],
@@ -300,16 +291,17 @@ export function LiveGlobe({ labels, visitors, store }: { labels: boolean; visito
       context.fill();
 
       overlay.replaceChildren();
-      if (!land) return;
+      const terrain = land;
+      if (!terrain) return;
 
       const projection = geoOrthographic().scale(radius).translate([cx, cy]).rotate(rotation).clipAngle(90);
       const center: [number, number] = [-rotation[0], -rotation[1]];
-      const hex = radius * ((land.step * Math.PI) / 180) * 0.5;
+      const hex = radius * ((terrain.step * Math.PI) / 180) * 0.5;
       const active = new Set<string>();
       for (const visitor of visitorsRef.current) {
         let nearest: [number, number] | null = null;
         let nearestDistance = 0.045;
-        for (const point of land.pts) {
+        for (const point of terrain.pts) {
           const distance = geoDistance(point, visitor.coordinates);
           if (distance < nearestDistance) {
             nearest = point;
@@ -325,7 +317,7 @@ export function LiveGlobe({ labels, visitors, store }: { labels: boolean; visito
       const top = cy - radius;
       const span = 2 * radius;
       const nextHits: Array<{ x: number; y: number; name: string; size: number }> = [];
-      land.pts.forEach((point, index) => {
+      terrain.pts.forEach((point, index) => {
         const distance = geoDistance(point, center);
         if (distance > 1.56) return;
         const projected = projection(point);
@@ -346,7 +338,7 @@ export function LiveGlobe({ labels, visitors, store }: { labels: boolean; visito
         }
         context.closePath();
         context.fill();
-        const name = land.names[index];
+        const name = terrain.names[index];
         if (name) nextHits.push({ x: projected[0], y: projected[1], name, size });
       });
       hits = nextHits;
