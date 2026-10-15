@@ -2,6 +2,7 @@ import { PRODUCTS } from "@/data/mock/products";
 import { getStoreIdentity } from "@/data/live/store-identity";
 import { isHydrating, writeStore } from "@/data/live/write";
 import { COLLECTION_SEEDS } from "@/lib/catalog/present";
+import { packProductTags, subcategoryRules } from "@/lib/catalog/subcategories";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { Product, ProductStatus } from "@/types/commerce";
 
@@ -27,6 +28,7 @@ export type CollectionDraft = {
   conditions: CollectionCondition[];
   excludeOutOfStock: boolean;
   image: string;
+  subcategories: string[];
 };
 
 type Snapshot = {
@@ -43,8 +45,10 @@ function cloneProduct(product: Product): Product {
     ...product,
     tags: [...product.tags],
     collections: [...product.collections],
+    subcategories: [...(product.subcategories ?? [])],
     media: product.media ? [...product.media] : undefined,
     option: product.option ? { name: product.option.name, values: [...product.option.values] } : undefined,
+    options: product.options?.map((option) => ({ name: option.name, values: [...option.values] })),
     quantities: product.quantities ? [...product.quantities] : undefined,
   };
 }
@@ -84,6 +88,21 @@ export function getCatalogProduct(id: number) {
   return product ? cloneProduct(product) : null;
 }
 
+export function assignProductSubcategory(productId: number, parent: string, subcategory: string, assigned: boolean) {
+  const product = current.products.find((item) => item.id === productId);
+  if (!product) return;
+  const subcategories = new Set((product.subcategories ?? []).map((name) => name.trim()).filter(Boolean));
+  if (assigned) subcategories.add(subcategory);
+  else subcategories.delete(subcategory);
+  const collections = [...product.collections];
+  let category = product.category;
+  if (assigned && category.trim() !== parent && !collections.includes(parent)) {
+    if (!category.trim()) category = parent;
+    else collections.push(parent);
+  }
+  void saveCatalogProduct({ ...cloneProduct(product), category, collections, subcategories: [...subcategories] });
+}
+
 export function replaceCatalogProducts(
   products: Product[],
   extras?: {
@@ -113,7 +132,7 @@ function collectionPayload(key: string, draft: CollectionDraft, hidden: boolean)
     title: draft.title || key,
     description: draft.description,
     productIds,
-    conditions: draft.conditions,
+    conditions: [...draft.conditions, ...subcategoryRules(draft.subcategories)],
     excludeOutOfStock: draft.excludeOutOfStock,
     image: draft.image,
     hidden,
@@ -193,7 +212,7 @@ async function persistProduct(product: Product) {
     product_vendor: product.vendor,
     product_category: product.category,
     product_description: product.description ?? "",
-    product_tags: product.tags,
+    product_tags: packProductTags(product.tags, product.subcategories ?? []),
     product_sku: product.sku,
     product_barcode: product.barcode ?? null,
     product_stock: product.stock,
@@ -299,6 +318,7 @@ export function getCollectionDraft(key: string) {
         ...draft,
         ids: [...draft.ids],
         conditions: draft.conditions.map((condition) => ({ ...condition })),
+        subcategories: [...draft.subcategories],
       }
     : null;
 }
@@ -306,7 +326,7 @@ export function getCollectionDraft(key: string) {
 export function saveCollectionDraft(key: string, draft: CollectionDraft) {
   const known = COLLECTION_SEEDS.some((seed) => seed.title === key) || current.extraCollections.includes(key);
   const extra = known ? current.extraCollections : [key, ...current.extraCollections];
-  const saved = { ...draft, ids: [...draft.ids], conditions: draft.conditions.map((item) => ({ ...item })) };
+  const saved = { ...draft, ids: [...draft.ids], conditions: draft.conditions.map((item) => ({ ...item })), subcategories: [...draft.subcategories] };
   publish({
     ...current,
     extraCollections: extra,
@@ -326,6 +346,41 @@ export function hideCollection(key: string) {
     conditions: [],
     excludeOutOfStock: false,
     image: "",
+    subcategories: [],
   };
   if (!isHydrating()) void writeStore("save_store_collection", { collection: collectionPayload(key, draft, true) });
+}
+
+export function listCategorySubcategories(category: string) {
+  return [...(current.collections[category]?.subcategories ?? [])];
+}
+
+export function addCategorySubcategory(category: string, name: string) {
+  const parent = category.trim();
+  const title = name.trim();
+  if (!parent || !title) return;
+  const existing = getCollectionDraft(parent);
+  const currentNames = existing?.subcategories ?? [];
+  if (currentNames.some((item) => item.localeCompare(title, "he", { sensitivity: "accent" }) === 0)) return;
+  saveCollectionDraft(parent, {
+    title: existing?.title || parent,
+    description: existing?.description ?? "",
+    ids: existing?.ids ?? [],
+    conditions: existing?.conditions ?? [],
+    excludeOutOfStock: existing?.excludeOutOfStock ?? false,
+    image: existing?.image ?? "",
+    subcategories: [...currentNames, title],
+  });
+}
+
+export function removeCategorySubcategory(category: string, name: string) {
+  const existing = getCollectionDraft(category);
+  if (!existing) return;
+  saveCollectionDraft(category, { ...existing, subcategories: existing.subcategories.filter((item) => item !== name) });
+}
+
+export function deleteCategorySubcategory(category: string, name: string) {
+  const ids = current.products.filter((product) => (product.subcategories ?? []).includes(name)).map((product) => product.id);
+  removeCategorySubcategory(category, name);
+  ids.forEach((id) => assignProductSubcategory(id, category, name, false));
 }

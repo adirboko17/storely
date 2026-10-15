@@ -2,14 +2,87 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { Icon } from "@/components/ui/icon";
 import { AccountMenu } from "@/components/admin/layout/account-menu";
 import { getOrderSessionVersion, subscribeOrderSession, unfulfilledCount } from "@/data/mock/order-session";
+import { getMenuName, subscribeMenuName } from "@/data/live/menu-name";
 import { getStoreIdentity, getStoreIdentityVersion, storefrontHref, subscribeStoreIdentity } from "@/data/live/store-identity";
 import { cn } from "@/lib/cn";
 import { pathMatches, type NavItem } from "@/lib/navigation/nav";
+
+type FlyoutAnchor = {
+  key: string;
+  top: number;
+  right: number;
+};
+
+function flyoutRows(item: NavItem) {
+  return [{ key: item.key, label: item.label, href: item.href }, ...(item.children ?? [])];
+}
+
+function RailFlyout({
+  anchor,
+  pathname,
+  storefront,
+  unfulfilled,
+  items,
+  panelRef,
+  onHold,
+  onLeave,
+}: {
+  anchor: FlyoutAnchor;
+  pathname: string;
+  storefront: string;
+  unfulfilled: number;
+  items: NavItem[];
+  panelRef: RefObject<HTMLDivElement | null>;
+  onHold: () => void;
+  onLeave: (event: ReactMouseEvent) => void;
+}) {
+  const item = anchor.key === "settings" ? null : items.find((entry) => entry.key === anchor.key);
+  const rows = item
+    ? flyoutRows(item)
+    : [{ key: "settings", label: "הגדרות", href: "/admin/settings" }];
+  return (
+    <div ref={panelRef} className="fixed z-50 pr-2" style={{ top: anchor.top, right: anchor.right }} onMouseEnter={onHold} onMouseLeave={onLeave}>
+      <div className="nav-flyout w-max min-w-44 rounded-xl border border-white/10 bg-[#1f1f1f] p-1.5 text-nav shadow-[0_12px_28px_rgba(0,0,0,.4)]">
+        {rows.map((row, index) => {
+          const childOpen = item?.children?.some((child) => pathMatches(pathname, child.href)) ?? false;
+          const active = index === 0
+            ? item?.exact
+              ? pathname === row.href
+              : pathMatches(pathname, row.href) && !childOpen
+            : pathMatches(pathname, row.href);
+          const className = cn(
+            "flex h-8 items-center gap-2 rounded-lg px-2.5 text-sm whitespace-nowrap no-underline hover:bg-[#303030] hover:text-white hover:no-underline",
+            index === 0 ? "font-semibold text-white" : "font-medium text-[#d4d4d4]",
+            active && "bg-[#303030] text-white",
+          );
+          if (item?.viewStore && storefront) {
+            return (
+              <a key={row.key} href={storefront} target="_blank" rel="noopener noreferrer" className={className}>
+                {row.label}
+              </a>
+            );
+          }
+          return (
+            <Link key={row.key} href={row.href} className={className}>
+              <span className="min-w-0 flex-1">{row.label}</span>
+              {row.key === "orders" && unfulfilled > 0 ? (
+                <span className="inline-flex h-5 min-w-[22px] items-center justify-center rounded-md bg-[#3a3a3a] px-1.5 text-xs font-bold text-white">
+                  {unfulfilled}
+                </span>
+              ) : null}
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function itemActive(pathname: string, item: NavItem) {
   const moduleOn = item.exact ? pathname === item.match : pathMatches(pathname, item.match);
@@ -40,16 +113,55 @@ export function Sidebar({
   const { narrow, toggleNav, menu, toggleMenu, openSearch } = useAdmin();
   useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
   useSyncExternalStore(subscribeStoreIdentity, getStoreIdentityVersion, getStoreIdentityVersion);
+  const liveName = useSyncExternalStore(subscribeMenuName, getMenuName, () => "");
   const store = getStoreIdentity();
   const storefront = storefrontHref(store.hostname);
   const unfulfilled = unfulfilledCount();
   const profileOpen = menu === "profile";
   const settingsOn = pathname.startsWith("/admin/settings");
+  const [mounted, setMounted] = useState(false);
+  const [flyout, setFlyout] = useState<FlyoutAnchor | null>(null);
+  const closeTimer = useRef<number | null>(null);
+  const flyoutNode = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setFlyout(null);
+  }, [pathname]);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => {
+      if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    };
+  }, []);
+
+  function holdFlyout() {
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+  }
+
+  function scheduleFlyoutClose(event?: ReactMouseEvent) {
+    const next = event?.relatedTarget;
+    if (next instanceof Node && flyoutNode.current?.contains(next)) return;
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => setFlyout(null), 120);
+  }
+
+  function openFlyout(key: string, anchor: HTMLElement, rows: number) {
+    holdFlyout();
+    const rect = anchor.getBoundingClientRect();
+    const height = rows * 32 + 12;
+    setFlyout({
+      key,
+      top: Math.max(8, Math.min(rect.top - 6, window.innerHeight - height - 8)),
+      right: window.innerWidth - rect.left,
+    });
+  }
 
   if (rail) {
     return (
       <nav
         aria-label="תפריט מצומצם"
+        onScroll={() => setFlyout(null)}
         className={cn(
           "relative z-30 flex h-full min-h-0 w-[52px] shrink-0 flex-col items-center gap-0.5 overflow-y-auto bg-shell px-1.5 py-2.5 text-nav",
           seam && "border-l border-white/10",
@@ -84,8 +196,9 @@ export function Sidebar({
           const state = itemActive(pathname, item);
           const className = cn(
             "relative grid size-8 place-items-center rounded-lg no-underline hover:bg-[#2a2a2a] hover:text-white hover:no-underline",
-            state.moduleOn ? "bg-[#303030] text-white" : "text-[#e3e3e3]",
+            state.moduleOn || flyout?.key === item.key ? "bg-[#303030] text-white" : "text-[#e3e3e3]",
           );
+          const rows = flyoutRows(item);
           if (item.viewStore) {
             if (!storefront) return null;
             return (
@@ -95,8 +208,9 @@ export function Sidebar({
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={item.label}
-                title={item.label}
-                className="grid size-8 place-items-center rounded-lg text-[#e3e3e3] no-underline hover:bg-[#2a2a2a] hover:text-white hover:no-underline"
+                onMouseEnter={(event) => openFlyout(item.key, event.currentTarget, 1)}
+                onMouseLeave={scheduleFlyoutClose}
+                className={className}
               >
                 <Icon name={item.icon} className="opacity-85" />
               </a>
@@ -107,7 +221,8 @@ export function Sidebar({
             key={item.key}
             href={item.href}
             aria-label={item.label}
-            title={item.label}
+            onMouseEnter={(event) => openFlyout(item.key, event.currentTarget, rows.length)}
+            onMouseLeave={scheduleFlyoutClose}
             className={className}
           >
             <Icon name={item.icon} className="opacity-85" />
@@ -124,15 +239,31 @@ export function Sidebar({
           <Link
             href="/admin/settings"
             aria-label="הגדרות"
-            title="הגדרות"
+            onMouseEnter={(event) => openFlyout("settings", event.currentTarget, 1)}
+            onMouseLeave={scheduleFlyoutClose}
             className={cn(
               "grid size-8 place-items-center rounded-lg no-underline hover:bg-[#2a2a2a] hover:text-white hover:no-underline",
-              settingsOn ? "bg-[#303030] text-white" : "text-[#e3e3e3]",
+              settingsOn || flyout?.key === "settings" ? "bg-[#303030] text-white" : "text-[#e3e3e3]",
             )}
           >
             <Icon name="settings" />
           </Link>
         ) : null}
+        {mounted && flyout
+          ? createPortal(
+              <RailFlyout
+                anchor={flyout}
+                pathname={pathname}
+                storefront={storefront}
+                unfulfilled={unfulfilled}
+                items={navItems}
+                panelRef={flyoutNode}
+                onHold={holdFlyout}
+                onLeave={scheduleFlyoutClose}
+              />,
+              document.body,
+            )
+          : null}
       </nav>
     );
   }
@@ -272,7 +403,7 @@ export function Sidebar({
       <AccountMenu
         open={profileOpen}
         onToggle={() => toggleMenu("profile")}
-        name={accountName || store.ownerName}
+        name={liveName || accountName || store.ownerName}
         storeName={store.name}
         email={accountEmail || store.ownerEmail}
       />

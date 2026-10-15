@@ -1,6 +1,7 @@
 export type DiscountKind = "order" | "product" | "ship" | "bxgy";
 
 import { isHydrating, writeStore } from "@/data/live/write";
+import { currencySymbol } from "@/lib/formatting/currency";
 
 export type Discount = {
   id: number;
@@ -71,7 +72,7 @@ export function discountStatus(discount: Discount): "active" | "scheduled" | "ex
 }
 
 export function discountSummary(discount: Discount) {
-  const value = discount.valueType === "pct" ? `${discount.value || "0"}%` : `₪${discount.value || "0"}`;
+  const value = discount.valueType === "pct" ? `${discount.value || "0"}%` : `${currencySymbol()}${discount.value || "0"}`;
   const head = discount.type === "order"
     ? `${value} הנחה על כל ההזמנה`
     : discount.type === "product"
@@ -79,7 +80,7 @@ export function discountSummary(discount: Discount) {
       : discount.type === "ship"
         ? "משלוח חינם לכל הארץ"
         : `קנו ${discount.bxBuy} מ"${discount.bxColl}", קבלו ${discount.bxGet} בחינם`;
-  const min = discount.minType === "amount" ? `בקנייה מעל ₪${discount.minValue || "0"}` : discount.minType === "qty" ? `בקנייה של ${discount.minValue || "0"} פריטים לפחות` : "ללא דרישת מינימום";
+  const min = discount.minType === "amount" ? `בקנייה מעל ${currencySymbol()}${discount.minValue || "0"}` : discount.minType === "qty" ? `בקנייה של ${discount.minValue || "0"} פריטים לפחות` : "ללא דרישת מינימום";
   return `${head}. ${min}.`;
 }
 

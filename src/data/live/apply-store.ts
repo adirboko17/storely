@@ -1,11 +1,13 @@
 import { replaceCatalogProducts, type CollectionCondition, type CollectionDraft, type GiftCard } from "@/data/mock/catalog-session";
+import { splitCollectionRules, splitProductTags } from "@/lib/catalog/subcategories";
 import { replacePosts, type Post } from "@/data/mock/content-session";
 import { blankDiscount, replaceDiscounts, type Discount, type DiscountKind } from "@/data/mock/discount-session";
 import { absorbLegacyEmails, parseEmails, parseSms, replaceMarketing, type Flow, type IntegrationState } from "@/data/mock/marketing-session";
 import { replaceAbandoned, replaceLiveOrders } from "@/data/mock/order-session";
 import { replacePeople, type PersonProfile } from "@/data/mock/people-session";
-import { normalizeBrandColors, replaceSettings, type PolicyKind, type ReturnRule, type ShipProfile } from "@/data/mock/settings-session";
+import { normalizeBrandColors, normalizePolicies, replaceSettings, type ReturnRule, type ShipProfile } from "@/data/mock/settings-session";
 import { beginHydration, endHydration } from "@/data/live/write";
+import { setStoreCurrency } from "@/lib/formatting/currency";
 import { claimStore, setStoreIdentity } from "@/data/live/store-identity";
 import { enableLiveMetrics } from "@/lib/dashboard/chart";
 import type { TimelineEvent } from "@/lib/orders/present";
@@ -30,6 +32,7 @@ export type StoreSnapshot = {
   giftCards?: unknown;
   logoUrl?: unknown;
   brandColors?: unknown;
+  currency?: unknown;
 };
 
 function row(value: unknown) {
@@ -51,7 +54,8 @@ function productStatus(value: unknown): ProductStatus {
 
 function mapProduct(value: unknown, index: number): Product {
   const item = row(value);
-  const tags = Array.isArray(item?.tags) ? item.tags.filter((tag): tag is string => typeof tag === "string") : [];
+  const rawTags = Array.isArray(item?.tags) ? item.tags.filter((tag): tag is string => typeof tag === "string") : [];
+  const { tags, subcategories } = splitProductTags(rawTags);
   const compareAt = item?.compareAt == null ? undefined : amount(item.compareAt);
   return {
     id: index,
@@ -71,6 +75,7 @@ function mapProduct(value: unknown, index: number): Product {
     media: Array.isArray(item?.media) ? item.media.filter((value): value is string => typeof value === "string" && value.startsWith("http")) : undefined,
     tags,
     collections: [],
+    subcategories,
     description: text(item?.description),
   };
 }
@@ -266,14 +271,13 @@ function mapCollections(value: unknown, products: Product[]) {
           return product ? [product.id] : [];
         })
       : [];
-    const conditions: CollectionCondition[] = Array.isArray(item?.conditions)
-      ? item.conditions.flatMap((condition) => {
-          const rule = row(condition);
-          const field = rule?.field;
-          if (field !== "price" && field !== "stock" && field !== "vendor" && field !== "category" && field !== "tag") return [];
-          return [{ field, op: text(rule?.op), value: text(rule?.value) }];
-        })
-      : [];
+    const parsed = splitCollectionRules(Array.isArray(item?.conditions) ? item.conditions.flatMap((condition) => {
+      const rule = row(condition);
+      if (!rule) return [];
+      return [{ field: text(rule.field), op: text(rule.op), value: text(rule.value) }];
+    }) : []);
+    const listed = Array.isArray(item?.subcategories) ? item.subcategories.filter((entry): entry is string => typeof entry === "string") : [];
+    const conditions: CollectionCondition[] = parsed.conditions;
     collections[title] = {
       title,
       description: text(item?.description),
@@ -281,6 +285,7 @@ function mapCollections(value: unknown, products: Product[]) {
       conditions,
       excludeOutOfStock: item?.excludeOutOfStock === true,
       image: text(item?.image),
+      subcategories: [...new Set([...listed.map((name) => name.trim()).filter(Boolean), ...parsed.subcategories])],
     };
     if (item?.hidden === true) hidden.push(title);
     else extra.push(title);
@@ -313,19 +318,6 @@ function mapProfiles(customers: Customer[], values: unknown[]) {
   return profiles;
 }
 
-const POLICY_KINDS: PolicyKind[] = ["return", "privacy", "terms", "shipping", "contact", "legal", "purchase"];
-
-function mapPolicies(value: unknown) {
-  const item = row(value) ?? {};
-  return POLICY_KINDS.reduce(
-    (policies, kind) => {
-      policies[kind] = text(item[kind]);
-      return policies;
-    },
-    {} as Record<PolicyKind, string>,
-  );
-}
-
 function mapShipping(value: unknown) {
   const item = row(value);
   const rules = Array.isArray(item?.rules)
@@ -350,6 +342,22 @@ function mapShipping(value: unknown) {
     estimates: item?.estimates === true,
     localDelivery: item?.localDelivery === true,
     pickup: item?.pickup === true,
+    contact: mapStoreContact(item?.contact),
+  };
+}
+
+function mapStoreContact(value: unknown) {
+  const item = row(value);
+  return {
+    email: text(item?.email),
+    phone: text(item?.phone),
+    addressMode: item?.addressMode === "physical" ? "physical" as const : "none" as const,
+    company: text(item?.company),
+    country: text(item?.country) || "ישראל",
+    street: text(item?.street),
+    apartment: text(item?.apartment),
+    zip: text(item?.zip),
+    city: text(item?.city),
   };
 }
 
@@ -434,10 +442,11 @@ export function applyStoreSnapshot(storeId: string, snapshot: StoreSnapshot) {
     replaceDiscounts(discounts);
     replaceLiveOrders(orders, events);
     replaceAbandoned(checkouts);
-    replaceSettings({ policies: mapPolicies(snapshot.policies), ...shipping, logo: text(snapshot.logoUrl), colors: normalizeBrandColors(snapshot.brandColors) });
+    replaceSettings({ policies: normalizePolicies(snapshot.policies), ...shipping, logo: text(snapshot.logoUrl), colors: normalizeBrandColors(snapshot.brandColors) });
     replacePosts(mapPosts(snapshot.posts));
     replaceMarketing({ connected: connected as Record<string, IntegrationState>, flows: library.flows, emails: library.emails, sms: library.sms });
     enableLiveMetrics();
+    setStoreCurrency(snapshot.currency);
     setStoreIdentity({
       storeId,
       name: text(snapshot.name),

@@ -76,7 +76,7 @@ async function AdminFrame({ children }: { children: React.ReactNode }) {
     supabase.rpc("store_admin_snapshot", { target_store: storeId }),
     supabase.rpc("store_traffic_snapshot", { target_store: storeId }),
     supabase.rpc("store_visit_host", { target_store: storeId }),
-    supabase.from("store_settings").select("logo_url, brand_colors").eq("store_id", storeId).maybeSingle(),
+    supabase.from("store_settings").select("logo_url, brand_colors, currency").eq("store_id", storeId).maybeSingle(),
   ]);
   const liveSnapshot: StoreSnapshot =
     snapshot && typeof snapshot === "object" && !Array.isArray(snapshot) ? { ...(snapshot as StoreSnapshot) } : {};
@@ -93,13 +93,15 @@ async function AdminFrame({ children }: { children: React.ReactNode }) {
   liveSnapshot.ownerName = presentText(liveSnapshot.ownerName, knownName);
   liveSnapshot.ownerEmail = presentText(liveSnapshot.ownerEmail, knownEmail);
   liveSnapshot.hostname = presentText(visitHost, presentText(liveSnapshot.hostname, knownHost));
-  const brandRow = brand as { logo_url?: string; brand_colors?: unknown } | null;
+  const brandRow = brand as { logo_url?: string; brand_colors?: unknown; currency?: string } | null;
   liveSnapshot.logoUrl = presentText(brandRow?.logo_url, "");
   liveSnapshot.brandColors = brandRow?.brand_colors;
+  liveSnapshot.currency = brandRow?.currency || "ILS";
   const { data: accessRow } = await supabase.rpc("current_store_access", { target_store: storeId });
   const access = parseStoreAccess(accessRow);
   const navItems = visibleAdminNavigation(resolveAdminNavigation(getAdminSession()), access);
-  const accountName = access.name || knownName;
+  const menuName = typeof user.user_metadata?.menu_name === "string" ? user.user_metadata.menu_name.trim() : "";
+  const accountName = menuName || access.name || knownName;
   const accountEmail = access.email || knownEmail;
 
   return (

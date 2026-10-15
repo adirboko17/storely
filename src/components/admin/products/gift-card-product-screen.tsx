@@ -16,6 +16,7 @@ import {
   subscribeCatalog,
 } from "@/data/mock/catalog-session";
 import { slugifyHandle } from "@/lib/catalog/present";
+import { currencyLabel, currencySymbol } from "@/lib/formatting/currency";
 import { formatMoney } from "@/lib/formatting/money";
 import type { Product, ProductStatus } from "@/types/commerce";
 
@@ -230,7 +231,7 @@ export function GiftCardProductScreen() {
           <div className={card}>
             <div className="grid gap-3 min-[640px]:grid-cols-2">
               <label className="block text-[13px] font-medium">מטבע
-                <input value="מטבע החנות (ILS ₪)" readOnly className={`${field} mt-1 bg-[#f3f3f3] text-[#616161]`} />
+                <input value={`מטבע החנות (${currencyLabel()})`} readOnly className={`${field} mt-1 bg-[#f3f3f3] text-[#616161]`} />
               </label>
               <label className="block text-[13px] font-medium">מימוש ב
                 <input value="כל המטבעות" readOnly className={`${field} mt-1 bg-[#f3f3f3] text-[#616161]`} />
@@ -242,7 +243,7 @@ export function GiftCardProductScreen() {
               {draft.amounts.map((amount, index) => (
                 <div key={index} className="flex items-center gap-2">
                   <span className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-[#c9c9c9] bg-white px-3">
-                    <span className="text-sm text-[#616161]">₪</span>
+                    <span className="text-sm text-[#616161]">{currencySymbol()}</span>
                     <input dir="ltr" inputMode="decimal" value={amount} onChange={(event) => patch({ amounts: draft.amounts.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)) })} className="h-full min-w-0 flex-1 border-0 bg-transparent text-end text-sm outline-none" />
                   </span>
                   <button type="button" aria-label="הסרת סכום" className="grid size-8 place-items-center rounded-lg border-0 bg-transparent text-[#616161] hover:bg-[#f1f1f1]" onClick={() => {
