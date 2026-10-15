@@ -307,7 +307,7 @@ const CSV_FIELDS: Array<{ id: string; label: string; sample: string; value: (pro
   { id: "category", label: "קטגוריה", sample: "כלי בית", value: (product) => product.category },
   { id: "vendor", label: "ספק", sample: "הסטודיו", value: (product) => product.vendor },
   { id: "tags", label: "תגיות", sample: "חדש | מתנה", value: (product) => product.tags.join(" | ") },
-  { id: "collections", label: "אוספים", sample: "מובילים", value: (product) => product.collections.join(" | ") },
+  { id: "collections", label: "קטגוריות", sample: "מובילים", value: (product) => product.collections.join(" | ") },
   { id: "description", label: "תיאור", sample: "ספל בעבודת יד.", value: (product) => product.description ?? "" },
   { id: "media", label: "תמונות", sample: "https://example.com/mug.jpg", value: (product) => (product.media ?? []).join(" | ") },
 ];
@@ -419,7 +419,7 @@ async function importProducts(file: File, toast: (message: string) => void, done
         vendor: value(cells, "ספק"),
         tone: "#e7e2d9",
         tags: splitList(value(cells, "תגיות")),
-        collections: splitList(value(cells, "אוספים")),
+        collections: splitList(value(cells, "קטגוריות") || value(cells, "אוספים")),
         description: value(cells, "תיאור"),
         media: media.length ? media : undefined,
       });

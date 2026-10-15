@@ -52,7 +52,6 @@ export const NAV_ITEMS: NavItem[] = [
     icon: "user",
     children: [
       { key: "segments", label: "פלחים", href: "/admin/customers/segments" },
-      { key: "companies", label: "חברות", href: "/admin/customers/companies" },
     ],
   },
   {
@@ -120,7 +119,6 @@ const TITLES: Record<string, string> = {
   "/admin/customers": "לקוחות",
   "/admin/customers/new": "לקוח חדש",
   "/admin/customers/segments": "פלחים",
-  "/admin/customers/companies": "חברות",
   "/admin/growth": "צמיחה",
   "/admin/growth/attribution": "ייחוס",
   "/admin/marketing/integrations": "אינטגרציות",

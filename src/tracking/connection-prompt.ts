@@ -28,7 +28,7 @@ visitor_key נשמר בעוגייה: 16 עד 80 תווים, רק אותיות, �
 עם כותרות apikey ו-authorization Bearer של STORELY_PUBLISHABLE_KEY,
 ובגוף tracking_key ו-hostname.
 
-מוצרים, אוספים, משלוחים, מדיניות ופוסטים נערכים ב-CMS ונטענים באתר מ-storefront_shop. שינוי ב-CMS מופיע באתר בטעינה הבאה. האתר לא כותב מוצרים בעצמו.
+מוצרים, קטגוריות, משלוחים, מדיניות ופוסטים נערכים ב-CMS ונטענים באתר מ-storefront_shop. שינוי ב-CMS מופיע באתר בטעינה הבאה. האתר לא כותב מוצרים בעצמו.
 policies.items הוא מערך המסמכים: id, title, body כ-HTML, footer כ-boolean, ו-cart ו-checkout עם הערכים hidden, link או checkbox.
 בפוטר הציגו קישור לכל מסמך עם footer=true. הקישור נפתח בעמוד /policies/{id} ומציג את title ואת body.
 בעגלת הקניות הציגו לפי cart, ובדף התשלום לפי checkout: hidden לא מוצג, link הוא קישור, checkbox הוא תיבת סימון "קראתי ואני מסכים" עם קישור לאותו עמוד. אי אפשר להמשיך לתשלום בלי לסמן כל תיבת סימון שמופיעה בעגלה או בדף התשלום.

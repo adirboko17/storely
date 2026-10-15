@@ -124,7 +124,7 @@ function mapDiscount(value: unknown, index: number): Discount {
     combProduct: item?.combProduct === true,
     combOrder: item?.combOrder === true,
     combShip: item?.combShip === true,
-    applies: item?.applies === "colls" ? "colls" : "all",
+    applies: item?.applies === "colls" || item?.applies === "subs" ? item.applies : "all",
     collections,
     bxBuy: text(item?.bxBuy) || discount.bxBuy,
     bxGet: text(item?.bxGet) || discount.bxGet,

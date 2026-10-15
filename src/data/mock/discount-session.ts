@@ -25,7 +25,7 @@ export type Discount = {
   combProduct: boolean;
   combOrder: boolean;
   combShip: boolean;
-  applies: "all" | "colls";
+  applies: "all" | "colls" | "subs";
   collections: string[];
   bxBuy: string;
   bxGet: string;
@@ -76,7 +76,7 @@ export function discountSummary(discount: Discount) {
   const head = discount.type === "order"
     ? `${value} הנחה על כל ההזמנה`
     : discount.type === "product"
-      ? `${value} הנחה על ${discount.applies === "colls" && discount.collections.length ? `האוספים: ${discount.collections.join(", ")}` : "כל המוצרים"}`
+      ? `${value} הנחה על ${discount.applies === "subs" && discount.collections.length ? `תתי הקטגוריות: ${discount.collections.join(", ")}` : discount.applies === "colls" && discount.collections.length ? `הקטגוריות: ${discount.collections.join(", ")}` : "כל המוצרים"}`
       : discount.type === "ship"
         ? "משלוח חינם לכל הארץ"
         : `קנו ${discount.bxBuy} מ"${discount.bxColl}", קבלו ${discount.bxGet} בחינם`;

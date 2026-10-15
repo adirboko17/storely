@@ -1,10 +1,11 @@
 "use client";
 
+import { useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
-import { useState, useSyncExternalStore } from "react";
+import { windowForPreset, type DashboardWindow } from "@/components/admin/dashboard/date-range-picker";
+import { ExportDiscountsDialog } from "@/components/admin/discounts/export-discounts-dialog";
 import { ColumnsButton, darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
-import { getStoreIdentity } from "@/data/live/store-identity";
 import { Icon } from "@/components/ui/icon";
 import {
   KIND_LABEL,
@@ -31,7 +32,7 @@ const STATUS = {
   expired: { label: "פג תוקף", background: "#e3e3e3", color: "#616161" },
 };
 const TYPES: Array<{ key: DiscountKind; label: string; detail: string }> = [
-  { key: "product", label: "הנחה על מוצרים", detail: "אחוז או סכום על מוצרים או אוספים" },
+  { key: "product", label: "הנחה על מוצרים", detail: "אחוז או סכום על מוצרים, קטגוריות או תתי קטגוריות" },
   { key: "order", label: "הנחה על ההזמנה", detail: "אחוז או סכום מכל ההזמנה" },
   { key: "bxgy", label: "קנה X קבל Y", detail: "מוצר במתנה בקנייה של כמות" },
   { key: "ship", label: "משלוח חינם", detail: "ביטול דמי משלוח לפי תנאי" },
@@ -47,6 +48,13 @@ export function DiscountsListScreen() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<number[]>([]);
   const [picker, setPicker] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const today = useRef(new Date()).current;
+  const [exportRange] = useState<DashboardWindow>(() => {
+    const now = new Date();
+    const range = windowForPreset("last-30", now) ?? { start: now, end: now };
+    return { label: "30 הימים האחרונים", preset: "last-30", ...range };
+  });
   const rows = discounts.filter((discount) => {
     if (tab !== "all" && discountStatus(discount) !== tab) return false;
     const needle = query.trim();
@@ -59,8 +67,7 @@ export function DiscountsListScreen() {
       <div className="flex flex-wrap items-center gap-2 px-3.5 pt-2.5 pb-2">
         <Icon name="discount" size={18} strokeWidth={1.6} />
         <h1 className="m-0 flex-1 text-[15px] font-bold">הנחות</h1>
-        <button type="button" className={softButton} onClick={() => toast(`קובץ CSV יישלח אל ${getStoreIdentity().ownerEmail}`)}>ייצוא</button>
-        <button type="button" className={softButton}>פעולות נוספות</button>
+        <button type="button" className={softButton} onClick={() => setExportOpen(true)}>ייצוא</button>
         <button type="button" className={darkButton} onClick={() => setPicker(true)}>יצירת הנחה</button>
       </div>
       <div className="mx-3 flex min-h-[42px] flex-wrap items-center gap-1.5 rounded-xl bg-white p-1.5 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
@@ -125,6 +132,15 @@ export function DiscountsListScreen() {
         </div>
       ) : null}
       <div className="min-h-[70px] flex-1" />
+      {exportOpen ? (
+        <ExportDiscountsDialog
+          discounts={discounts}
+          today={today}
+          initialRange={exportRange}
+          onClose={() => setExportOpen(false)}
+          onDone={(count) => toast(count === 1 ? "הנחה אחת ירדה לקובץ" : `${count} הנחות ירדו לקובץ`)}
+        />
+      ) : null}
       {picker ? (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4" onClick={() => setPicker(false)}>
           <div role="dialog" aria-label="בחירת סוג הנחה" className="w-full max-w-[520px] rounded-2xl bg-white p-5" onClick={(event) => event.stopPropagation()}>
