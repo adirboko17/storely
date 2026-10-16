@@ -381,12 +381,9 @@ export function AutomationEditorScreen({ flowId }: { flowId: number }) {
   const [bound, setBound] = useState(flowId);
   const [selected, setSelected] = useState<Selection>({ kind: "library" });
   const [saving, setSaving] = useState(false);
-<<<<<<< HEAD
   const [simulate, setSimulate] = useState(false);
-=======
   const [removeOpen, setRemoveOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
->>>>>>> badfc7635e55322105934465ec7648b752ea42cc
   if (bound !== flowId) {
     setBound(flowId);
     setDraft(baseline);
