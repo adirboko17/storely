@@ -38,6 +38,7 @@ export function apiKeysMatch(provided: string | null, expected: string) {
 }
 
 export function publicMediaUrl(baseUrl: string, path: string) {
+  if (/^https?:\/\//i.test(path)) return path;
   return `${baseUrl.replace(/\/$/, "")}/storage/v1/object/public/${BUCKET}/${path}`;
 }
 
@@ -52,6 +53,32 @@ async function storeCurrency(supabase: SupabaseClient, storeId: string) {
   if (error) throw new PhotosProError(500, "לא הצלחנו לקרוא את מטבע החנות");
   const currency = typeof data?.currency === "string" && data.currency.trim() ? data.currency.trim().toUpperCase() : "ILS";
   return currency;
+}
+
+export async function listPhotosProProducts(config: PhotosProConfig) {
+  const supabase = adminClient(config);
+  const { data: products, error } = await supabase.from("products").select("id, title").eq("store_id", config.storeId).order("title");
+  if (error) throw new PhotosProError(500, "לא הצלחנו לקרוא את המוצרים");
+  const ids = (products ?? []).map((product) => product.id);
+  const mediaByProduct = new Map<string, { url: string; position: number }[]>();
+  if (ids.length > 0) {
+    const { data: media, error: mediaError } = await supabase
+      .from("product_media")
+      .select("product_id, path, position")
+      .eq("store_id", config.storeId)
+      .in("product_id", ids)
+      .order("position");
+    if (mediaError) throw new PhotosProError(500, "לא הצלחנו לקרוא את התמונות");
+    for (const item of media ?? []) {
+      const list = mediaByProduct.get(item.product_id) ?? [];
+      list.push({ url: publicMediaUrl(config.url, item.path), position: item.position + 1 });
+      mediaByProduct.set(item.product_id, list);
+    }
+  }
+  return (products ?? []).map((product) => {
+    const images = mediaByProduct.get(product.id) ?? [];
+    return { id: product.id, title: product.title, image_url: images[0]?.url ?? null, images };
+  });
 }
 
 export async function applyPhotosProUpdate(config: PhotosProConfig, update: PhotosProUpdate) {

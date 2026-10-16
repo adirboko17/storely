@@ -1,27 +1,19 @@
-import { NextResponse } from "next/server";
-import { apiKeysMatch, applyPhotosProUpdate, PhotosProError, photosProConfig } from "@/lib/photospro/apply-product-update";
+import { PhotosProError, applyPhotosProUpdate } from "@/lib/photospro/apply-product-update";
+import { authorizedPhotosPro, photosProResponse } from "@/lib/photospro/http";
 import { parsePhotosProBody } from "@/lib/photospro/payload";
 
 export async function PUT(request: Request) {
-  const config = photosProConfig();
-  if (!config) {
-    return NextResponse.json({ error: "חיבור PhotosPro אינו מוגדר בשרת" }, { status: 503 });
-  }
-  if (!apiKeysMatch(request.headers.get("x-api-key"), config.apiKey)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = authorizedPhotosPro(request);
+  if ("response" in auth) return auth.response;
 
   const body = await request.json().catch(() => null);
   const parsed = parsePhotosProBody(body);
-  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  if (!parsed.ok) return photosProResponse({ error: parsed.error }, 400);
 
   try {
-    const result = await applyPhotosProUpdate(config, parsed.value);
-    return NextResponse.json(result);
+    return photosProResponse(await applyPhotosProUpdate(auth.config, parsed.value));
   } catch (error) {
-    if (error instanceof PhotosProError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    return NextResponse.json({ error: "עדכון המוצר נכשל" }, { status: 500 });
+    if (error instanceof PhotosProError) return photosProResponse({ error: error.message }, error.status);
+    return photosProResponse({ error: "עדכון המוצר נכשל" }, 500);
   }
 }
