@@ -208,3 +208,80 @@ export async function applyPhotosProUpdate(config: PhotosProConfig, update: Phot
     images,
   };
 }
+
+export async function createPhotosProProduct(config: PhotosProConfig, update: PhotosProUpdate) {
+  const supabase = adminClient(config);
+  if (update.currency) {
+    const currency = await storeCurrency(supabase, config.storeId);
+    if (update.currency !== currency) throw new PhotosProError(400, `המטבע של החנות הוא ${currency}`);
+  }
+
+  const title = update.title.normalize("NFKC").trim().replace(/\s+/gu, " ");
+  const { data: rows, error: listError } = await supabase.from("products").select("id, title").eq("store_id", config.storeId);
+  if (listError) throw new PhotosProError(500, "לא הצלחנו לחפש את המוצר");
+  if (matchProductsByTitle(rows ?? [], title).length > 0) {
+    throw new PhotosProError(409, "כבר יש מוצר עם השם הזה");
+  }
+
+  const ordered = orderedImages(update.images);
+  const decodedImages = ordered.map((image) => {
+    const decoded = decodeImageBase64(image.base64);
+    if (!decoded) throw new PhotosProError(400, "אחת התמונות אינה קובץ jpg, png, webp, gif או avif תקין");
+    return decoded;
+  });
+
+  const { data: created, error: createError } = await supabase
+    .from("products")
+    .insert({ store_id: config.storeId, title, price: update.price, status: "active" })
+    .select("id, title")
+    .single();
+  if (createError || !created) throw new PhotosProError(500, "יצירת המוצר נכשלה");
+
+  const { error: variantError } = await supabase.from("product_variants").insert({
+    store_id: config.storeId,
+    product_id: created.id,
+    title: "",
+    price: update.price,
+    position: 0,
+  });
+  if (variantError) {
+    await supabase.from("products").delete().eq("store_id", config.storeId).eq("id", created.id);
+    throw new PhotosProError(500, "יצירת המוצר נכשלה");
+  }
+
+  if (decodedImages.length === 0) return { id: created.id, title: created.title, image_url: null };
+
+  const uploaded: string[] = [];
+  try {
+    for (const decoded of decodedImages) {
+      const path = `${config.storeId}/${created.id}/${randomUUID()}.${decoded.extension}`;
+      const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, decoded.bytes, {
+        contentType: decoded.contentType,
+        upsert: false,
+      });
+      if (uploadError) throw new PhotosProError(500, "העלאת התמונה נכשלה");
+      uploaded.push(path);
+    }
+    const { error: mediaError } = await supabase.from("product_media").insert(
+      uploaded.map((path, index) => ({
+        store_id: config.storeId,
+        product_id: created.id,
+        path,
+        position: index,
+      })),
+    );
+    if (mediaError) throw new PhotosProError(500, "שמירת התמונות נכשלה");
+  } catch (error) {
+    if (uploaded.length > 0) await supabase.storage.from(BUCKET).remove(uploaded);
+    await supabase.from("product_media").delete().eq("store_id", config.storeId).eq("product_id", created.id);
+    await supabase.from("product_variants").delete().eq("store_id", config.storeId).eq("product_id", created.id);
+    await supabase.from("products").delete().eq("store_id", config.storeId).eq("id", created.id);
+    throw error;
+  }
+
+  return {
+    id: created.id,
+    title: created.title,
+    image_url: publicMediaUrl(config.url, uploaded[0] ?? ""),
+  };
+}
