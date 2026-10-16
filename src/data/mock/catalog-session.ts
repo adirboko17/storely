@@ -235,14 +235,15 @@ export function setProductStatuses(ids: number[], status: ProductStatus) {
   });
 }
 
-export function deleteCatalogProducts(ids: number[]) {
-  const sourceIds = current.products.flatMap((product) => (ids.includes(product.id) && product.sourceId ? [product.sourceId] : []));
+export async function deleteCatalogProducts(ids: number[]) {
+  const targets = current.products.filter((product) => ids.includes(product.id));
+  const sourceIds = targets.flatMap((product) => (product.sourceId ? [product.sourceId] : []));
+  if (targets.length === 0) return;
+  if (sourceIds.length !== targets.length || !getStoreIdentity().storeId) {
+    throw new Error("המחיקה לא נשמרה. רעננו את העמוד ונסו שוב");
+  }
+  await writeStore("delete_store_products", { product_ids: sourceIds });
   publish({ ...current, products: current.products.filter((product) => !ids.includes(product.id)) });
-  if (typeof window === "undefined" || sourceIds.length === 0) return;
-  const storeId = getStoreIdentity().storeId;
-  if (!storeId) return;
-  const supabase = createSupabaseBrowserClient();
-  void supabase.rpc("delete_store_products", { target_store: storeId, product_ids: sourceIds });
 }
 
 export async function saveCatalogProduct(product: Product) {

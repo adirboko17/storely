@@ -406,6 +406,13 @@ function mapGiftCards(value: unknown): GiftCard[] {
 export function applyStoreSnapshot(storeId: string, snapshot: StoreSnapshot) {
   const mark = [snapshot.name, snapshot.ownerName, snapshot.ownerEmail, snapshot.hostname, snapshot.logoUrl, JSON.stringify(snapshot.brandColors ?? ""), Array.isArray(snapshot.orders) ? snapshot.orders.length : 0, Array.isArray(snapshot.products) ? snapshot.products.length : 0].map(String).join("|");
   if (!claimStore(storeId, mark)) return;
+  setStoreIdentity({
+    storeId,
+    name: text(snapshot.name),
+    hostname: text(snapshot.hostname),
+    ownerName: text(snapshot.ownerName),
+    ownerEmail: text(snapshot.ownerEmail),
+  });
   const products = Array.isArray(snapshot.products) ? snapshot.products.map(mapProduct) : [];
   const customers = Array.isArray(snapshot.customers) ? snapshot.customers.map(mapCustomer) : [];
   const discounts = Array.isArray(snapshot.discounts) ? snapshot.discounts.map(mapDiscount) : [];
@@ -447,13 +454,6 @@ export function applyStoreSnapshot(storeId: string, snapshot: StoreSnapshot) {
     replaceMarketing({ connected: connected as Record<string, IntegrationState>, flows: library.flows, emails: library.emails, sms: library.sms });
     enableLiveMetrics();
     setStoreCurrency(snapshot.currency);
-    setStoreIdentity({
-      storeId,
-      name: text(snapshot.name),
-      hostname: text(snapshot.hostname),
-      ownerName: text(snapshot.ownerName),
-      ownerEmail: text(snapshot.ownerEmail),
-    });
   } finally {
     endHydration();
   }

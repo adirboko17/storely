@@ -285,7 +285,7 @@ export function ProductsListScreen() {
             <p className="mt-2 text-sm text-[#4a4a4a]">המוצרים יימחקו מהחנות.</p>
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" className={softButton} onClick={() => setConfirmDelete(false)}>ביטול</button>
-              <button type="button" className="h-[30px] rounded-[10px] border-0 bg-[#8e1f0b] px-3 text-sm font-semibold text-white" onClick={() => { deleteCatalogProducts(selected); setSelected([]); setConfirmDelete(false); toast("המוצרים נמחקו"); }}>מחיקה</button>
+              <button type="button" className="h-[30px] rounded-[10px] border-0 bg-[#8e1f0b] px-3 text-sm font-semibold text-white" onClick={() => { void deleteCatalogProducts(selected).then(() => { setSelected([]); setConfirmDelete(false); toast("המוצרים נמחקו"); }).catch((error: unknown) => toast(error instanceof Error ? error.message : "המחיקה לא נשמרה")); }}>מחיקה</button>
             </div>
           </div>
         </div>
