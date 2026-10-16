@@ -6,7 +6,7 @@ import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { Icon } from "@/components/ui/icon";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
-import { FLOW_TRIGGERS, TRIGGER_WINDOWS, createEmail, createSms, emailReady, getEmail, getFlow, getMarketingVersion, getSms, listEmails, listSms, lookbackPhrase, saveFlow, smsReady, subscribeMarketing, triggerTitle, type Flow, type FlowRule, type FlowStep } from "@/data/mock/marketing-session";
+import { FLOW_TRIGGERS, TRIGGER_WINDOWS, createEmail, createSms, deleteFlow, emailReady, getEmail, getFlow, getMarketingVersion, getSms, listEmails, listSms, lookbackPhrase, saveFlow, smsReady, subscribeMarketing, triggerTitle, type Flow, type FlowRule, type FlowStep } from "@/data/mock/marketing-session";
 import { getOrderSessionVersion, subscribeOrderSession } from "@/data/mock/order-session";
 import { getPeopleVersion, subscribePeople } from "@/data/mock/people-session";
 import { customerCountLabel, timedTrigger, triggerAudienceCount } from "@/data/mock/trigger-audience";
@@ -381,7 +381,12 @@ export function AutomationEditorScreen({ flowId }: { flowId: number }) {
   const [bound, setBound] = useState(flowId);
   const [selected, setSelected] = useState<Selection>({ kind: "library" });
   const [saving, setSaving] = useState(false);
+<<<<<<< HEAD
   const [simulate, setSimulate] = useState(false);
+=======
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+>>>>>>> badfc7635e55322105934465ec7648b752ea42cc
   if (bound !== flowId) {
     setBound(flowId);
     setDraft(baseline);
@@ -409,7 +414,7 @@ export function AutomationEditorScreen({ flowId }: { flowId: number }) {
     }, 400);
   }
   useUnsavedEditor(dirty, saving, save, () => setDraft(saved));
-  if (missing) notFound();
+  if (missing && !leaving) notFound();
   const step = selected.kind === "step" ? getStep(draft.steps, selected.path) : null;
   const needsTrigger = draft.trigger === "" || draft.trigger === "בחרו טריגר";
 
@@ -499,6 +504,9 @@ export function AutomationEditorScreen({ flowId }: { flowId: number }) {
           <Icon name="pencil" size={14} strokeWidth={1.7} className="shrink-0 text-[#8a8a8a]" />
         </label>
         <span className="inline-flex h-5 items-center rounded-md px-[7px] text-xs font-semibold" style={{ background: draft.on ? "#cdfee1" : "#ebebeb", color: draft.on ? "#0c5132" : "#303030" }}>{draft.on ? "פעיל" : "טיוטה"}</span>
+        <button type="button" className="ms-auto grid size-8 place-items-center rounded-lg border-0 bg-white text-[#8a8a8a] shadow-[0_0_0_1px_rgba(0,0,0,.1)] hover:text-[#8e1f0b]" aria-label="מחיקת האוטומציה" onClick={() => setRemoveOpen(true)}>
+          <Icon name="trash" size={16} />
+        </button>
       </div>
       <div className="min-h-[calc(100dvh-92px)] bg-[#f3f3f3] px-6 pt-8 pb-28">
         <div className="mx-auto flex w-full max-w-[760px] flex-col items-center">
@@ -570,6 +578,18 @@ export function AutomationEditorScreen({ flowId }: { flowId: number }) {
       ) : null}
       {selected.kind === "trigger" ? (
         <TriggerDialog trigger={draft.trigger} lookback={draft.lookback} onClose={() => setSelected({ kind: "library" })} onConfirm={(trigger, lookback) => { keep({ ...draft, trigger, lookback }); setSelected({ kind: "library" }); }} />
+      ) : null}
+      {removeOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4" onMouseDown={() => setRemoveOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-label="מחיקת אוטומציה" className="w-full max-w-[420px] rounded-2xl bg-white p-5 text-ink shadow-[0_24px_70px_rgba(0,0,0,.28)]" onMouseDown={(event) => event.stopPropagation()}>
+            <h2 className="m-0 text-base font-bold">למחוק את {draft.name || "האוטומציה"}?</h2>
+            <p className="m-0 mt-2 text-sm text-[#4a4a4a]">האוטומציה תוסר מהרשימה. אי אפשר לשחזר אותה.</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" className="h-8 rounded-lg border-0 bg-[#f1f1f1] px-3 text-sm font-semibold text-ink" onClick={() => setRemoveOpen(false)}>ביטול</button>
+              <button type="button" className="h-8 rounded-lg border-0 bg-[#8e1f0b] px-3 text-sm font-semibold text-white" onClick={() => { setLeaving(true); deleteFlow(flowId); router.push("/admin/marketing/automations"); toast("האוטומציה נמחקה"); }}>מחיקה</button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );

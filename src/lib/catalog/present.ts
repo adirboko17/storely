@@ -27,7 +27,7 @@ export function productInSeed(product: Product, title: string) {
   if (title.startsWith("מוצרים מומלצים")) return product.stock > 0 && product.price > 10;
   if (title === "מתנות עד ₪150") return product.price < 150;
   if (title === "חדש בחנות") return product.id > 8;
-  if (title === "כלי שתייה" || title === "כלי הגשה" || title === "עיצוב הבית") return product.category === title;
+  if (title === "כלי שתייה" || title === "כלי הגשה" || title === "עיצוב הבית") return product.category === title || product.collections.includes(title);
   if (title === "מוצרי פשתן") return product.tags.includes("פשתן");
   if (title === "קרמיקה בעבודת יד") return product.tags.includes("קרמיקה");
   if (title === "סטודיו לבנה" || title === "נגריית הכרמל") return product.vendor === title;

@@ -27,7 +27,7 @@ test("designed screens render and the sidebar search stays transparent", async (
   await expect(page.getByText("תמחור")).toBeVisible();
 
   await page.goto("/admin/products/collections");
-  await expect(page.getByRole("heading", { name: "אוספים" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "קטגוריות" })).toBeVisible();
   await expect(page.getByText("מטבח ואירוח")).toBeVisible();
   await shown("כלי שתייה", true).click();
   await expect(shown("ספל קרמיקה עבודת יד")).toBeVisible();

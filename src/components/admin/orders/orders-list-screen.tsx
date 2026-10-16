@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { DateRangePicker, windowForPreset, type DashboardWindow } from "@/components/admin/dashboard/date-range-picker";
-import { ColumnsButton, IndexDock, SearchField, darkButton, menuItem, menuPanel, softButton } from "@/components/admin/orders/chrome";
+import { ColumnsButton, IndexDock, SearchField, menuItem, menuPanel, softButton } from "@/components/admin/orders/chrome";
 import { ExportOrdersDialog } from "@/components/admin/orders/export-orders-dialog";
 import { Icon } from "@/components/ui/icon";
 import { bulkFulfill, getOrderSessionVersion, listResolvedOrders, subscribeOrderSession } from "@/data/mock/order-session";
@@ -82,9 +81,6 @@ export function OrdersListScreen() {
         <button type="button" className={softButton} onClick={() => setExportOpen(true)}>
           ייצוא
         </button>
-        <Link href="/admin/orders/drafts" className={darkButton}>
-          יצירת הזמנה
-        </Link>
       </div>
 
       <div className="mx-3 flex overflow-x-auto rounded-xl bg-white shadow-[0_0_0_1px_rgba(0,0,0,.08)]">

@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, ViewTransition } from "react";
+import { MenuAccountProvider } from "@/data/live/menu-name";
 import { canOpenAdminPath, type StoreAccess } from "@/platform/access";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { SearchDialog } from "@/components/admin/layout/search-dialog";
@@ -84,6 +85,7 @@ export function AdminShell({
   const showBar = narrow;
 
   return (
+    <MenuAccountProvider name={accountName}>
     <div className="relative flex h-dvh overflow-hidden bg-shell">
       {showSide ? (
         present ? (
@@ -189,5 +191,6 @@ export function AdminShell({
       <ToastViewport />
       <SearchDialog navItems={navItems} showSettings={showSettings} />
     </div>
+    </MenuAccountProvider>
   );
 }

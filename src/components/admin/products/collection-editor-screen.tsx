@@ -16,6 +16,7 @@ import {
   type CollectionCondition,
   type CollectionDraft,
 } from "@/data/mock/catalog-session";
+import { TermPicker } from "@/components/admin/products/term-picker";
 import { COLLECTION_SEEDS, PRODUCT_STATUS, productInSeed } from "@/lib/catalog/present";
 import { formatMoney } from "@/lib/formatting/money";
 import type { Product } from "@/types/commerce";
@@ -23,11 +24,14 @@ import type { Product } from "@/types/commerce";
 const field = "h-[34px] w-full rounded-[10px] border border-[#c9c9c9] bg-white px-3 text-sm outline-none";
 
 function baseDraft(key: string | null, products: Product[]): CollectionDraft {
-  if (!key) return { title: "", description: "", ids: [], conditions: [], excludeOutOfStock: false, image: "" };
+  if (!key) return { title: "", description: "", ids: [], conditions: [], excludeOutOfStock: false, image: "", subcategories: [] };
   const stored = getCollectionDraft(key);
-  if (stored) return stored;
+  const fromCategory = products.filter((product) => product.category.trim() === key || product.collections.includes(key)).map((product) => product.id);
+  if (stored) {
+    if (stored.conditions.length) return stored;
+    return { ...stored, ids: [...new Set([...stored.ids, ...fromCategory])] };
+  }
   const seed = COLLECTION_SEEDS.find((item) => item.title === key);
-  const fromCategory = products.filter((product) => product.category.trim() === key).map((product) => product.id);
   return {
     title: seed?.title ?? key,
     description: "",
@@ -35,6 +39,7 @@ function baseDraft(key: string | null, products: Product[]): CollectionDraft {
     conditions: [],
     excludeOutOfStock: false,
     image: seed?.tone && seed.tone !== "#fff" ? seed.tone : "",
+    subcategories: [],
   };
 }
 
@@ -152,6 +157,27 @@ export function CollectionEditorScreen({ collectionKey }: { collectionKey: strin
               </div>
             ) : null}
           </aside>
+        </div>
+        <div className="rounded-xl bg-white p-4 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
+          <TermPicker
+            label="תתי קטגוריה"
+            addLabel="הוספת תת קטגוריה"
+            searchPlaceholder="חיפוש או הוספת תת קטגוריה"
+            emptyLabel="אין תתי קטגוריה"
+            createLabel="הוספת תת קטגוריה חדשה"
+            options={draft.subcategories}
+            selected={draft.subcategories}
+            onChange={(names) => setDraft({ ...draft, subcategories: names })}
+            onCreate={(title) => {
+              if (!title) {
+                toast("הקלידו שם לתת קטגוריה בשדה החיפוש");
+                return false;
+              }
+              if (draft.subcategories.some((name) => name.localeCompare(title, "he", { sensitivity: "accent" }) === 0)) return true;
+              setDraft({ ...draft, subcategories: [...draft.subcategories, title] });
+              return true;
+            }}
+          />
         </div>
         <div>
           <b className="text-sm">פריטים בקטגוריה {items.length}</b>

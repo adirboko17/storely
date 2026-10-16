@@ -55,7 +55,6 @@ export function TopProducts({ rangeLabel }: { rangeLabel: string }) {
 export function QuickActions() {
   const actions: Array<{ label: string; href: string }> = [
     { label: "הוספת מוצר", href: "/admin/products/new" },
-    { label: "יצירת הזמנה ידנית", href: "/admin/orders/drafts" },
     { label: "יצירת קוד הנחה", href: "/admin/discounts/new" },
   ];
   return (

@@ -59,7 +59,4 @@ test("orders module matches the prototype interactions", async ({ page }) => {
   await expect(page.getByText("ההערה נשמרה")).toBeVisible();
   await page.getByRole("link", { name: "שירה אדלר" }).click();
   await expect(page.getByText("ללקוח הזה אין עדיין פרופיל, כי לא השלים הזמנה")).toBeVisible();
-
-  await page.goto("/admin/orders/drafts");
-  await expect(page.getByText("המסך הזה יעוצב בשלב 4")).toBeVisible();
 });

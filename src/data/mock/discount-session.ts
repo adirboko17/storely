@@ -1,6 +1,7 @@
 export type DiscountKind = "order" | "product" | "ship" | "bxgy";
 
 import { isHydrating, writeStore } from "@/data/live/write";
+import { currencySymbol } from "@/lib/formatting/currency";
 
 export type Discount = {
   id: number;
@@ -24,7 +25,7 @@ export type Discount = {
   combProduct: boolean;
   combOrder: boolean;
   combShip: boolean;
-  applies: "all" | "colls";
+  applies: "all" | "colls" | "subs";
   collections: string[];
   bxBuy: string;
   bxGet: string;
@@ -71,15 +72,15 @@ export function discountStatus(discount: Discount): "active" | "scheduled" | "ex
 }
 
 export function discountSummary(discount: Discount) {
-  const value = discount.valueType === "pct" ? `${discount.value || "0"}%` : `₪${discount.value || "0"}`;
+  const value = discount.valueType === "pct" ? `${discount.value || "0"}%` : `${currencySymbol()}${discount.value || "0"}`;
   const head = discount.type === "order"
     ? `${value} הנחה על כל ההזמנה`
     : discount.type === "product"
-      ? `${value} הנחה על ${discount.applies === "colls" && discount.collections.length ? `האוספים: ${discount.collections.join(", ")}` : "כל המוצרים"}`
+      ? `${value} הנחה על ${discount.applies === "subs" && discount.collections.length ? `תתי הקטגוריות: ${discount.collections.join(", ")}` : discount.applies === "colls" && discount.collections.length ? `הקטגוריות: ${discount.collections.join(", ")}` : "כל המוצרים"}`
       : discount.type === "ship"
         ? "משלוח חינם לכל הארץ"
         : `קנו ${discount.bxBuy} מ"${discount.bxColl}", קבלו ${discount.bxGet} בחינם`;
-  const min = discount.minType === "amount" ? `בקנייה מעל ₪${discount.minValue || "0"}` : discount.minType === "qty" ? `בקנייה של ${discount.minValue || "0"} פריטים לפחות` : "ללא דרישת מינימום";
+  const min = discount.minType === "amount" ? `בקנייה מעל ${currencySymbol()}${discount.minValue || "0"}` : discount.minType === "qty" ? `בקנייה של ${discount.minValue || "0"} פריטים לפחות` : "ללא דרישת מינימום";
   return `${head}. ${min}.`;
 }
 

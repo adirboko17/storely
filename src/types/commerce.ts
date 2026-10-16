@@ -20,7 +20,9 @@ export type Product = {
   media?: string[];
   tags: string[];
   collections: string[];
+  subcategories?: string[];
   option?: { name: string; values: string[] };
+  options?: { name: string; values: string[] }[];
   quantities?: number[];
   description?: string;
 };

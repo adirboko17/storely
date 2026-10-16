@@ -64,7 +64,6 @@ export function CustomerProfileScreen({ customerId }: { customerId: number }) {
           <div className="mt-3 flex items-center gap-2">
             <h2 className="m-0 flex-1 text-base font-semibold">ההזמנה האחרונה</h2>
             <button type="button" className="rounded-lg border-0 bg-transparent px-1.5 py-1 text-sm font-medium" onClick={() => router.push("/admin/orders")}>לכל ההזמנות</button>
-            <button type="button" className={darkButton} onClick={() => router.push("/admin/orders/drafts")}>יצירת הזמנה</button>
           </div>
           <div className="overflow-hidden rounded-[14px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
             {last ? (

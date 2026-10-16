@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
-import { createFlow, getMarketingVersion, listFlows, subscribeMarketing, toggleFlow, triggerTitle } from "@/data/mock/marketing-session";
+import { Icon } from "@/components/ui/icon";
+import { createFlow, deleteFlow, getMarketingVersion, listFlows, subscribeMarketing, toggleFlow, triggerTitle } from "@/data/mock/marketing-session";
 import { channelLabel, type StoreMessagingStatus } from "@/data/live/messaging";
 import { formatInteger, formatMoney0 } from "@/lib/formatting/money";
 
@@ -20,6 +21,7 @@ const TEMPLATES = [
 export function AutomationsScreen({ messaging }: { messaging: StoreMessagingStatus }) {
   const router = useRouter();
   const { toast } = useAdmin();
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null);
   useSyncExternalStore(subscribeMarketing, getMarketingVersion, () => 0);
   const flows = listFlows();
   const sent = flows.reduce((sum, flow) => sum + (flow.stats?.[0] ?? 0), 0);
@@ -53,18 +55,24 @@ export function AutomationsScreen({ messaging }: { messaging: StoreMessagingStat
         </p>
         <h2 className="m-0 mt-1.5 text-[15px] font-semibold">האוטומציות שלכם</h2>
         <div className="overflow-hidden rounded-[14px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
-          <div className="grid h-[34px] grid-cols-[minmax(0,1fr)_110px_90px_90px_90px_110px_50px] items-center gap-2.5 bg-[#f7f7f7] px-4 text-[13px] font-semibold text-[#4a4a4a]"><span>שם</span><span>ערוץ</span><span className="text-left">נשלחו</span><span className="text-left">פתיחה</span><span className="text-left">הקלקה</span><span className="text-left">הכנסות</span><span>פעיל</span></div>
+          <div className="grid h-[34px] grid-cols-[minmax(0,1fr)_110px_90px_90px_90px_110px_86px] items-center gap-2.5 bg-[#f7f7f7] px-4 text-[13px] font-semibold text-[#4a4a4a]"><span>שם</span><span>ערוץ</span><span className="text-left">נשלחו</span><span className="text-left">פתיחה</span><span className="text-left">הקלקה</span><span className="text-left">הכנסות</span><span>פעיל</span></div>
+          {flows.length === 0 ? <div className="border-t border-[#f1f1f1] px-4 py-6 text-sm text-[#4a4a4a]">אין אוטומציות. אפשר ליצור אחת או להתחיל מתבנית.</div> : null}
           {flows.map((flow) => {
             const channels = [...new Set(flow.steps.filter((step) => step.type === "email" || step.type === "sms").map((step) => step.type))];
             return (
-              <div key={flow.id} className="grid cursor-pointer grid-cols-[minmax(0,1fr)_110px_90px_90px_90px_110px_50px] items-center gap-2.5 border-t border-[#f1f1f1] px-4 py-2.5 hover:bg-[#f7f7f7]" onClick={() => router.push(`/admin/marketing/automations/${flow.id}`)}>
+              <div key={flow.id} className="grid cursor-pointer grid-cols-[minmax(0,1fr)_110px_90px_90px_90px_110px_86px] items-center gap-2.5 border-t border-[#f1f1f1] px-4 py-2.5 hover:bg-[#f7f7f7]" onClick={() => router.push(`/admin/marketing/automations/${flow.id}`)}>
                 <div><b className="block">{flow.name}</b><span className="text-xs text-ink-secondary">טריגר: {triggerTitle(flow.trigger, flow.lookback)}</span></div>
                 <div className="flex gap-1">{channels.map((channel) => <span key={channel} className="inline-flex h-5 items-center rounded-md px-[7px] text-xs font-semibold" style={{ background: channel === "email" ? "#e0f0ff" : "#ede7fb", color: channel === "email" ? "#00527c" : "#5b3fc4" }}>{channel === "email" ? "דוא״ל" : "SMS"}</span>)}</div>
                 <span className="text-left">{flow.stats ? formatInteger(flow.stats[0]) : "—"}</span>
                 <span dir="ltr" className="text-left">{flow.stats?.[1] ?? "—"}</span>
                 <span dir="ltr" className="text-left">{flow.stats?.[2] ?? "—"}</span>
                 <b dir="ltr" className="text-left">{flow.stats ? formatMoney0(flow.stats[3]) : "—"}</b>
-                <button type="button" role="switch" aria-checked={flow.on} className="relative h-[18px] w-8 rounded-full border-0" style={{ background: flow.on ? "#303030" : "#d4d4d4" }} onClick={(event) => { event.stopPropagation(); toggleFlow(flow.id); toast(flow.on ? "האוטומציה הושהתה" : "האוטומציה הופעלה"); }}><span className="absolute top-0.5 size-3.5 rounded-full bg-white" style={{ left: flow.on ? 16 : 2 }} /></button>
+                <div className="flex items-center gap-1.5">
+                  <button type="button" role="switch" aria-checked={flow.on} aria-label={flow.on ? "השהיית האוטומציה" : "הפעלת האוטומציה"} className="relative h-[18px] w-8 rounded-full border-0" style={{ background: flow.on ? "#303030" : "#d4d4d4" }} onClick={(event) => { event.stopPropagation(); toggleFlow(flow.id); toast(flow.on ? "האוטומציה הושהתה" : "האוטומציה הופעלה"); }}><span className="absolute top-0.5 size-3.5 rounded-full bg-white" style={{ left: flow.on ? 16 : 2 }} /></button>
+                  <button type="button" aria-label={`מחיקת ${flow.name}`} className="grid size-7 place-items-center rounded-lg border-0 bg-transparent text-[#8a8a8a] hover:bg-[#f1f1f1] hover:text-[#8e1f0b]" onClick={(event) => { event.stopPropagation(); setPendingDelete(flow.id); }}>
+                    <Icon name="trash" size={16} />
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -81,6 +89,18 @@ export function AutomationsScreen({ messaging }: { messaging: StoreMessagingStat
         </div>
       </div>
       <div className="flex-1" />
+      {pendingDelete != null ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4" onMouseDown={() => setPendingDelete(null)}>
+          <div role="dialog" aria-modal="true" aria-label="מחיקת אוטומציה" className="w-full max-w-[420px] rounded-2xl bg-white p-5 text-ink shadow-[0_24px_70px_rgba(0,0,0,.28)]" onMouseDown={(event) => event.stopPropagation()}>
+            <h2 className="m-0 text-base font-bold">למחוק את {flows.find((flow) => flow.id === pendingDelete)?.name || "האוטומציה"}?</h2>
+            <p className="m-0 mt-2 text-sm text-[#4a4a4a]">האוטומציה תוסר מהרשימה. אי אפשר לשחזר אותה.</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" className={softButton} onClick={() => setPendingDelete(null)}>ביטול</button>
+              <button type="button" className="h-8 rounded-lg border-0 bg-[#8e1f0b] px-3 text-sm font-semibold text-white" onClick={() => { deleteFlow(pendingDelete); setPendingDelete(null); toast("האוטומציה נמחקה"); }}>מחיקה</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

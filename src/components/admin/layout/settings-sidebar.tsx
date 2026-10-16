@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { AccountMenu } from "@/components/admin/layout/account-menu";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { getMenuName, subscribeMenuName } from "@/data/live/menu-name";
 import { getStoreIdentity, getStoreIdentityVersion, subscribeStoreIdentity } from "@/data/live/store-identity";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/cn";
@@ -21,6 +22,7 @@ export function SettingsSidebar({ accountName, accountEmail }: { accountName: st
   const pathname = usePathname();
   const { menu, toggleMenu } = useAdmin();
   useSyncExternalStore(subscribeStoreIdentity, getStoreIdentityVersion, getStoreIdentityVersion);
+  const liveName = useSyncExternalStore(subscribeMenuName, getMenuName, () => "");
   const store = getStoreIdentity();
   const [query, setQuery] = useState("");
   const profileOpen = menu === "profile";
@@ -85,7 +87,7 @@ export function SettingsSidebar({ accountName, accountEmail }: { accountName: st
         <AccountMenu
           open={profileOpen}
           onToggle={() => toggleMenu("profile")}
-          name={accountName || store.ownerName}
+          name={liveName || accountName || store.ownerName}
           storeName={store.name}
           email={accountEmail || store.ownerEmail}
         />

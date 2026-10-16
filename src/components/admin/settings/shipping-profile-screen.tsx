@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
 import { darkButton, softButton } from "@/components/admin/orders/chrome";
 import { SettingsDialog } from "@/components/admin/settings/settings-dialog";
 import { Card } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
+import { currencySymbol } from "@/lib/formatting/currency";
 import {
   addShipRate,
   addShipZone,
+  deleteShipProfile,
   deleteShipRate,
   getSettings,
   getSettingsVersion,
@@ -22,6 +25,7 @@ const field = "h-9 w-full rounded-lg border border-[#c9c9c9] bg-white px-2.5 tex
 
 export function ShippingProfileScreen({ profileId }: { profileId: string }) {
   useSyncExternalStore(subscribeSettings, getSettingsVersion, getSettingsVersion);
+  const router = useRouter();
   const profile = getSettings().profiles.find((item) => item.id === profileId);
   const [locationOpen, setLocationOpen] = useState(false);
   const [zoneOpen, setZoneOpen] = useState(false);
@@ -50,7 +54,19 @@ export function ShippingProfileScreen({ profileId }: { profileId: string }) {
         </Link>
         <span className="text-sm text-ink-secondary">משלוחים</span>
       </div>
-      <h1 className="m-0 text-xl font-bold text-ink-strong">{profile.name}</h1>
+      <div className="flex items-center gap-3">
+        <h1 className="m-0 min-w-0 flex-1 text-xl font-bold text-ink-strong">{profile.name}</h1>
+        <button
+          type="button"
+          className="h-8 rounded-lg border-0 bg-transparent px-2 text-sm font-semibold text-[#d72c0d]"
+          onClick={() => {
+            deleteShipProfile(profile.id);
+            router.push("/admin/settings/shipping");
+          }}
+        >
+          הסרה
+        </button>
+      </div>
 
       <section className="flex flex-col gap-2">
         <h2 className="m-0 text-sm font-semibold">מוצרים</h2>
@@ -100,7 +116,7 @@ export function ShippingProfileScreen({ profileId }: { profileId: string }) {
                 <div key={rate.id} className="flex items-center gap-3 border-t border-[#ebebeb] px-4 py-3">
                   <Icon name="truck" size={16} className="text-ink-secondary" />
                   <span className="min-w-0 flex-1 text-sm">{rate.name}</span>
-                  <span className="text-sm text-ink-secondary">{rate.price.trim() ? `₪${rate.price}` : "חינם"}</span>
+                  <span className="text-sm text-ink-secondary">{rate.price.trim() ? `${currencySymbol()}${rate.price}` : "חינם"}</span>
                   <button
                     type="button"
                     aria-label="הסרת אפשרות"
@@ -210,7 +226,7 @@ function ZonePrice({ profileId, zone }: { profileId: string; zone: ShipZone }) {
 
   return (
     <label className="flex h-8 items-center gap-1 rounded-lg border border-[#c9c9c9] bg-white px-2">
-      <span className="text-sm text-ink-secondary">₪</span>
+      <span className="text-sm text-ink-secondary">{currencySymbol()}</span>
       <input
         value={price}
         inputMode="decimal"
@@ -267,7 +283,7 @@ function ZoneDialog({
       </label>
       <label className="mt-3 flex flex-col gap-1 text-sm font-semibold">
         מחיר משלוח
-        <input value={price} onChange={(event) => setPrice(event.target.value)} inputMode="decimal" dir="ltr" className={`${field} text-left`} placeholder="₪" />
+        <input value={price} onChange={(event) => setPrice(event.target.value)} inputMode="decimal" dir="ltr" className={`${field} text-left`} placeholder={currencySymbol()} />
         <span className="text-[13px] font-normal text-ink-secondary">השאירו ריק למשלוח חינם.</span>
       </label>
       <div className="mt-4 overflow-hidden rounded-xl border border-[#e3e3e3]">
@@ -321,7 +337,7 @@ function RateDialog({ onClose, onSave }: { onClose: () => void; onSave: (name: s
         </label>
         <label className="flex flex-col gap-1 text-sm font-semibold">
           מחיר משלוח
-          <input value={price} onChange={(event) => setPrice(event.target.value)} inputMode="decimal" dir="ltr" className={`${field} text-left`} placeholder="₪" />
+          <input value={price} onChange={(event) => setPrice(event.target.value)} inputMode="decimal" dir="ltr" className={`${field} text-left`} placeholder={currencySymbol()} />
           <span className="text-[13px] font-normal text-ink-secondary">השאירו ריק למשלוח חינם.</span>
         </label>
       </div>

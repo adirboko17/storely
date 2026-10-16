@@ -3,6 +3,28 @@ import { isHydrating, writeStore } from "@/data/live/write";
 
 export type PolicyKind = "return" | "privacy" | "terms" | "shipping" | "contact" | "legal" | "purchase";
 
+export type PolicySurfaceMode = "hidden" | "link" | "checkbox";
+
+export type StorePolicy = {
+  id: string;
+  kind: PolicyKind | "custom";
+  title: string;
+  body: string;
+  footer: boolean;
+  cart: PolicySurfaceMode;
+  checkout: PolicySurfaceMode;
+};
+
+export const BUILTIN_POLICIES: Array<{ kind: PolicyKind; title: string; required?: boolean }> = [
+  { kind: "return", title: "מדיניות החזרות והחזרים" },
+  { kind: "privacy", title: "מדיניות פרטיות" },
+  { kind: "terms", title: "תנאי שימוש" },
+  { kind: "shipping", title: "מדיניות משלוחים" },
+  { kind: "contact", title: "פרטי יצירת קשר" },
+  { kind: "legal", title: "הודעה משפטית" },
+  { kind: "purchase", title: "מדיניות ביטול אפשרויות רכישה", required: true },
+];
+
 export type ReturnRule = {
   id: string;
   name: string;
@@ -28,6 +50,22 @@ export type ShipLocation = {
   address: string;
 };
 
+export type StoreContact = {
+  email: string;
+  phone: string;
+  addressMode: "none" | "physical";
+  company: string;
+  country: string;
+  street: string;
+  apartment: string;
+  zip: string;
+  city: string;
+};
+
+export function emptyStoreContact(): StoreContact {
+  return { email: "", phone: "", addressMode: "none", company: "", country: "ישראל", street: "", apartment: "", zip: "", city: "" };
+}
+
 export type ShipProfile = {
   id: string;
   name: string;
@@ -37,12 +75,13 @@ export type ShipProfile = {
 
 type State = {
   version: number;
-  policies: Record<PolicyKind, string>;
+  policies: StorePolicy[];
   rules: ReturnRule[];
   profiles: ShipProfile[];
   estimates: boolean;
   localDelivery: boolean;
   pickup: boolean;
+  contact: StoreContact;
   logo: string;
   colors: string[];
 };
@@ -57,24 +96,102 @@ export function normalizeBrandColors(value: unknown) {
   });
 }
 
-const emptyPolicies = (): Record<PolicyKind, string> => ({
-  return: "",
-  privacy: "",
-  terms: "",
-  shipping: "",
-  contact: "",
-  legal: "",
-  purchase: "",
-});
+export function defaultPolicyList(): Array<StorePolicy & { kind: PolicyKind }> {
+  return BUILTIN_POLICIES.map((item) => ({
+    id: item.kind,
+    kind: item.kind,
+    title: item.title,
+    body: "",
+    footer: true,
+    cart: "hidden",
+    checkout: "link",
+  }));
+}
+
+function isSurfaceMode(value: unknown): value is PolicySurfaceMode {
+  return value === "hidden" || value === "link" || value === "checkbox";
+}
+
+function builtinKind(value: unknown): PolicyKind | null {
+  return BUILTIN_POLICIES.some((item) => item.kind === value) ? (value as PolicyKind) : null;
+}
+
+export function normalizePolicies(value: unknown): StorePolicy[] {
+  const root = value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  const defaults = defaultPolicyList();
+  const legacyBody = (kind: PolicyKind) => (typeof root[kind] === "string" ? root[kind] : "");
+
+  if (!Array.isArray(root.items)) {
+    return defaults.map((item) => ({ ...item, body: legacyBody(item.kind) }));
+  }
+
+  const byKind = new Map<PolicyKind, StorePolicy>();
+  const custom: StorePolicy[] = [];
+  root.items.forEach((entry) => {
+    if (!entry || typeof entry !== "object") return;
+    const item = entry as Record<string, unknown>;
+    const kind = item.kind === "custom" ? "custom" : builtinKind(item.kind);
+    const id = typeof item.id === "string" ? item.id.trim() : "";
+    if (!kind || !id) return;
+    const fallback = kind === "custom" ? null : defaults.find((policy) => policy.kind === kind);
+    const title = typeof item.title === "string" && item.title.trim() ? item.title.trim() : fallback?.title ?? "תקנון";
+    const policy: StorePolicy = {
+      id,
+      kind,
+      title,
+      body: typeof item.body === "string" ? item.body : fallback?.body ?? "",
+      footer: typeof item.footer === "boolean" ? item.footer : fallback?.footer ?? false,
+      cart: isSurfaceMode(item.cart) ? item.cart : fallback?.cart ?? "hidden",
+      checkout: isSurfaceMode(item.checkout) ? item.checkout : fallback?.checkout ?? "hidden",
+    };
+    if (kind === "custom") custom.push(policy);
+    else byKind.set(kind, policy);
+  });
+
+  return [
+    ...defaults.map((item) => byKind.get(item.kind) ?? { ...item, body: legacyBody(item.kind) }),
+    ...custom,
+  ];
+}
+
+export function policiesPayload(policies: StorePolicy[]) {
+  const legacy = Object.fromEntries(
+    BUILTIN_POLICIES.map((item) => [item.kind, policies.find((policy) => policy.kind === item.kind)?.body ?? ""]),
+  );
+  return { version: 2, items: policies, ...legacy };
+}
+
+export function policyPlacementLabel(policy: StorePolicy) {
+  const parts: string[] = [];
+  if (policy.footer) parts.push("פוטר");
+  if (policy.cart === "link") parts.push("עגלה · קישור");
+  if (policy.cart === "checkbox") parts.push("עגלה · קראתי");
+  if (policy.checkout === "link") parts.push("תשלום · קישור");
+  if (policy.checkout === "checkbox") parts.push("תשלום · קראתי");
+  return parts.length ? parts.join(" · ") : "לא מוצג באתר";
+}
+
+export function blankPolicy(): StorePolicy {
+  return {
+    id: `policy-${Date.now()}`,
+    kind: "custom",
+    title: "",
+    body: "",
+    footer: true,
+    cart: "hidden",
+    checkout: "hidden",
+  };
+}
 
 let current: State = {
   version: 0,
-  policies: emptyPolicies(),
+  policies: defaultPolicyList(),
   rules: [],
   profiles: [{ id: "general", name: "פרופיל כללי", location: null, zones: [] }],
   estimates: false,
   localDelivery: false,
   pickup: false,
+  contact: emptyStoreContact(),
   logo: "",
   colors: [...DEFAULT_BRAND_COLORS],
 };
@@ -87,13 +204,14 @@ function publish(next: Omit<State, "version">) {
   if (isHydrating()) return;
   void writeStore("save_store_sections", {
     sections: {
-      policies: current.policies,
+      policies: policiesPayload(current.policies),
       shipping: {
         rules: current.rules,
         profiles: current.profiles,
         estimates: current.estimates,
         localDelivery: current.localDelivery,
         pickup: current.pickup,
+        contact: current.contact,
       },
     },
   });
@@ -120,10 +238,13 @@ export function policyText(html: string) {
   return html.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").trim();
 }
 
-export function policyTemplate(kind: PolicyKind) {
+export function policyTemplate(kind: PolicyKind | "custom") {
   const store = getStoreIdentity();
   const name = store.name.trim() || "החנות";
   const contact = [store.hostname.trim(), store.ownerEmail.trim()].filter(Boolean).join(" · ");
+  if (kind === "custom") {
+    return `<p><strong>תקנון</strong></p><p>התקנון הזה של ${name} מסביר את הכללים שחלים על השימוש באתר ועל הרכישה.</p>`;
+  }
   const pages: Record<PolicyKind, string> = {
     return: `<p><strong>החזרות</strong></p><p>אפשר לבקש החזרה מ${name} לפי חלון ההחזרה שמוגדר בחנות. המוצר צריך לחזור במצב שאפשר למכור אותו מחדש.</p>`,
     privacy: `<p><strong>פרטיות</strong></p><p>${name} שומרת פרטי הזמנה ופרטי קשר כדי לטפל בהזמנה ולשלוח עדכונים. הפרטים לא נמכרים.</p>`,
@@ -136,8 +257,23 @@ export function policyTemplate(kind: PolicyKind) {
   return pages[kind];
 }
 
-export function savePolicy(kind: PolicyKind, body: string) {
-  publish({ ...current, policies: { ...current.policies, [kind]: body } });
+export function saveStoreContact(contact: StoreContact) {
+  publish({ ...current, contact });
+}
+
+export function savePolicy(policy: StorePolicy) {
+  const builtin = BUILTIN_POLICIES.find((item) => item.kind === policy.kind);
+  const next = { ...policy, title: policy.title.trim() || builtin?.title || "תקנון חדש" };
+  const policies = current.policies.some((item) => item.id === next.id)
+    ? current.policies.map((item) => (item.id === next.id ? next : item))
+    : [...current.policies, next];
+  publish({ ...current, policies });
+}
+
+export function deletePolicy(id: string) {
+  const target = current.policies.find((item) => item.id === id);
+  if (!target || target.kind !== "custom") return;
+  publish({ ...current, policies: current.policies.filter((item) => item.id !== id) });
 }
 
 export function saveReturnRule(rule: ReturnRule) {
@@ -149,6 +285,10 @@ export function saveReturnRule(rule: ReturnRule) {
 
 export function deleteReturnRule(id: string) {
   publish({ ...current, rules: current.rules.filter((rule) => rule.id !== id) });
+}
+
+export function deleteShipProfile(id: string) {
+  publish({ ...current, profiles: current.profiles.filter((profile) => profile.id !== id) });
 }
 
 export function addShipProfile(name: string) {

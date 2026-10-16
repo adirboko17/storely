@@ -10,23 +10,32 @@ export function SettingsDialog({
   children,
   footer,
   className,
+  scroll = false,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
   className?: string;
+  scroll?: boolean;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/45 px-4 py-8" onMouseDown={onClose}>
+    <div
+      className={cn("fixed inset-0 z-50 flex justify-center bg-black/45 px-4", scroll ? "items-center overflow-hidden py-6" : "items-start overflow-y-auto py-8")}
+      onMouseDown={onClose}
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={cn("my-auto w-full max-w-[760px] rounded-2xl bg-white text-ink shadow-[0_24px_70px_rgba(0,0,0,.28)]", className)}
+        className={cn(
+          "w-full rounded-2xl bg-white text-ink shadow-[0_24px_70px_rgba(0,0,0,.28)]",
+          scroll ? "flex max-h-[min(640px,calc(100vh-3rem))] max-w-[560px] flex-col overflow-hidden" : "my-auto max-w-[760px]",
+          className,
+        )}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 pt-4 pb-2">
+        <div className="flex shrink-0 items-center justify-between px-5 pt-4 pb-2">
           <h2 className="m-0 text-base font-bold">{title}</h2>
           <button
             type="button"
@@ -37,8 +46,8 @@ export function SettingsDialog({
             <Icon name="close" size={16} />
           </button>
         </div>
-        <div className="px-5 pb-4">{children}</div>
-        {footer ? <div className="flex justify-end gap-2 border-t border-[#ebebeb] px-5 py-3">{footer}</div> : null}
+        <div className={cn("px-5 pb-4", scroll && "min-h-0 flex-1 overflow-y-auto")}>{children}</div>
+        {footer ? <div className="flex shrink-0 justify-end gap-2 border-t border-[#ebebeb] px-5 py-3">{footer}</div> : null}
       </div>
     </div>
   );

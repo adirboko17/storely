@@ -243,6 +243,10 @@ export function toggleFlow(id: number) {
   publish({ ...current, flows: current.flows.map((flow) => (flow.id === id ? { ...flow, on: !flow.on } : flow)) });
 }
 
+export function deleteFlow(id: number) {
+  publish({ ...current, flows: current.flows.filter((flow) => flow.id !== id) });
+}
+
 export function createFlow(template: "cart" | "welcome" | "thanks" | "campaign" | "winback" | "blank") {
   const source = TEMPLATES.find((item) => item.key === template);
   const id = Math.max(0, ...current.flows.map((flow) => flow.id)) + 1;

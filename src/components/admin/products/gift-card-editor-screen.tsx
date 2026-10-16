@@ -6,6 +6,7 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
 import { Icon } from "@/components/ui/icon";
+import { currencySymbol } from "@/lib/formatting/currency";
 import { createGiftCard, deleteGiftCard, getCatalogVersion, listGiftCards, subscribeCatalog, updateGiftCard } from "@/data/mock/catalog-session";
 import { getPeopleVersion, listPeople, subscribePeople } from "@/data/mock/people-session";
 
@@ -90,7 +91,7 @@ export function GiftCardEditorScreen({ cardCode = null }: { cardCode?: string | 
       return;
     }
     if (!(amount > 0)) {
-      toast("יש להזין ערך גבוה מ-₪0");
+      toast(`יש להזין ערך גבוה מ-${currencySymbol()}0`);
       return;
     }
     if (listGiftCards().some((card) => card.code === nextCode && card.code !== existing?.code)) {
@@ -146,7 +147,7 @@ export function GiftCardEditorScreen({ cardCode = null }: { cardCode?: string | 
               <div className="mt-3 grid items-start gap-3 min-[640px]:grid-cols-2">
                 <label className="block text-[13px] font-medium">ערך התחלתי
                   <span className="mt-1 flex h-9 items-center gap-2 rounded-lg border border-[#c9c9c9] bg-white px-3 focus-within:border-[#303030]">
-                    <span className="text-sm text-[#616161]">₪</span>
+                    <span className="text-sm text-[#616161]">{currencySymbol()}</span>
                     <input dir="ltr" value={value} onChange={(event) => setValue(event.target.value)} className="h-full min-w-0 flex-1 border-0 bg-transparent text-end text-sm outline-none" />
                   </span>
                 </label>

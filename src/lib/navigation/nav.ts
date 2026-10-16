@@ -28,7 +28,6 @@ export const NAV_ITEMS: NavItem[] = [
     match: "/admin/orders",
     icon: "orders",
     children: [
-      { key: "drafts", label: "טיוטות", href: "/admin/orders/drafts" },
       { key: "returns", label: "החזרות והחזרים כספיים", href: "/admin/orders/returns" },
       { key: "abandoned", label: "עגלות נטושות", href: "/admin/orders/abandoned" },
     ],
@@ -53,7 +52,6 @@ export const NAV_ITEMS: NavItem[] = [
     icon: "user",
     children: [
       { key: "segments", label: "פלחים", href: "/admin/customers/segments" },
-      { key: "companies", label: "חברות", href: "/admin/customers/companies" },
     ],
   },
   {
@@ -110,7 +108,6 @@ export const NAV_ITEMS: NavItem[] = [
 
 const TITLES: Record<string, string> = {
   "/admin/orders": "הזמנות",
-  "/admin/orders/drafts": "טיוטות",
   "/admin/orders/returns": "החזרות והחזרים כספיים",
   "/admin/orders/abandoned": "עגלות נטושות",
   "/admin/products": "מוצרים",
@@ -123,7 +120,6 @@ const TITLES: Record<string, string> = {
   "/admin/customers": "לקוחות",
   "/admin/customers/new": "לקוח חדש",
   "/admin/customers/segments": "פלחים",
-  "/admin/customers/companies": "חברות",
   "/admin/growth": "צמיחה",
   "/admin/growth/attribution": "ייחוס",
   "/admin/marketing/integrations": "אינטגרציות",

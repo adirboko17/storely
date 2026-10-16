@@ -1,3 +1,4 @@
+import { currencySymbol } from "@/lib/formatting/currency";
 import { formatInteger, formatMoney0 } from "@/lib/formatting/money";
 
 export const RANGES = [
@@ -513,7 +514,7 @@ export function buildMetricChart(range: RangeId | ChartSpan, metric: MetricId, h
   const axisNumber = (value: number) => (Number.isInteger(value) ? formatInteger(value) : value.toFixed(1));
   const yFormat =
     definition.format === "money"
-      ? (value: number) => (value >= 1000 ? `₪${(value / 1000).toFixed(value % 1000 ? 1 : 0)}K` : `₪${axisNumber(value)}`)
+      ? (value: number) => (value >= 1000 ? `${currencySymbol()}${(value / 1000).toFixed(value % 1000 ? 1 : 0)}K` : `${currencySymbol()}${axisNumber(value)}`)
       : definition.format === "percent"
         ? (value: number) => `${Number.isInteger(value) && value >= 10 ? value.toFixed(0) : value.toFixed(1)}%`
         : (value: number) => (nice >= 100 && Number.isInteger(value) ? formatInteger(value) : axisNumber(value));
