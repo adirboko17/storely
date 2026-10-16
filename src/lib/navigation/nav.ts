@@ -74,6 +74,7 @@ export const NAV_ITEMS: NavItem[] = [
       { key: "integrations", label: "אינטגרציות", href: "/admin/marketing/integrations" },
       { key: "emails", label: "מיילים ו-SMS", href: "/admin/marketing/emails" },
       { key: "automations", label: "אוטומציות", href: "/admin/marketing/automations" },
+      { key: "campaigns", label: "קמפיינים", href: "/admin/marketing/campaigns" },
     ],
   },
   { key: "discounts", label: "הנחות", href: "/admin/discounts", match: "/admin/discounts", icon: "discount" },
@@ -128,6 +129,7 @@ const TITLES: Record<string, string> = {
   "/admin/marketing/integrations": "אינטגרציות",
   "/admin/marketing/emails": "מיילים ו-SMS",
   "/admin/marketing/automations": "אוטומציות",
+  "/admin/marketing/campaigns": "קמפיינים",
   "/admin/discounts": "הנחות",
   "/admin/discounts/new": "הנחה חדשה",
   "/admin/content/posts": "פוסטים בבלוג",
@@ -154,6 +156,7 @@ export function titleForPath(path: string) {
   if (/^\/admin\/discounts\/[^/]+$/.test(path)) return "הנחה";
   if (/^\/admin\/content\/posts\/[^/]+$/.test(path)) return "פוסט";
   if (/^\/admin\/marketing\/automations\/[^/]+$/.test(path)) return "אוטומציה";
+  if (/^\/admin\/marketing\/campaigns\/[^/]+$/.test(path)) return "קמפיין";
   if (/^\/admin\/marketing\/emails\/[^/]+$/.test(path)) return "מייל";
   if (/^\/admin\/marketing\/sms\/[^/]+$/.test(path)) return "SMS";
   if (/^\/admin\/settings\/users\/[^/]+$/.test(path)) return "עריכת משתמש";

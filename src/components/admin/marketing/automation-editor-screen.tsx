@@ -5,12 +5,12 @@ import { notFound, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { Icon } from "@/components/ui/icon";
-import { getStoreIdentity } from "@/data/live/store-identity";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
 import { FLOW_TRIGGERS, TRIGGER_WINDOWS, createEmail, createSms, emailReady, getEmail, getFlow, getMarketingVersion, getSms, listEmails, listSms, lookbackPhrase, saveFlow, smsReady, subscribeMarketing, triggerTitle, type Flow, type FlowRule, type FlowStep } from "@/data/mock/marketing-session";
 import { getOrderSessionVersion, subscribeOrderSession } from "@/data/mock/order-session";
 import { getPeopleVersion, subscribePeople } from "@/data/mock/people-session";
 import { customerCountLabel, timedTrigger, triggerAudienceCount } from "@/data/mock/trigger-audience";
+import { SimulationPanel } from "@/components/admin/marketing/simulation-panel";
 import { cn } from "@/lib/cn";
 
 const clearInput = { backgroundColor: "transparent", color: "#303030" } as const;
@@ -381,6 +381,7 @@ export function AutomationEditorScreen({ flowId }: { flowId: number }) {
   const [bound, setBound] = useState(flowId);
   const [selected, setSelected] = useState<Selection>({ kind: "library" });
   const [saving, setSaving] = useState(false);
+  const [simulate, setSimulate] = useState(false);
   if (bound !== flowId) {
     setBound(flowId);
     setDraft(baseline);
@@ -487,6 +488,7 @@ export function AutomationEditorScreen({ flowId }: { flowId: number }) {
 
   return (
     <div className="flex min-h-full flex-col">
+      {simulate ? <SimulationPanel flow={draft} eventLabel={draft.trigger} onClose={() => setSimulate(false)} /> : null}
       <div className="flex items-center gap-2 px-3.5 py-2.5">
         <Link href="/admin/marketing/automations" aria-label="חזרה" className="grid size-[30px] place-items-center rounded-full bg-white text-ink no-underline shadow-[0_0_0_1px_rgba(0,0,0,.1)]">
           <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M8 6l4 4-4 4" /></svg>
@@ -513,7 +515,7 @@ export function AutomationEditorScreen({ flowId }: { flowId: number }) {
       </div>
       <div className={cn("pointer-events-none fixed bottom-5 z-30 flex justify-center px-4", narrow ? "inset-x-0" : navCollapsed ? "right-[52px] left-1.5" : "right-60 left-1.5")}>
         <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-white p-1.5 shadow-[0_12px_32px_rgba(0,0,0,.14),0_0_0_1px_rgba(0,0,0,.06)]">
-          <button type="button" className="h-9 rounded-full border-0 bg-transparent px-4 text-sm font-semibold text-[#1a1a1a] hover:bg-[#f3f3f3]" onClick={() => toast(`הודעת בדיקה נשלחה אל ${getStoreIdentity().ownerEmail}`)}>שליחת בדיקה</button>
+          <button type="button" className="h-9 rounded-full border-0 bg-transparent px-4 text-sm font-semibold text-[#1a1a1a] hover:bg-[#f3f3f3]" onClick={() => setSimulate(true)}>סימולציה</button>
           <button type="button" className="h-9 rounded-full border-0 px-4 text-sm font-semibold text-white" style={{ background: draft.on ? "#8e1f0b" : "#1a1a1a" }} onClick={() => { if (!draft.on && needsTrigger) { setSelected({ kind: "trigger" }); toast("בחרו טריגר לפני ההפעלה"); return; } setDraft({ ...draft, on: !draft.on }); toast(draft.on ? "האוטומציה הושהתה" : "האוטומציה הופעלה"); }}>{draft.on ? "השהיה" : "הפעלה"}</button>
         </div>
       </div>

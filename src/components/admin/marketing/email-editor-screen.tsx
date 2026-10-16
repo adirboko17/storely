@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { EmailHtmlPreview } from "@/components/admin/marketing/email-html-preview";
 import { EmailPreview, InboxPreview } from "@/components/admin/marketing/email-preview";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
 import { Icon } from "@/components/ui/icon";
@@ -47,7 +48,7 @@ export function EmailEditorScreen({ emailId, fromFlow }: { emailId: string; from
   const [saved, setSaved] = useState(baseline);
   const [bound, setBound] = useState(emailId);
   const [selected, setSelected] = useState("");
-  const [phase, setPhase] = useState<"design" | "inbox">("design");
+  const [phase, setPhase] = useState<"design" | "inbox" | "html">("design");
   const [dragging, setDragging] = useState(false);
   const [uploadingId, setUploadingId] = useState("");
   if (bound !== emailId) {
@@ -135,9 +136,14 @@ export function EmailEditorScreen({ emailId, fromFlow }: { emailId: string; from
         <div className="ms-auto flex rounded-full bg-[#f1f1f1] p-0.5">
           <button type="button" onClick={() => setPhase("design")} className={`h-8 rounded-full border-0 px-3 text-sm font-semibold ${phase === "design" ? "bg-white text-[#1a1a1a] shadow-[0_1px_2px_rgba(0,0,0,.08)]" : "bg-transparent text-[#616161]"}`}>המייל</button>
           <button type="button" onClick={() => setPhase("inbox")} className={`h-8 rounded-full border-0 px-3 text-sm font-semibold ${phase === "inbox" ? "bg-white text-[#1a1a1a] shadow-[0_1px_2px_rgba(0,0,0,.08)]" : "bg-transparent text-[#616161]"}`}>בתיבת הדואר</button>
+          <button type="button" onClick={() => setPhase("html")} className={`h-8 rounded-full border-0 px-3 text-sm font-semibold ${phase === "html" ? "bg-white text-[#1a1a1a] shadow-[0_1px_2px_rgba(0,0,0,.08)]" : "bg-transparent text-[#616161]"}`}>HTML</button>
         </div>
       </div>
-      {phase === "inbox" ? (
+      {phase === "html" ? (
+        <div className="min-h-[calc(100dvh-92px)] bg-[#f3f3f3] px-4 py-5">
+          <EmailHtmlPreview email={draft} storeName={getStoreIdentity().name} logoUrl={getSettings().logo} />
+        </div>
+      ) : phase === "inbox" ? (
         <div className="flex min-h-[calc(100dvh-92px)] flex-col gap-4 bg-[#f3f3f3] px-4 py-5">
           <div className="mx-auto grid w-full max-w-[860px] gap-4">
             <div className="grid gap-4 rounded-[18px] bg-white p-4 shadow-[0_0_0_1px_rgba(0,0,0,.06)] min-[720px]:grid-cols-2">
