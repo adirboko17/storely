@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { notFound } from "next/navigation";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
+import { ProductMerchFields } from "@/components/admin/products/product-merch-fields";
 import { TermPicker } from "@/components/admin/products/term-picker";
 import {
   addCategorySubcategory,
@@ -20,10 +21,11 @@ import {
   saveCollectionDraft,
   subscribeCatalog,
 } from "@/data/mock/catalog-session";
-import { getStoreIdentity } from "@/data/live/store-identity";
+import { getStoreIdentity, getStoreIdentityVersion, subscribeStoreIdentity } from "@/data/live/store-identity";
+import { parseBundles, parsePage } from "@/lib/catalog/merch";
 import { PRODUCT_STATUS, slugifyHandle } from "@/lib/catalog/present";
 import { formatMoney } from "@/lib/formatting/money";
-import type { Product, ProductStatus } from "@/types/commerce";
+import { emptyProductPage, OLI_STORE_OWNER, type Product, type ProductPage, type ProductStatus } from "@/types/commerce";
 
 const field = "h-[34px] w-full rounded-[10px] border border-[#c9c9c9] bg-white px-3 text-sm text-ink outline-none";
 const card = "rounded-xl border border-[#d9d9d9] bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,.06)]";
@@ -75,6 +77,8 @@ type Draft = {
   variantPrices: string[];
   variantQty: string[];
   media: string[];
+  bundles: { qty: string; price: string }[];
+  page: ProductPage;
 };
 
 function selectedCategories(product: Product | null) {
@@ -114,6 +118,17 @@ function fromProduct(product: Product | null): Draft {
     variantPrices: labels.map(() => (product ? product.price.toFixed(2) : "")),
     variantQty: labels.map((_, index) => String(quantities[index] ?? 0)),
     media: product?.media ? [...product.media] : [],
+    bundles: (product?.bundles ?? []).map((bundle) => ({ qty: String(bundle.qty), price: bundle.price.toFixed(2) })),
+    page: product?.page
+      ? {
+          panels: product.page.panels.map((item) => ({ ...item })),
+          stories: product.page.stories.map((item) => ({ ...item })),
+          steps: product.page.steps.map((item) => ({ ...item })),
+          ingredientsIntro: product.page.ingredientsIntro,
+          ingredients: product.page.ingredients.map((item) => ({ ...item })),
+          reviews: product.page.reviews.map((item) => ({ ...item })),
+        }
+      : emptyProductPage(),
   };
 }
 
@@ -155,6 +170,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
   const [optionQuery, setOptionQuery] = useState("");
   const [editing, setEditing] = useState<number | null>(null);
   const [optionDraft, setOptionDraft] = useState({ name: "", values: [] as string[], pending: "" });
+  useSyncExternalStore(subscribeStoreIdentity, getStoreIdentityVersion, () => 0);
   const fileRef = useRef<HTMLInputElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
@@ -298,6 +314,8 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
       options: options.length ? options : undefined,
       quantities: labels.length ? quantities : undefined,
       description: draft.description,
+      bundles: parseBundles(draft.bundles.map((bundle) => ({ qty: Number(bundle.qty), price: Number(bundle.price) }))),
+      page: getStoreIdentity().ownerEmail.toLowerCase() === OLI_STORE_OWNER ? parsePage(draft.page) : product?.page,
     };
     void saveCatalogProduct(savedProduct)
       .then((stored) => {
@@ -708,6 +726,14 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
               </>
             ) : null}
           </div>
+
+          <ProductMerchFields
+            bundles={draft.bundles}
+            page={draft.page}
+            showPage={getStoreIdentity().ownerEmail.toLowerCase() === OLI_STORE_OWNER}
+            onBundles={(bundles) => patch({ bundles })}
+            onPage={(page) => patch({ page })}
+          />
 
           <div className={`${card} flex flex-col gap-0.5`}>
             <div className="mb-2 flex items-center">

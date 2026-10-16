@@ -50,6 +50,17 @@ function cloneProduct(product: Product): Product {
     option: product.option ? { name: product.option.name, values: [...product.option.values] } : undefined,
     options: product.options?.map((option) => ({ name: option.name, values: [...option.values] })),
     quantities: product.quantities ? [...product.quantities] : undefined,
+    bundles: product.bundles?.map((bundle) => ({ ...bundle })),
+    page: product.page
+      ? {
+          panels: product.page.panels.map((item) => ({ ...item })),
+          stories: product.page.stories.map((item) => ({ ...item })),
+          steps: product.page.steps.map((item) => ({ ...item })),
+          ingredientsIntro: product.page.ingredientsIntro,
+          ingredients: product.page.ingredients.map((item) => ({ ...item })),
+          reviews: product.page.reviews.map((item) => ({ ...item })),
+        }
+      : undefined,
   };
 }
 
@@ -219,6 +230,12 @@ async function persistProduct(product: Product) {
     variant_title: product.variant,
   });
   if (error || typeof data !== "string" || !data) throw new Error("שמירת המוצר נכשלה");
+  const { error: merchError } = await supabase.rpc("save_store_product_merch", {
+    target_store: storeId,
+    product_id: data,
+    merch: { bundles: product.bundles ?? [], page: product.page ?? { panels: [], stories: [], steps: [], ingredientsIntro: "", ingredients: [], reviews: [] } },
+  });
+  if (merchError) throw new Error("שמירת הבאנדלים והתוכן לעמוד המוצר נכשלה");
   if (data !== product.sourceId) rememberProductSource(product.id, data);
   if (product.media) {
     const media = await uploadProductMedia(storeId, data, product.media);

@@ -12,6 +12,7 @@ import { claimStore, setStoreIdentity } from "@/data/live/store-identity";
 import { enableLiveMetrics } from "@/lib/dashboard/chart";
 import type { TimelineEvent } from "@/lib/orders/present";
 import type { AbandonedCheckout } from "@/data/mock/abandoned";
+import { parseProductMerch } from "@/lib/catalog/merch";
 import type { Customer, FulfillmentStatus, Order, PayStatus, Product, ProductStatus } from "@/types/commerce";
 
 export type StoreSnapshot = {
@@ -57,6 +58,7 @@ function mapProduct(value: unknown, index: number): Product {
   const rawTags = Array.isArray(item?.tags) ? item.tags.filter((tag): tag is string => typeof tag === "string") : [];
   const { tags, subcategories } = splitProductTags(rawTags);
   const compareAt = item?.compareAt == null ? undefined : amount(item.compareAt);
+  const merch = parseProductMerch(item?.merch);
   return {
     id: index,
     sourceId: text(item?.id),
@@ -77,6 +79,8 @@ function mapProduct(value: unknown, index: number): Product {
     collections: [],
     subcategories,
     description: text(item?.description),
+    bundles: merch.bundles,
+    page: merch.page,
   };
 }
 
