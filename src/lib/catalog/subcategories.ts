@@ -1,11 +1,25 @@
 import type { CollectionCondition } from "@/data/mock/catalog-session";
 
 const subcategoryTagPrefix = "\u0001sub:";
+export const OPEN_GIFT_TAG = "\u0001gift:open";
+export const GIFT_AMOUNT_PREFIX = "\u0001gift:amt:";
+export const OPEN_GIFT_MAX = 2500;
+
+export function giftAmountsFromTags(tags: string[]) {
+  const amounts: number[] = [];
+  tags.forEach((tag) => {
+    if (!tag.startsWith(GIFT_AMOUNT_PREFIX)) return;
+    const value = Number(tag.slice(GIFT_AMOUNT_PREFIX.length));
+    if (value > 0 && value <= 1_000_000) amounts.push(Math.round(value * 100) / 100);
+  });
+  return [...new Set(amounts)].sort((a, b) => a - b);
+}
 
 export function splitProductTags(tags: string[]) {
   const subcategories: string[] = [];
   const visible: string[] = [];
   tags.forEach((tag) => {
+    if (tag.startsWith("\u0001") && !tag.startsWith(subcategoryTagPrefix)) return;
     if (!tag.startsWith(subcategoryTagPrefix)) {
       visible.push(tag);
       return;

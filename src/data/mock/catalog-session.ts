@@ -2,7 +2,7 @@ import { PRODUCTS } from "@/data/mock/products";
 import { getStoreIdentity } from "@/data/live/store-identity";
 import { isHydrating, writeStore } from "@/data/live/write";
 import { COLLECTION_SEEDS } from "@/lib/catalog/present";
-import { packProductTags, subcategoryRules } from "@/lib/catalog/subcategories";
+import { GIFT_AMOUNT_PREFIX, OPEN_GIFT_TAG, packProductTags, subcategoryRules } from "@/lib/catalog/subcategories";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { emptyProductPage, type Product, type ProductStatus, type ProductStory } from "@/types/commerce";
 
@@ -52,6 +52,7 @@ function cloneProduct(product: Product): Product {
     quantities: product.quantities ? [...product.quantities] : undefined,
     bundles: product.bundles?.map((bundle) => ({ ...bundle })),
     headline: product.headline ? { ...product.headline } : undefined,
+    giftAmounts: product.giftAmounts ? [...product.giftAmounts] : undefined,
     page: product.page
       ? {
           highlights: [...(product.page.highlights ?? [])],
@@ -293,7 +294,11 @@ async function persistProduct(product: Product, previousStories: ProductStory[] 
     product_vendor: product.vendor,
     product_category: product.category,
     product_description: product.description ?? "",
-    product_tags: packProductTags(product.tags, product.subcategories ?? []),
+    product_tags: [
+      ...packProductTags(product.tags, product.subcategories ?? []),
+      ...(product.giftOpen ? [OPEN_GIFT_TAG] : []),
+      ...(product.giftAmounts ?? []).map((amount) => `${GIFT_AMOUNT_PREFIX}${amount}`),
+    ],
     product_sku: product.sku,
     product_barcode: product.barcode ?? null,
     product_stock: product.stock,

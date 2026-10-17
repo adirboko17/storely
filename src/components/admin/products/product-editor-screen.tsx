@@ -334,6 +334,8 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
       badge: draft.badge.trim().slice(0, 24),
       badgeHidden: draft.badgeHidden,
       headline: { mode: draft.headlineMode, subtitle: draft.headlineSubtitle },
+      giftOpen: product?.giftOpen,
+      giftAmounts: product?.giftAmounts,
     };
     void saveCatalogProduct(savedProduct)
       .then((stored) => {

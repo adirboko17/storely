@@ -59,6 +59,8 @@ export type Product = {
   badge?: string;
   badgeHidden?: boolean;
   headline?: ProductHeadline;
+  giftOpen?: boolean;
+  giftAmounts?: number[];
 };
 
 export type Customer = {

@@ -16,6 +16,7 @@ import {
   subscribeCatalog,
 } from "@/data/mock/catalog-session";
 import { slugifyHandle } from "@/lib/catalog/present";
+import { OPEN_GIFT_MAX } from "@/lib/catalog/subcategories";
 import { currencyLabel, currencySymbol } from "@/lib/formatting/currency";
 import { formatMoney } from "@/lib/formatting/money";
 import type { Product, ProductStatus } from "@/types/commerce";
@@ -32,8 +33,7 @@ const START = {
   collections: [] as string[],
   tags: [] as string[],
   amounts: ["10.00", "25.00", "50.00", "100.00"],
-  promo: "",
-  disclosure: "",
+  otherAmount: true,
   seoTitle: "",
   seoDesc: "",
   handle: "",
@@ -60,8 +60,6 @@ export function GiftCardProductScreen() {
   const [saved, setSaved] = useState(draft);
   const [tagInput, setTagInput] = useState("");
   const [seoEdit, setSeoEdit] = useState(false);
-  const [promoOpen, setPromoOpen] = useState(false);
-  const [disclosureOpen, setDisclosureOpen] = useState(false);
   const [library, setLibrary] = useState(false);
   const [collectionsOpen, setCollectionsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -75,13 +73,17 @@ export function GiftCardProductScreen() {
 
   function save() {
     const title = draft.title.trim();
-    const amounts = draft.amounts.map((value) => Number(value)).filter((value) => value > 0);
+    const amounts = [...new Set(draft.amounts.map((value) => Number(value)).filter((value) => value > 0))].sort((a, b) => a - b);
     if (!title) {
       toast("יש להזין כותרת למוצר");
       return;
     }
-    if (!amounts.length) {
-      toast("יש להזין לפחות סכום אחד");
+    if (draft.amounts.some((value) => value.trim() !== "" && !(Number(value) > 0))) {
+      toast("כל סכום צריך להיות גדול מ־0");
+      return;
+    }
+    if (!amounts.length && !draft.otherAmount) {
+      toast("יש להזין לפחות סכום אחד, או לסמן «סכום אחר»");
       return;
     }
     setSaving(true);
@@ -89,20 +91,22 @@ export function GiftCardProductScreen() {
     const product: Product = {
       id: nextProductId(),
       title,
-      variant: labels[0] ?? "",
+      variant: labels[0] ?? "סכום לבחירה",
       price: amounts[0] ?? 0,
       cost: 0,
       sku: "",
-      stock: amounts.length * 9999,
+      stock: Math.max(1, amounts.length) * 9999,
       status: draft.status,
       category: "כרטיסי מתנה",
       vendor: draft.vendor || store.name,
       tone: "#e7e2d9",
       media: [...draft.media],
       tags: draft.tags,
+      giftOpen: draft.otherAmount,
+      giftAmounts: amounts,
       collections: draft.collections,
-      option: { name: "סכום", values: labels },
-      quantities: amounts.map(() => 9999),
+      option: labels.length ? { name: "סכום", values: labels } : undefined,
+      quantities: (labels.length ? amounts : [1]).map(() => 9999),
       description: draft.description,
     };
     void saveCatalogProduct(product)
@@ -246,39 +250,20 @@ export function GiftCardProductScreen() {
                     <span className="text-sm text-[#616161]">{currencySymbol()}</span>
                     <input dir="ltr" inputMode="decimal" value={amount} onChange={(event) => patch({ amounts: draft.amounts.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)) })} className="h-full min-w-0 flex-1 border-0 bg-transparent text-end text-sm outline-none" />
                   </span>
-                  <button type="button" aria-label="הסרת סכום" className="grid size-8 place-items-center rounded-lg border-0 bg-transparent text-[#616161] hover:bg-[#f1f1f1]" onClick={() => {
-                    if (draft.amounts.length === 1) {
-                      toast("צריך להישאר לפחות סכום אחד");
-                      return;
-                    }
-                    patch({ amounts: draft.amounts.filter((_, itemIndex) => itemIndex !== index) });
-                  }}>
+                  <button type="button" aria-label="הסרת סכום" className="grid size-8 place-items-center rounded-lg border-0 bg-transparent text-[#616161] hover:bg-[#f1f1f1]" onClick={() => patch({ amounts: draft.amounts.filter((_, itemIndex) => itemIndex !== index) })}>
                     <Icon name="trash" size={16} strokeWidth={1.6} />
                   </button>
                 </div>
               ))}
             </div>
-            <button type="button" className="mt-3 h-7 rounded-lg border-0 bg-[#f1f1f1] px-2.5 text-[13px] font-semibold" onClick={() => patch({ amounts: [...draft.amounts, "0.00"] })}>הוספת סכום</button>
-          </div>
-
-          <div>
-            <div className="mb-2 flex items-center">
-              <b className="flex-1 text-sm">שדות מידע למוצר</b>
-              <button type="button" className="h-7 rounded-lg border-0 bg-[#f1f1f1] px-2.5 text-[12px] font-semibold" onClick={() => toast("הגדרת שדה חדש תתווסף בהמשך")}>הוספת הגדרה</button>
-            </div>
-            <div className={`${card} flex flex-col gap-2`}>
-              <div className="flex items-center gap-3">
-                <span className="w-28 text-sm">מבצעים</span>
-                {promoOpen ? <input value={draft.promo} onChange={(event) => patch({ promo: event.target.value })} className={field} /> : <button type="button" className="border-0 bg-transparent text-sm font-semibold" onClick={() => setPromoOpen(true)}>+ הוספה</button>}
-              </div>
-              {disclosureOpen ? (
-                <label className="text-sm">גילוי נאות
-                  <textarea value={draft.disclosure} onChange={(event) => patch({ disclosure: event.target.value })} rows={2} className="mt-1 w-full rounded-lg border border-[#c9c9c9] p-2 text-sm outline-none" />
-                </label>
-              ) : (
-                <button type="button" className="self-start rounded-lg border-0 bg-[#f1f1f1] px-2.5 py-1 text-[13px] font-semibold" onClick={() => setDisclosureOpen(true)}>+ גילוי נאות</button>
-              )}
-            </div>
+            <button type="button" className="mt-3 h-7 rounded-lg border-0 bg-[#f1f1f1] px-2.5 text-[13px] font-semibold" onClick={() => patch({ amounts: [...draft.amounts, ""] })}>הוספת סכום</button>
+            <label className="mt-4 flex cursor-pointer items-start gap-2 rounded-xl border border-[#e3e3e3] px-3 py-2.5">
+              <input type="checkbox" checked={draft.otherAmount} onChange={(event) => patch({ otherAmount: event.target.checked })} className="mt-0.5 size-4 accent-[#303030]" />
+              <span>
+                <span className="block text-sm font-semibold">סכום אחר</span>
+                <span className="mt-0.5 block text-[12px] font-normal text-[#616161]">בנוסף לסכומים למעלה, הלקוחה יכולה למלא כל סכום מ־{currencySymbol()}1 עד {currencySymbol()}{OPEN_GIFT_MAX}.</span>
+              </span>
+            </label>
           </div>
 
           <div>

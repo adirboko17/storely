@@ -1,5 +1,5 @@
 import { replaceCatalogProducts, type CollectionCondition, type CollectionDraft, type GiftCard } from "@/data/mock/catalog-session";
-import { splitCollectionRules, splitProductTags } from "@/lib/catalog/subcategories";
+import { giftAmountsFromTags, splitCollectionRules, splitProductTags } from "@/lib/catalog/subcategories";
 import { replacePosts, type Post } from "@/data/mock/content-session";
 import { blankDiscount, replaceDiscounts, type Discount, type DiscountKind } from "@/data/mock/discount-session";
 import { absorbLegacyEmails, parseEmails, parseSms, replaceMarketing, type Flow, type IntegrationState } from "@/data/mock/marketing-session";
@@ -84,6 +84,8 @@ function mapProduct(value: unknown, index: number): Product {
     badge: merch.badge || undefined,
     badgeHidden: merch.badgeHidden || undefined,
     headline: merch.headline,
+    giftOpen: rawTags.includes("\u0001gift:open") || undefined,
+    giftAmounts: giftAmountsFromTags(rawTags),
   };
 }
 
