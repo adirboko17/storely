@@ -10,9 +10,12 @@ function text(value: unknown) {
 
 export function parseProductMerch(value: unknown) {
   const row = record(value);
+  const badge = record(row?.badge);
   return {
     bundles: parseBundles(row?.bundles),
     page: parsePage(row?.page),
+    badge: text(badge?.label).slice(0, 24),
+    badgeHidden: badge?.hidden === true,
   };
 }
 

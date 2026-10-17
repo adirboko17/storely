@@ -259,7 +259,11 @@ async function persistProduct(product: Product) {
   const { error: merchError } = await supabase.rpc("save_store_product_merch", {
     target_store: storeId,
     product_id: data,
-    merch: { bundles: product.bundles ?? [], page: product.page ?? { panels: [], stories: [], steps: [], ingredientsIntro: "", ingredients: [], reviews: [] } },
+    merch: {
+      bundles: product.bundles ?? [],
+      page: product.page ?? { panels: [], stories: [], steps: [], ingredientsIntro: "", ingredients: [], reviews: [] },
+      badge: { label: (product.badge ?? "").trim().slice(0, 24), hidden: product.badgeHidden === true },
+    },
   });
   if (merchError) throw new Error("שמירת הבאנדלים והתוכן לעמוד המוצר נכשלה");
   if (data !== product.sourceId) rememberProductSource(product.id, data);

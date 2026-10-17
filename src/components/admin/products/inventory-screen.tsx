@@ -6,14 +6,51 @@ import { ColumnsButton, IndexDock, softButton } from "@/components/admin/orders/
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { getStoreIdentity } from "@/data/live/store-identity";
 import { Icon } from "@/components/ui/icon";
-import { getCatalogVersion, listCatalogProducts, setVariantQuantity, subscribeCatalog } from "@/data/mock/catalog-session";
+import { getCatalogVersion, isVideoMedia, listCatalogProducts, setVariantQuantity, subscribeCatalog } from "@/data/mock/catalog-session";
+import { getOrderSessionVersion, listResolvedOrders, subscribeOrderSession } from "@/data/mock/order-session";
+import type { Product } from "@/types/commerce";
 
 const clearInput = { backgroundColor: "transparent", color: "#303030" } as const;
+
+function variantIndex(product: Product, line: Product) {
+  const values = product.option?.values ?? [];
+  if (values.length <= 1) return 0;
+  const sku = line.sku.trim();
+  if (sku && product.sku) {
+    if (sku === product.sku) return 0;
+    const prefix = `${product.sku}-`;
+    if (sku.startsWith(prefix)) {
+      const index = Number(sku.slice(prefix.length)) - 1;
+      if (Number.isInteger(index) && index >= 0 && index < values.length) return index;
+    }
+  }
+  if (line.variant) {
+    const found = values.findIndex((value) => value === line.variant);
+    if (found >= 0) return found;
+  }
+  return 0;
+}
+
+function reservedByRow(products: Product[]) {
+  const reserved = new Map<string, number>();
+  listResolvedOrders().forEach((order) => {
+    if (order.pay === "refunded" || order.fulfillment === "fulfilled") return;
+    order.lines.forEach((line) => {
+      const product = products.find((item) => item.id === line.product.id);
+      if (!product || line.quantity <= 0) return;
+      const key = `${product.id}:${variantIndex(product, line.product)}`;
+      reserved.set(key, (reserved.get(key) ?? 0) + line.quantity);
+    });
+  });
+  return reserved;
+}
 
 export function InventoryScreen() {
   const { toast } = useAdmin();
   useSyncExternalStore(subscribeCatalog, getCatalogVersion, () => 0);
+  useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
   const products = listCatalogProducts();
+  const reserved = reservedByRow(products);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [edits, setEdits] = useState<Record<string, string>>({});
@@ -33,17 +70,19 @@ export function InventoryScreen() {
   });
   const allSelected = rows.length > 0 && rows.every((row) => selected.includes(row.key));
 
-  function commit(key: string, productId: number, index: number, current: number) {
+  function commit(key: string, productId: number, index: number, onHand: number, committed: number) {
     if (edits[key] == null) return;
-    const next = Math.max(0, Number.parseInt(edits[key], 10) || 0);
+    const available = Number.parseInt(edits[key], 10);
     setEdits((state) => {
       const copy = { ...state };
       delete copy[key];
       return copy;
     });
-    if (next !== current) {
-      setVariantQuantity(productId, index, next);
-      toast(`הכמות הזמינה עודכנה ל-${next}`);
+    if (!Number.isFinite(available)) return;
+    const nextOnHand = Math.max(0, available + committed);
+    if (nextOnHand !== onHand) {
+      setVariantQuantity(productId, index, nextOnHand);
+      toast(`הכמות הזמינה עודכנה ל-${available}`);
     }
   }
 
@@ -76,13 +115,21 @@ export function InventoryScreen() {
           </thead>
           <tbody>
             {rows.map((row) => {
-              const committed = (row.product.id * 3 + row.index) % 4 === 0 ? ((row.product.id + row.index) % 3) + 1 : 0;
+              const committed = reserved.get(row.key) ?? 0;
+              const available = row.quantity - committed;
               const draft = edits[row.key];
               const on = selected.includes(row.key);
+              const photo = row.product.media?.find((item) => item && !isVideoMedia(item));
               return (
                 <tr key={row.key} className="h-[49px] border-b border-[#ebebeb] hover:bg-[#f7f7f7]" style={{ background: on ? "#f1f1f1" : "#fff" }}>
                   <td className="px-2.5"><input type="checkbox" checked={on} onChange={() => setSelected((current) => (current.includes(row.key) ? current.filter((key) => key !== row.key) : [...current, row.key]))} className="size-4 accent-[#303030]" /></td>
-                  <td className="p-1"><span className="block size-9 rounded-lg shadow-[inset_0_0_0_1px_rgba(0,0,0,.08)]" style={{ background: row.product.tone }} /></td>
+                  <td className="p-1">
+                    {photo ? (
+                      <img src={photo} alt="" className="block size-9 rounded-lg object-cover shadow-[inset_0_0_0_1px_rgba(0,0,0,.08)]" />
+                    ) : (
+                      <span className="block size-9 rounded-lg shadow-[inset_0_0_0_1px_rgba(0,0,0,.08)]" style={{ background: row.product.tone }} />
+                    )}
+                  </td>
                   <td className="px-2.5">
                     <Link href={`/admin/products/${row.product.id}`} className="font-medium text-ink no-underline">{row.product.title}</Link>
                     {row.value ? <div className="mt-0.5"><span className="inline-flex h-[18px] items-center rounded-md bg-[#ebebeb] px-1.5 text-xs">{row.value}</span></div> : null}
@@ -91,10 +138,10 @@ export function InventoryScreen() {
                   <td className="px-2.5 text-left">0</td>
                   <td className="px-2.5 text-left">{committed}</td>
                   <td className="px-1.5 text-left">
-                    <input dir="ltr" type="number" value={draft ?? String(row.quantity)} onChange={(event) => setEdits((state) => ({ ...state, [row.key]: event.target.value }))} onBlur={() => commit(row.key, row.product.id, row.index, row.quantity)} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} className="h-[30px] w-[84px] rounded-lg border bg-white px-2 text-left text-sm outline-none" style={{ borderColor: draft != null && draft !== String(row.quantity) ? "#005bd3" : "#c4c4c4" }} />
+                    <input dir="ltr" type="number" value={draft ?? String(available)} onChange={(event) => setEdits((state) => ({ ...state, [row.key]: event.target.value }))} onBlur={() => commit(row.key, row.product.id, row.index, row.quantity, committed)} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} className="h-[30px] w-[84px] rounded-lg border bg-white px-2 text-left text-sm outline-none" style={{ borderColor: draft != null && draft !== String(available) ? "#005bd3" : "#c4c4c4" }} />
                   </td>
-                  <td className="px-2.5 text-left">{row.quantity + committed}</td>
-                  <td className="px-2.5 text-left">{row.quantity === 0 ? "12" : "0"}</td>
+                  <td className="px-2.5 text-left">{row.quantity}</td>
+                  <td className="px-2.5 text-left">0</td>
                 </tr>
               );
             })}

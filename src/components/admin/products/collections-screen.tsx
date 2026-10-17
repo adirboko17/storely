@@ -6,7 +6,7 @@ import { ColumnsButton, IndexDock, darkButton } from "@/components/admin/orders/
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { Icon } from "@/components/ui/icon";
 import { TermPicker } from "@/components/admin/products/term-picker";
-import { addCategorySubcategory, getCatalogVersion, getCollectionDraft, listCatalogProducts, listExtraCollections, listHiddenCollections, removeCategorySubcategory, subscribeCatalog, type CollectionCondition } from "@/data/mock/catalog-session";
+import { addCategorySubcategory, deleteCategorySubcategory, getCatalogVersion, getCollectionDraft, hideCollection, listCatalogProducts, listExtraCollections, listHiddenCollections, removeCategorySubcategory, subscribeCatalog, type CollectionCondition } from "@/data/mock/catalog-session";
 import { formatInteger } from "@/lib/formatting/money";
 
 const clearInput = { backgroundColor: "transparent", color: "#303030" } as const;
@@ -40,6 +40,13 @@ export function CollectionsScreen() {
     .filter((row) => !query.trim() || row.title.includes(query.trim()))
     .sort((a, b) => a.title.localeCompare(b.title, "he"));
   const allSelected = rows.length > 0 && rows.every((row) => selected.includes(row.key));
+  const picked = selected.filter((key) => rows.some((row) => row.key === key));
+
+  function removeSelected() {
+    picked.forEach((key) => hideCollection(key));
+    setSelected([]);
+    toast(picked.length === 1 ? "הקטגוריה נמחקה" : `${picked.length} קטגוריות נמחקו`);
+  }
 
   return (
     <div className="flex min-h-full flex-col">
@@ -49,12 +56,22 @@ export function CollectionsScreen() {
         <button type="button" className={darkButton} onClick={() => router.push("/admin/products/collections/new")}>הוספת קטגוריה</button>
       </div>
       <div className="mx-3 flex min-h-[42px] items-center gap-1.5 rounded-xl bg-white p-1.5 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
-        <button type="button" className="h-[30px] rounded-lg border-0 bg-transparent px-2 text-sm font-semibold">הכל</button>
-        <div className="flex flex-1 items-center gap-2 px-1.5 text-ink-secondary">
-          <Icon name="search" size={16} strokeWidth={1.8} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="חיפוש וסינון" className="h-[30px] min-w-0 flex-1 border-0 text-sm outline-none" style={clearInput} />
-        </div>
-        <ColumnsButton onClick={() => toast("בחירת עמודות תתווסף בשלב הבא")} />
+        {picked.length === 0 ? (
+          <>
+            <button type="button" className="h-[30px] rounded-lg border-0 bg-transparent px-2 text-sm font-semibold">הכל</button>
+            <div className="flex flex-1 items-center gap-2 px-1.5 text-ink-secondary">
+              <Icon name="search" size={16} strokeWidth={1.8} />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="חיפוש וסינון" className="h-[30px] min-w-0 flex-1 border-0 text-sm outline-none" style={clearInput} />
+            </div>
+            <ColumnsButton onClick={() => toast("בחירת עמודות תתווסף בשלב הבא")} />
+          </>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2 px-1.5">
+            <input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? [] : rows.map((row) => row.key))} className="size-4 accent-[#303030]" />
+            <span className="font-semibold">{picked.length} נבחרו</span>
+            <button type="button" className="h-7 rounded-lg border-0 bg-white px-2.5 text-[13px] font-semibold text-[#8e1f0b] shadow-[0_0_0_1px_#d4d4d4]" onClick={removeSelected}>מחיקה</button>
+          </div>
+        )}
       </div>
       <div className="mx-3 mt-2 overflow-x-auto rounded-[10px]">
         <table className="w-full min-w-[820px] border-collapse text-sm">
@@ -81,10 +98,20 @@ export function CollectionsScreen() {
                       {(getCollectionDraft(row.key)?.subcategories ?? []).map((name) => {
                         const count = products.filter((product) => (product.subcategories ?? []).includes(name)).length;
                         return (
-                          <button key={name} type="button" className="flex h-8 w-full items-center gap-2 rounded-lg border-0 bg-transparent px-2 text-start text-[13px] font-normal hover:bg-[#efefef]" onClick={() => router.push(`/admin/products/collections/${encodeURIComponent(row.key)}/${encodeURIComponent(name)}`)}>
-                            <span className="min-w-0 flex-1 truncate">{name}</span>
-                            <span className="text-[12px] text-[#616161]">{formatInteger(count)}</span>
-                          </button>
+                          <div key={name} className="group flex h-8 w-full items-center gap-1 rounded-lg px-2 hover:bg-[#efefef]">
+                            <button type="button" className="flex min-w-0 flex-1 items-center gap-2 border-0 bg-transparent p-0 text-start text-[13px] font-normal" onClick={() => router.push(`/admin/products/collections/${encodeURIComponent(row.key)}/${encodeURIComponent(name)}`)}>
+                              <span className="min-w-0 flex-1 truncate">{name}</span>
+                              <span className="text-[12px] text-[#616161]">{formatInteger(count)}</span>
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`מחיקת ${name}`}
+                              className="grid size-6 shrink-0 place-items-center rounded-md border-0 bg-transparent text-[#8e1f0b] opacity-0 group-hover:opacity-100 focus:opacity-100"
+                              onClick={() => { deleteCategorySubcategory(row.key, name); toast("התת קטגוריה נמחקה"); }}
+                            >
+                              <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden><path d="M6 6l8 8M14 6l-8 8" /></svg>
+                            </button>
+                          </div>
                         );
                       })}
                       <TermPicker

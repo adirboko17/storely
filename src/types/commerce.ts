@@ -49,6 +49,8 @@ export type Product = {
   description?: string;
   bundles?: ProductBundle[];
   page?: ProductPage;
+  badge?: string;
+  badgeHidden?: boolean;
 };
 
 export type Customer = {

@@ -10,6 +10,7 @@ import {
   getCatalogVersion,
   getCollectionDraft,
   hideCollection,
+  isVideoMedia,
   listCatalogProducts,
   saveCollectionDraft,
   subscribeCatalog,
@@ -43,6 +44,39 @@ function baseDraft(key: string | null, products: Product[]): CollectionDraft {
   };
 }
 
+function productImage(product: Product) {
+  return product.media?.find((item) => item && !isVideoMedia(item)) ?? "";
+}
+
+function ProductTile({ product, view, onAdd, onRemove }: { product: Product; view: "grid" | "list"; onAdd?: () => void; onRemove?: () => void }) {
+  const photo = productImage(product);
+  const status = PRODUCT_STATUS[product.status];
+  const image = (
+    <span className={`relative block overflow-hidden ${view === "grid" ? "aspect-square" : "size-16 shrink-0 rounded-lg"}`} style={{ background: product.tone }}>
+      {photo ? <img src={photo} alt="" className="absolute inset-0 size-full object-cover" /> : null}
+      {onAdd ? <span className="absolute top-2 left-2 grid size-6 place-items-center rounded-full bg-white text-sm shadow-[0_0_0_1px_rgba(0,0,0,.08)]">+</span> : null}
+      {onRemove ? <button type="button" aria-label="הסרה" className="absolute top-2 left-2 grid size-6 place-items-center rounded-full border-0 bg-white text-sm" onClick={onRemove}>×</button> : null}
+    </span>
+  );
+  const copy = (
+    <span className={`block min-w-0 ${view === "grid" ? "p-3" : "flex-1"}`}>
+      <span className="block truncate text-sm font-medium">{product.title}</span>
+      <span dir="ltr" className="block text-start text-[13px] text-[#4a4a4a]">{formatMoney(product.price)}</span>
+      <span className="mt-1 inline-flex h-5 items-center rounded-md px-1.5 text-xs font-semibold" style={{ background: status.background, color: status.color }}>{status.label}</span>
+    </span>
+  );
+  const className = `w-full overflow-hidden rounded-xl bg-[#fafafa] text-start ${view === "list" ? "flex items-center gap-3 p-2" : ""} ${onAdd ? "cursor-pointer border border-dashed border-[#c9c9c9]" : "border border-transparent"}`;
+  if (onAdd) {
+    return (
+      <button type="button" className={className} onClick={onAdd}>
+        {image}
+        {copy}
+      </button>
+    );
+  }
+  return <div className={className}>{image}{copy}</div>;
+}
+
 function matches(product: Product, condition: CollectionCondition) {
   const value = condition.value.trim();
   const number = Number(value);
@@ -62,16 +96,17 @@ export function CollectionEditorScreen({ collectionKey }: { collectionKey: strin
   const [draft, setDraft] = useState(initial);
   const [saved, setSaved] = useState(initial);
   const [boundKey, setBoundKey] = useState(collectionKey);
+  const [productQuery, setProductQuery] = useState("");
   if (boundKey !== collectionKey) {
     setBoundKey(collectionKey);
     setDraft(initial);
     setSaved(initial);
+    setProductQuery("");
   }
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
   const [sort, setSort] = useState("rel");
   const [view, setView] = useState<"grid" | "list">("grid");
-  const [picker, setPicker] = useState(false);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
 
   function save() {
@@ -98,6 +133,10 @@ export function CollectionEditorScreen({ collectionKey }: { collectionKey: strin
   if (sort === "az") items = [...items].sort((a, b) => a.title.localeCompare(b.title, "he"));
   if (sort === "pu") items = [...items].sort((a, b) => a.price - b.price);
   if (sort === "pd") items = [...items].sort((a, b) => b.price - a.price);
+  const needle = productQuery.trim().toLowerCase();
+  const matchesQuery = (product: Product) => !needle || product.title.toLowerCase().includes(needle) || product.sku.toLowerCase().includes(needle);
+  const visibleItems = items.filter(matchesQuery);
+  const available = draft.conditions.length === 0 ? products.filter((product) => !draft.ids.includes(product.id) && matchesQuery(product)) : [];
 
   return (
     <div className="flex min-h-full flex-col">
@@ -123,7 +162,6 @@ export function CollectionEditorScreen({ collectionKey }: { collectionKey: strin
             <div className="text-sm font-semibold">מוצרים</div>
             <div className="flex flex-wrap gap-2">
               <button type="button" className="h-7 rounded-lg border-0 bg-[#f3f3f3] px-2 text-[12px] font-semibold" onClick={() => setDraft({ ...draft, conditions: [...draft.conditions, { field: "tag", op: "has", value: "" }] })}>+ תנאי</button>
-              <button type="button" className="h-7 rounded-lg border-0 bg-[#f3f3f3] px-2 text-[12px] font-semibold" onClick={() => setPicker((open) => !open)}>+ מוצרים</button>
             </div>
             <button type="button" className="self-start border-0 bg-transparent p-0 text-[13px] font-semibold" onClick={() => setDraft({ ...draft, excludeOutOfStock: !draft.excludeOutOfStock })}>{draft.excludeOutOfStock ? "ההחרגה פעילה" : "+ החרגה"}</button>
             {draft.conditions.map((condition, index) => (
@@ -145,17 +183,6 @@ export function CollectionEditorScreen({ collectionKey }: { collectionKey: strin
                 <button type="button" className="self-start border-0 bg-transparent text-[13px] text-[#8e1f0b]" onClick={() => setDraft({ ...draft, conditions: draft.conditions.filter((_, itemIndex) => itemIndex !== index) })}>הסרה</button>
               </div>
             ))}
-            {picker ? (
-              <div className="max-h-52 overflow-auto rounded-xl bg-[#fafafa] p-1.5">
-                {products.map((product) => (
-                  <button key={product.id} type="button" className="flex w-full items-center gap-2 rounded-lg border-0 bg-transparent px-2 py-1.5 text-start text-sm hover:bg-[#f1f1f1]" onClick={() => setDraft({ ...draft, ids: draft.ids.includes(product.id) ? draft.ids.filter((id) => id !== product.id) : [...draft.ids, product.id] })}>
-                    <span className="size-6 rounded" style={{ background: product.tone }} />
-                    <span className="min-w-0 flex-1 truncate">{product.title}</span>
-                    {draft.ids.includes(product.id) ? "✓" : ""}
-                  </button>
-                ))}
-              </div>
-            ) : null}
           </aside>
         </div>
         <div className="rounded-xl bg-white p-4 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
@@ -181,7 +208,12 @@ export function CollectionEditorScreen({ collectionKey }: { collectionKey: strin
         </div>
         <div>
           <b className="text-sm">פריטים בקטגוריה {items.length}</b>
+          {draft.conditions.length === 0 && products.some((product) => !draft.ids.includes(product.id)) ? <p className="m-0 mt-1 text-[13px] text-[#616161]">לחצו על מוצר כדי להוסיף אותו לקטגוריה</p> : null}
           <div className="mt-2 rounded-xl bg-white p-3 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
+            <label className="mb-3 flex h-9 items-center gap-2 rounded-lg border border-[#c9c9c9] bg-white px-2.5 focus-within:border-[#005bd3] focus-within:shadow-[0_0_0_1px_#005bd3]">
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="#616161" strokeWidth="1.7" aria-hidden><circle cx="8.5" cy="8.5" r="5.2" /><path d="M12.4 12.4 16 16" strokeLinecap="round" /></svg>
+              <input value={productQuery} onChange={(event) => setProductQuery(event.target.value)} placeholder="חיפוש מוצרים" className="h-full min-w-0 flex-1 border-0 bg-transparent text-sm outline-none" />
+            </label>
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <button type="button" className="h-7 rounded-lg border-0 px-2 text-[13px] font-semibold" style={{ background: view === "grid" ? "#ebebeb" : "transparent" }} onClick={() => setView("grid")}>רשת</button>
               <button type="button" className="h-7 rounded-lg border-0 px-2 text-[13px] font-semibold" style={{ background: view === "list" ? "#ebebeb" : "transparent" }} onClick={() => setView("list")}>רשימה</button>
@@ -193,32 +225,26 @@ export function CollectionEditorScreen({ collectionKey }: { collectionKey: strin
               </select>
               <span className="inline-flex h-7 items-center rounded-full bg-[#f3f3f3] px-2.5 text-[12px]">סטטוס: פעיל, טיוטה ובארכיון</span>
             </div>
-            {items.length === 0 ? (
-              <div className="grid grid-cols-2 gap-3 min-[800px]:grid-cols-4">
-                {Array.from({ length: 8 }, (_, index) => (
-                  <div key={index} className="overflow-hidden rounded-xl bg-[#fafafa]">
-                    <div className="aspect-square bg-[#f3f3f3]" />
-                    <div className="space-y-2 p-3"><div className="h-2.5 w-3/4 rounded-full bg-[#ececec]" /><div className="h-2.5 w-1/2 rounded-full bg-[#ececec]" /></div>
-                  </div>
-                ))}
-              </div>
+            {visibleItems.length === 0 && available.length === 0 ? (
+              <p className="m-0 py-8 text-center text-sm text-[#616161]">{needle ? "אין מוצרים תואמים" : draft.conditions.length > 0 ? "אין מוצרים שעונים על התנאים" : "אין מוצרים"}</p>
             ) : (
               <div className={view === "grid" ? "grid grid-cols-2 gap-3 min-[800px]:grid-cols-4" : "flex flex-col gap-2"}>
-                {items.map((product) => {
-                  const status = PRODUCT_STATUS[product.status];
-                  return (
-                    <div key={product.id} className="overflow-hidden rounded-xl bg-[#fafafa]">
-                      <div className="relative aspect-square" style={{ background: product.tone }}>
-                        {draft.conditions.length === 0 ? <button type="button" aria-label="הסרה" className="absolute top-2 left-2 grid size-6 place-items-center rounded-full border-0 bg-white text-sm" onClick={() => setDraft({ ...draft, ids: draft.ids.filter((id) => id !== product.id) })}>×</button> : null}
-                      </div>
-                      <div className="p-3">
-                        <div className="truncate text-sm font-medium">{product.title}</div>
-                        <div dir="ltr" className="text-[13px] text-[#4a4a4a]">{formatMoney(product.price)}</div>
-                        <span className="mt-1 inline-flex h-5 items-center rounded-md px-1.5 text-xs font-semibold" style={{ background: status.background, color: status.color }}>{status.label}</span>
-                      </div>
-                    </div>
-                  );
-                })}
+                {visibleItems.map((product) => (
+                  <ProductTile
+                    key={product.id}
+                    product={product}
+                    view={view}
+                    onRemove={draft.conditions.length === 0 ? () => setDraft({ ...draft, ids: draft.ids.filter((id) => id !== product.id) }) : undefined}
+                  />
+                ))}
+                {available.map((product) => (
+                  <ProductTile
+                    key={product.id}
+                    product={product}
+                    view={view}
+                    onAdd={() => setDraft({ ...draft, ids: [...draft.ids, product.id] })}
+                  />
+                ))}
               </div>
             )}
           </div>

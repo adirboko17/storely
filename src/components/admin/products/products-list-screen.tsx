@@ -17,6 +17,7 @@ import {
   subscribeCatalog,
 } from "@/data/mock/catalog-session";
 import { getOrderSessionVersion, listResolvedOrders, subscribeOrderSession } from "@/data/mock/order-session";
+import { BulkEditor } from "@/components/admin/products/bulk-editor";
 import { PRODUCT_STATUS, PRODUCT_TABS, inventoryLabel, type ProductTab } from "@/lib/catalog/present";
 import { formatMoney0 } from "@/lib/formatting/money";
 import type { Product, ProductStatus } from "@/types/commerce";
@@ -95,6 +96,7 @@ export function ProductsListScreen() {
   const [selected, setSelected] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [transfer, setTransfer] = useState(false);
   const [rangeOpen, setRangeOpen] = useState(false);
   const [range, setRange] = useState<DashboardWindow>(defaultDashboardWindow);
@@ -199,7 +201,7 @@ export function ProductsListScreen() {
           <div className="flex flex-wrap items-center gap-2 px-1.5">
             <input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? [] : rows.map((product) => product.id))} className="size-4 accent-[#303030]" />
             <span className="font-semibold">{selected.length} נבחרו</span>
-            <button type="button" className="h-7 rounded-lg border-0 bg-white px-2.5 text-[13px] font-semibold shadow-[0_0_0_1px_#d4d4d4]" onClick={() => toast("עריכה קבוצתית תתווסף בשלב הבא")}>עריכה קבוצתית</button>
+            {selected.length > 2 ? <button type="button" className="h-7 rounded-lg border-0 bg-white px-2.5 text-[13px] font-semibold shadow-[0_0_0_1px_#d4d4d4]" onClick={() => setBulkOpen(true)}>עריכה קבוצתית</button> : null}
             <button type="button" className="h-7 rounded-lg border-0 bg-white px-2.5 text-[13px] font-semibold shadow-[0_0_0_1px_#d4d4d4]" onClick={() => applyStatus("active")}>הגדרה כפעיל</button>
             <button type="button" className="h-7 rounded-lg border-0 bg-white px-2.5 text-[13px] font-semibold shadow-[0_0_0_1px_#d4d4d4]" onClick={() => applyStatus("draft")}>הגדרה כטיוטה</button>
             <button type="button" className="h-7 rounded-lg border-0 bg-white px-2.5 text-[13px] font-semibold shadow-[0_0_0_1px_#d4d4d4]" onClick={() => applyStatus("archived")}>העברה לארכיון</button>
@@ -277,6 +279,8 @@ export function ProductsListScreen() {
       <IndexDock pageLabel={rows.length ? `1-${rows.length}` : "0"} />
 
       {transfer ? <TransferDialog count={products.length} onClose={() => setTransfer(false)} onExport={(fields) => { if (!products.length) { toast("אין מוצרים לייצוא"); return; } if (!fields.length) { toast("בחרו לפחות שדה אחד"); return; } downloadCsv("מוצרים.csv", productCsv(products, fields)); toast("קובץ המוצרים ירד"); }} onTemplate={() => { downloadCsv("תבנית-ייבוא-מוצרים.csv", templateCsv()); toast("קובץ הדוגמה ירד"); }} onFile={(file) => { void importProducts(file, toast, () => setTransfer(false)); }} /> : null}
+
+      {bulkOpen ? <BulkEditor products={products.filter((product) => selected.includes(product.id))} onClose={() => setBulkOpen(false)} /> : null}
 
       {confirmDelete ? (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4" onClick={() => setConfirmDelete(false)}>

@@ -81,6 +81,8 @@ function mapProduct(value: unknown, index: number): Product {
     description: text(item?.description),
     bundles: merch.bundles,
     page: merch.page,
+    badge: merch.badge || undefined,
+    badgeHidden: merch.badgeHidden || undefined,
   };
 }
 

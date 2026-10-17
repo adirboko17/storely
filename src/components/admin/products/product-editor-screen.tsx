@@ -82,6 +82,8 @@ type Draft = {
   media: string[];
   bundles: { label: string; qty: string; price: string }[];
   page: ProductPage;
+  badge: string;
+  badgeHidden: boolean;
 };
 
 function selectedCategories(product: Product | null) {
@@ -122,6 +124,8 @@ function fromProduct(product: Product | null): Draft {
     variantQty: labels.map((_, index) => String(quantities[index] ?? 0)),
     media: product?.media ? [...product.media] : [],
     bundles: (product?.bundles ?? []).map((bundle) => ({ label: bundle.label, qty: String(bundle.qty), price: bundle.price.toFixed(2) })),
+    badge: product?.badge ?? "",
+    badgeHidden: product?.badgeHidden === true,
     page: product?.page
       ? {
           panels: product.page.panels.map((item) => ({ ...item })),
@@ -319,6 +323,8 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
       description: draft.description,
       bundles: parseBundles(draft.bundles.map((bundle) => ({ label: bundle.label, qty: Number(bundle.qty), price: Number(bundle.price) }))),
       page: getStoreIdentity().ownerEmail.toLowerCase() === OLI_STORE_OWNER ? parsePage(draft.page) : product?.page,
+      badge: draft.badge.trim().slice(0, 24),
+      badgeHidden: draft.badgeHidden,
     };
     void saveCatalogProduct(savedProduct)
       .then((stored) => {
@@ -612,6 +618,27 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
                     )}
                   </div>
                 ) : null}
+                <div className="border-t border-[#ebebeb] pt-4">
+                  <h3 className="m-0 text-sm font-semibold">תגית על המוצר</h3>
+                  <p className="m-0 mt-1 text-[13px] text-ink-secondary">מופיעה על כרטיס המוצר ובעמוד המוצר. לדוגמה: חדש, פופולרי או מבצע.</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {["חדש", "פופולרי", "מבצע"].map((label) => (
+                      <button key={label} type="button" className="h-8 rounded-full border px-3 text-[13px] font-semibold" style={{ borderColor: draft.badge === label ? "#303030" : "#c9c9c9", background: draft.badge === label ? "#f1f1f1" : "#fff" }} onClick={() => patch({ badge: draft.badge === label ? "" : label })}>{label}</button>
+                    ))}
+                  </div>
+                  <input value={draft.badge} maxLength={24} onChange={(event) => patch({ badge: event.target.value })} placeholder="או כתבו תגית משלכם" className={`${field} mt-3 max-w-[280px]`} />
+                  <label className="mt-3 flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={draft.badgeHidden} onChange={(event) => patch({ badgeHidden: event.target.checked })} className="size-4 accent-[#303030]" />
+                    לא להציג תגית
+                  </label>
+                  <p className="m-0 mt-2 text-[13px] text-ink-secondary">
+                    {draft.badgeHidden
+                      ? "התגית מוסתרת, גם אם יש מחיר מבצע."
+                      : showsDiscount
+                        ? "יש מחיר מבצע, אז תוצג גם תגית «מבצע»."
+                        : "כשמוסיפים מחיר מקורי גבוה יותר, תוצג תגית «מבצע» אוטומטית."}
+                  </p>
+                </div>
                 <label className="max-w-[280px]">
                   <span className="mb-1.5 block text-sm font-semibold">עלות לפריט</span>
                   <input dir="ltr" inputMode="decimal" value={draft.cost} onChange={(event) => patch({ cost: event.target.value })} placeholder="0.00" className={`${field} text-end`} />
