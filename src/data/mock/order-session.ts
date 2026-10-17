@@ -4,15 +4,23 @@ import { ORDERS, toOrderView } from "@/data/mock/orders";
 import { PRODUCTS } from "@/data/mock/products";
 import { writeStore } from "@/data/live/write";
 import type { ResolvedOrder, TimelineEvent } from "@/lib/orders/present";
-import type { FulfillmentStatus, Order, PayStatus, Product } from "@/types/commerce";
+import type { CustomerOrderStatus, FulfillmentStatus, Order, PayStatus, Product } from "@/types/commerce";
 
 type OrderOverride = {
   pay?: PayStatus;
   fulfillment?: FulfillmentStatus;
+  customerStatus?: CustomerOrderStatus;
   refunded?: number;
   tracking?: string;
   carrier?: string;
 };
+
+function customerStatusFor(fulfillment: FulfillmentStatus): CustomerOrderStatus {
+  if (fulfillment === "progress" || fulfillment === "partial") return "progress";
+  if (fulfillment === "onhold") return "hold";
+  if (fulfillment === "fulfilled") return "sent";
+  return "received";
+}
 
 export type AbandonedOverride = {
   sent?: boolean;
@@ -78,9 +86,19 @@ export function replaceLiveOrders(orders: Order[], events: Record<number, Timeli
   publish({ overrides: {}, events, abandoned: current.abandoned });
 }
 
+export function syncLiveOrders(orders: Order[], events: Record<number, TimelineEvent[]> = {}) {
+  ORDERS.splice(0, ORDERS.length, ...orders);
+  publish({ ...current, events });
+}
+
 export function replaceAbandoned(checkouts: AbandonedCheckout[]) {
   ABANDONED.splice(0, ABANDONED.length, ...checkouts);
   publish({ ...current, abandoned: {} });
+}
+
+export function customerOrderCount(customerId: number) {
+  if (customerId < 0) return 0;
+  return ORDERS.reduce((count, order) => count + (order.customerIndex === customerId ? 1 : 0), 0);
 }
 
 function resolve(orderId: number): ResolvedOrder {
@@ -105,7 +123,8 @@ function resolve(orderId: number): ResolvedOrder {
     ...view,
     pay: override?.pay ?? order.pay,
     fulfillment: override?.fulfillment ?? order.fulfillment,
-    customer,
+    customer: { ...customer, orders: order.customerIndex >= 0 ? customerOrderCount(order.customerIndex) : customer.orders },
+    customerStatus: override?.customerStatus ?? order.customerStatus,
     lines,
     refundedAmount,
     refunded: refundedAmount,
@@ -145,10 +164,11 @@ export function bulkFulfill(ids: number[]) {
     overrides[id] = {
       ...overrides[id],
       fulfillment: "fulfilled",
+      customerStatus: "sent",
       carrier: "שליחויות צ׳יטה",
       tracking: `CH${id * 7919}`,
     };
-    persistOrder(id, { fulfillment: "fulfilled", carrier: "שליחויות צ׳יטה", tracking: `CH${id * 7919}` });
+    persistOrder(id, { fulfillment: "fulfilled", customer_status: "sent", carrier: "שליחויות צ׳יטה", tracking: `CH${id * 7919}` });
   });
   publish({ ...current, overrides });
 }
@@ -163,6 +183,33 @@ export function markOrderPaid(orderId: number, totalLabel: string) {
   persistOrder(orderId, { pay: "paid", comment: text });
 }
 
+export function setOrderFulfillment(orderId: number, fulfillment: FulfillmentStatus, text: string, customerStatus?: CustomerOrderStatus) {
+  const nextStatus = customerStatus ?? customerStatusFor(fulfillment);
+  publish({
+    ...current,
+    overrides: { ...current.overrides, [orderId]: { ...current.overrides[orderId], fulfillment, customerStatus: nextStatus } },
+    events: remember(orderId, text, current.events),
+  });
+  persistOrder(orderId, { fulfillment, customer_status: nextStatus, comment: text });
+}
+
+export function setCustomerOrderStatus(orderId: number, customerStatus: CustomerOrderStatus, text: string) {
+  const fulfillment = customerStatus === "sent" || customerStatus === "transit" || customerStatus === "delivered" ? "fulfilled" as const : undefined;
+  publish({
+    ...current,
+    overrides: {
+      ...current.overrides,
+      [orderId]: {
+        ...current.overrides[orderId],
+        customerStatus,
+        ...(fulfillment ? { fulfillment } : {}),
+      },
+    },
+    events: remember(orderId, text, current.events),
+  });
+  persistOrder(orderId, { customer_status: customerStatus, ...(fulfillment ? { fulfillment } : {}), comment: text });
+}
+
 export function confirmFulfill(
   orderId: number,
   input: { carrier: string; tracking: string; notify: boolean; quantity: number },
@@ -175,13 +222,14 @@ export function confirmFulfill(
       [orderId]: {
         ...current.overrides[orderId],
         fulfillment: "fulfilled",
+        customerStatus: "sent",
         carrier: input.carrier,
         tracking: input.tracking,
       },
     },
     events: remember(orderId, text, current.events),
   });
-  persistOrder(orderId, { fulfillment: "fulfilled", carrier: input.carrier, tracking: input.tracking, comment: text });
+  persistOrder(orderId, { fulfillment: "fulfilled", customer_status: "sent", carrier: input.carrier, tracking: input.tracking, comment: text });
 }
 
 export function confirmRefund(orderId: number, input: { totalRefunded: number; pay: PayStatus; text: string }) {

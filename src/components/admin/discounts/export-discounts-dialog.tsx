@@ -45,7 +45,7 @@ function discountsCsv(discounts: Discount[]) {
       discount.method === "code" ? "קוד" : "אוטומטי",
       discount.eligibility === "all" ? "כל הלקוחות" : discount.segment,
       KIND_LABEL[discount.type],
-      [discount.combProduct && "מוצר", discount.combOrder && "הזמנה", discount.combShip && "משלוח"].filter(Boolean).join(" | "),
+      [discount.combProduct && "מוצר", discount.combOrder && "הזמנה", discount.combShip && "משלוח", discount.blockGift && "בלי כרטיס מתנה"].filter(Boolean).join(" | "),
       String(discount.uses),
       discount.start,
       discount.hasEnd ? discount.end : "",

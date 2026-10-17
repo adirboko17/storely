@@ -5,7 +5,7 @@ import { useState, useSyncExternalStore } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { customerSpent } from "@/components/admin/customers/customers-list-screen";
 import { getPeopleVersion, listPeople, profileOf, subscribePeople } from "@/data/mock/people-session";
-import { getOrderSessionVersion, subscribeOrderSession } from "@/data/mock/order-session";
+import { customerOrderCount, getOrderSessionVersion, subscribeOrderSession } from "@/data/mock/order-session";
 import { formatMoney } from "@/lib/formatting/money";
 
 const SAVED = [
@@ -28,8 +28,11 @@ export function SegmentsScreen() {
   const [savedName, setSavedName] = useState("לקוחות VIP");
 
   const rows = people
-    .map((person) => ({ person, profile: profileOf(person), spent: customerSpent(person.id, person.orders) }))
-    .filter((row) => row.spent >= Number(minSpent || 0) && row.person.orders >= Number(minOrders || 0) && (!subOnly || row.profile.subscribed));
+    .map((person) => {
+      const orders = customerOrderCount(person.id);
+      return { person, profile: profileOf(person), orders, spent: customerSpent(person.id, orders) };
+    })
+    .filter((row) => row.spent >= Number(minSpent || 0) && row.orders >= Number(minOrders || 0) && (!subOnly || row.profile.subscribed));
 
   return (
     <div className="mx-auto flex max-w-[1200px] flex-col gap-4 px-4 py-4 min-[1000px]:px-6">
@@ -72,7 +75,7 @@ export function SegmentsScreen() {
               <button key={row.person.id} type="button" className="grid h-11 w-full grid-cols-[minmax(0,1fr)_110px_90px_100px] items-center gap-2 border-0 border-t border-[#ebebeb] bg-white px-4 text-start text-sm hover:bg-[#f7f7f7]" onClick={() => router.push(`/admin/customers/${row.person.id}`)}>
                 <span className="font-semibold">{row.person.name}</span>
                 <span className="text-ink-secondary">{row.person.city}</span>
-                <span>{row.person.orders}</span>
+                <span>{row.orders}</span>
                 <span dir="ltr" className="text-left">{formatMoney(row.spent)}</span>
               </button>
             ))}

@@ -8,7 +8,7 @@ import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { Icon } from "@/components/ui/icon";
 import { getStoreIdentity } from "@/data/live/store-identity";
 import { getPeopleVersion, listPeople, profileOf, subscribePeople } from "@/data/mock/people-session";
-import { getOrderSessionVersion, listResolvedOrders, subscribeOrderSession } from "@/data/mock/order-session";
+import { customerOrderCount, getOrderSessionVersion, listResolvedOrders, subscribeOrderSession } from "@/data/mock/order-session";
 import { formatMoney } from "@/lib/formatting/money";
 
 const clearInput = { backgroundColor: "transparent", color: "#303030" } as const;
@@ -34,13 +34,14 @@ export function CustomersListScreen() {
     return people
       .map((person) => {
         const profile = profileOf(person);
-        const spent = customerSpent(person.id, person.orders);
-        return { person, profile, spent };
+        const orders = customerOrderCount(person.id);
+        const spent = customerSpent(person.id, orders);
+        return { person, profile, spent, orders };
       })
       .filter((row) => {
         const needle = query.trim();
         if (needle && !`${row.person.name} ${row.person.email} ${row.person.city}`.includes(needle)) return false;
-        if (applied.includes("יותר מפעמיים") && row.person.orders <= 2) return false;
+        if (applied.includes("יותר מפעמיים") && row.orders <= 2) return false;
         if (applied.includes("VIP") && row.spent < 1500 && !row.profile.tags.includes("VIP")) return false;
         if (applied.includes("דיוור") && !row.profile.subscribed) return false;
         return true;
@@ -107,7 +108,7 @@ export function CustomersListScreen() {
                   <td dir="auto" className="px-2.5 text-right font-medium">{row.person.name}</td>
                   <td className="px-2.5"><span className="inline-flex h-5 items-center rounded-md px-[7px] text-[13px] font-medium" style={{ background: row.profile.subscribed ? "#cdfee1" : "#e3e3e3", color: row.profile.subscribed ? "#0c5132" : "#616161" }}>{row.profile.subscribed ? "מנוי" : "לא מנוי"}</span></td>
                   <td className="px-2.5 whitespace-nowrap">{row.person.city ? `${row.person.city}, ישראל` : "ישראל"}</td>
-                  <td className="px-2.5 text-center">{row.person.orders}</td>
+                  <td className="px-2.5 text-center">{row.orders}</td>
                   <td dir="ltr" className="px-4 text-left whitespace-nowrap">{formatMoney(row.spent)}</td>
                 </tr>
               );

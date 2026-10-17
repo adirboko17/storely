@@ -5,6 +5,7 @@ const FULFILLMENT: Record<FulfillmentStatus, [string, string, string]> = {
   fulfilled: ["נשלח", "#ebebeb", "#303030"],
   partial: ["נשלח חלקית", "#ffeb78", "#4f4700"],
   onhold: ["בהמתנה", "#ffeb78", "#4f4700"],
+  progress: ["בטיפול", "#ffeb78", "#4f4700"],
 };
 
 export function FulfillmentBadge({ status }: { status: FulfillmentStatus }) {

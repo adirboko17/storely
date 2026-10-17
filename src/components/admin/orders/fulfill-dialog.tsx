@@ -47,7 +47,7 @@ export function FulfillDialog({
         </div>
         <div className="flex flex-col gap-3.5 p-4">
           <div className="text-[13px] text-ink-secondary">
-            {order.quantity} פריטים · {order.ship} · מחסן ראשי – חולון
+            {order.quantity} פריטים · {order.ship || "בלי משלוח"}
           </div>
           <label className="block">
             <span className="mb-1 block font-medium">חברת משלוחים</span>

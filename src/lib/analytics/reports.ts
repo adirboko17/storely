@@ -476,7 +476,7 @@ export function buildReport(id: string, window: ReportWindow, today: Date, input
   }
 
   if (id === "fulfillment-time") {
-    const labels: Record<string, string> = { fulfilled: "נשלח", partial: "נשלח חלקית", unfulfilled: "לא נשלח", onhold: "בהמתנה" };
+    const labels: Record<string, string> = { fulfilled: "נשלח", partial: "נשלח חלקית", unfulfilled: "לא נשלח", onhold: "בהמתנה", progress: "בטיפול" };
     const rows = new Map<string, { current: number; previous: number }>();
     const add = (source: typeof currentOrders, key: "current" | "previous") => {
       source.forEach((item) => {

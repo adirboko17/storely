@@ -25,6 +25,7 @@ export type Discount = {
   combProduct: boolean;
   combOrder: boolean;
   combShip: boolean;
+  blockGift: boolean;
   applies: "all" | "colls" | "subs";
   collections: string[];
   bxBuy: string;
@@ -105,6 +106,7 @@ function discountPayload(discount: Discount) {
     combProduct: discount.combProduct,
     combOrder: discount.combOrder,
     combShip: discount.combShip,
+    blockGift: discount.blockGift,
     applies: discount.applies,
     collections: discount.collections,
     bxBuy: discount.bxBuy,
@@ -156,7 +158,7 @@ export function blankDiscount(type: DiscountKind, id: number): Discount {
   return {
     id, code: "", type, valueType: type === "ship" || type === "bxgy" ? "pct" : "pct", value: type === "ship" ? "100" : "10",
     method: "code", eligibility: "all", segment: "", minType: "none", minValue: "", once: false, limit: false, limitN: "",
-    start: TODAY, hasEnd: false, end: "", uses: 0, combProduct: false, combOrder: false, combShip: false, applies: "all", collections: [],
+    start: TODAY, hasEnd: false, end: "", uses: 0, combProduct: false, combOrder: false, combShip: false, blockGift: false, applies: "all", collections: [],
     bxBuy: "2", bxGet: "1", bxColl: "",
   };
 }

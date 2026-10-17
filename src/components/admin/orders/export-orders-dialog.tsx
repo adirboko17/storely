@@ -10,7 +10,7 @@ import type { FulfillmentStatus, PayStatus } from "@/types/commerce";
 
 const MONTHS = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
 const PAY_STATUSES: PayStatus[] = ["paid", "pending", "partially_refunded", "refunded"];
-const FULFILLMENT_STATUSES: FulfillmentStatus[] = ["unfulfilled", "partial", "fulfilled", "onhold"];
+const FULFILLMENT_STATUSES: FulfillmentStatus[] = ["unfulfilled", "progress", "partial", "fulfilled", "onhold"];
 
 function formatFull(date: Date) {
   return `${date.getDate()} ב${MONTHS[date.getMonth()]} ${date.getFullYear()}`;

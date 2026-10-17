@@ -29,7 +29,8 @@ export function emptyProductPage(): ProductPage {
   return { highlights: [], panels: [], stories: [], steps: [], ingredientsIntro: "", ingredients: [], reviews: [], faqs: [] };
 }
 export type PayStatus = "paid" | "pending" | "partially_refunded" | "refunded";
-export type FulfillmentStatus = "unfulfilled" | "fulfilled" | "partial" | "onhold";
+export type FulfillmentStatus = "unfulfilled" | "fulfilled" | "partial" | "onhold" | "progress";
+export type CustomerOrderStatus = "received" | "progress" | "hold" | "sent" | "transit" | "delivered";
 
 export type Product = {
   id: number;
@@ -91,6 +92,7 @@ export type Order = {
   totalAmount?: number;
   pay: PayStatus;
   fulfillment: FulfillmentStatus;
+  customerStatus?: CustomerOrderStatus;
   note?: string;
   tags?: string[];
   refunded?: number;

@@ -34,8 +34,9 @@ export function CustomerProfileScreen({ customerId }: { customerId: number }) {
   const profile = profileOf(person);
   const orders = listResolvedOrders().filter((order) => order.customer.id === person.id);
   const last = orders[0];
-  const spent = customerSpent(person.id, person.orders);
-  const rfm = person.orders >= 8 ? "אלופים" : person.orders >= 4 ? "נאמנים" : person.orders >= 2 ? "מבטיחים" : "חדשים";
+  const orderCount = orders.length;
+  const spent = customerSpent(person.id, orderCount);
+  const rfm = orderCount >= 8 ? "אלופים" : orderCount >= 4 ? "נאמנים" : orderCount >= 2 ? "מבטיחים" : "חדשים";
 
   return (
     <div className="flex min-h-full flex-col">
@@ -54,7 +55,7 @@ export function CustomerProfileScreen({ customerId }: { customerId: number }) {
         <div className="flex min-w-0 flex-col gap-4">
           <h1 dir="auto" className="m-0 text-right text-2xl leading-[30px] font-bold">{person.name}</h1>
           <div className="grid overflow-hidden rounded-[14px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,.08)] min-[800px]:grid-cols-4">
-            {[["סכום שהוצא", formatMoney(spent)], ["הזמנות", String(person.orders)], ["לקוח מאז", SINCE[person.id] ?? "אוקטובר 2026"], ["פלח RFM", rfm]].map(([label, value], itemIndex) => (
+            {[["סכום שהוצא", formatMoney(spent)], ["הזמנות", String(orderCount)], ["לקוח מאז", SINCE[person.id] ?? "אוקטובר 2026"], ["פלח RFM", rfm]].map(([label, value], itemIndex) => (
               <div key={label} className="flex flex-col gap-1 px-[18px] py-3.5" style={{ borderInlineStart: itemIndex ? "1px solid #ebebeb" : undefined }}>
                 <span className="self-start text-sm font-semibold underline decoration-dotted decoration-[#8a8a8a] underline-offset-[3px]">{label}</span>
                 <b dir={label === "סכום שהוצא" ? "ltr" : undefined}>{value}</b>

@@ -66,6 +66,7 @@ function detailLines(discount: Discount) {
   if (!discount.once && !discount.limit) lines.push("בלי הגבלת שימושים");
   const combos = [discount.combProduct && "מוצרים", discount.combOrder && "הזמנה", discount.combShip && "משלוח"].filter(Boolean);
   lines.push(combos.length ? `משתלבת עם הנחות ${combos.join(", ")}` : "לא משתלבת עם הנחות אחרות");
+  if (discount.blockGift) lines.push("לא משתלבת עם כרטיס מתנה");
   lines.push(discount.hasEnd && discount.end ? `${formatDay(discount.start)} עד ${formatDay(discount.end)}` : `פעילה מ-${formatDay(discount.start)}`);
   return lines;
 }
@@ -317,6 +318,7 @@ export function DiscountEditorScreen({ discountId, kind }: { discountId: number 
                   {draft.combProduct || draft.combOrder || draft.combShip
                     ? `ההנחה יכולה להשתלב עם ${[draft.combProduct && "הנחות מוצר", draft.combOrder && "הנחות הזמנה", draft.combShip && "הנחות משלוח"].filter(Boolean).join(", ")}.`
                     : "ההנחה לא תשתלב עם הנחות אחרות על מוצר, הזמנה או משלוח."}
+                  {draft.blockGift ? " היא לא תחול אם יש כרטיס מתנה בקופה." : ""}
                 </p>
                 <button type="button" aria-expanded={combosOpen} aria-label="עריכת שילובים" onClick={() => setCombosOpen((open) => !open)} className="grid size-7 shrink-0 place-items-center rounded-full border-0 bg-[#f1f1f1]">
                   <Icon name={combosOpen ? "close" : "plus"} size={14} />
@@ -327,6 +329,10 @@ export function DiscountEditorScreen({ discountId, kind }: { discountId: number 
                   <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.combProduct} onChange={(event) => patch({ combProduct: event.target.checked })} className="size-4 accent-[#303030]" />הנחות על מוצרים</label>
                   <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.combOrder} onChange={(event) => patch({ combOrder: event.target.checked })} className="size-4 accent-[#303030]" />הנחות על ההזמנה</label>
                   <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.combShip} onChange={(event) => patch({ combShip: event.target.checked })} className="size-4 accent-[#303030]" />הנחות משלוח</label>
+                  <label className="flex items-start gap-2 text-sm">
+                    <input type="checkbox" checked={draft.blockGift} onChange={(event) => patch({ blockGift: event.target.checked })} className="mt-0.5 size-4 accent-[#303030]" />
+                    <span>לא תשתלב עם כרטיסי מתנה<span className="mt-0.5 block text-[12px] text-[#616161]">אם יש כרטיס מתנה בקופה — קוד שמומש, או מוצר כרטיס מתנה בעגלה — ההנחה לא תחול.</span></span>
+                  </label>
                 </div>
               ) : null}
             </div>

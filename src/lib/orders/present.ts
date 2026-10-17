@@ -31,6 +31,7 @@ const FUL: Record<FulfillmentStatus, [string, string, string]> = {
   fulfilled: ["נשלח", "#ebebeb", "#303030"],
   partial: ["נשלח חלקית", "#ffeb78", "#4f4700"],
   onhold: ["בהמתנה", "#ffeb78", "#4f4700"],
+  progress: ["בטיפול", "#ffeb78", "#4f4700"],
 };
 
 const RISK = new Set([1045, 1040, 1033, 1027]);

@@ -1,10 +1,10 @@
-import { replaceCatalogProducts, type CollectionCondition, type CollectionDraft, type GiftCard } from "@/data/mock/catalog-session";
+import { listCatalogProducts, replaceCatalogProducts, type CollectionCondition, type CollectionDraft, type GiftCard } from "@/data/mock/catalog-session";
 import { giftAmountsFromTags, splitCollectionRules, splitProductTags } from "@/lib/catalog/subcategories";
 import { replacePosts, type Post } from "@/data/mock/content-session";
 import { blankDiscount, replaceDiscounts, type Discount, type DiscountKind } from "@/data/mock/discount-session";
 import { absorbLegacyEmails, parseEmails, parseSms, replaceMarketing, type Flow, type IntegrationState } from "@/data/mock/marketing-session";
-import { replaceAbandoned, replaceLiveOrders } from "@/data/mock/order-session";
-import { replacePeople, type PersonProfile } from "@/data/mock/people-session";
+import { replaceAbandoned, replaceLiveOrders, syncLiveOrders } from "@/data/mock/order-session";
+import { listPeople, replacePeople, type PersonProfile } from "@/data/mock/people-session";
 import { normalizeBrandColors, normalizePolicies, replaceSettings, type ReturnRule, type ShipProfile } from "@/data/mock/settings-session";
 import { beginHydration, endHydration } from "@/data/live/write";
 import { setStoreCurrency } from "@/lib/formatting/currency";
@@ -13,7 +13,7 @@ import { enableLiveMetrics } from "@/lib/dashboard/chart";
 import type { TimelineEvent } from "@/lib/orders/present";
 import type { AbandonedCheckout } from "@/data/mock/abandoned";
 import { parseProductMerch } from "@/lib/catalog/merch";
-import type { Customer, FulfillmentStatus, Order, PayStatus, Product, ProductStatus } from "@/types/commerce";
+import type { Customer, CustomerOrderStatus, FulfillmentStatus, Order, PayStatus, Product, ProductStatus } from "@/types/commerce";
 
 export type StoreSnapshot = {
   name?: unknown;
@@ -133,6 +133,7 @@ function mapDiscount(value: unknown, index: number): Discount {
     combProduct: item?.combProduct === true,
     combOrder: item?.combOrder === true,
     combShip: item?.combShip === true,
+    blockGift: item?.blockGift === true,
     applies: item?.applies === "colls" || item?.applies === "subs" ? item.applies : "all",
     collections,
     bxBuy: text(item?.bxBuy) || discount.bxBuy,
@@ -145,8 +146,16 @@ function payStatus(value: unknown): PayStatus {
   return value === "paid" || value === "pending" || value === "partially_refunded" || value === "refunded" ? value : "pending";
 }
 
+function customerOrderStatus(value: unknown, fulfillment: FulfillmentStatus): CustomerOrderStatus {
+  if (value === "received" || value === "progress" || value === "hold" || value === "sent" || value === "transit" || value === "delivered") return value;
+  if (fulfillment === "progress" || fulfillment === "partial") return "progress";
+  if (fulfillment === "onhold") return "hold";
+  if (fulfillment === "fulfilled") return "sent";
+  return "received";
+}
+
 function fulfillmentStatus(value: unknown): FulfillmentStatus {
-  return value === "unfulfilled" || value === "fulfilled" || value === "partial" || value === "onhold" ? value : "unfulfilled";
+  return value === "unfulfilled" || value === "fulfilled" || value === "partial" || value === "onhold" || value === "progress" ? value : "unfulfilled";
 }
 
 function hebrewWhen(value: unknown) {
@@ -173,14 +182,15 @@ function mapOrder(value: unknown, products: Product[], customers: Customer[]): O
     const entry = row(line);
     const productId = text(entry?.productId);
     const product = products.find((candidate) => candidate.sourceId === productId);
+    const gift = Boolean(product?.giftOpen || product?.giftAmounts?.length);
     const localId = product?.id ?? -1 - items.length;
     items.push([localId, Math.max(1, amount(entry?.quantity))]);
     lineFallbacks.push({
       id: localId,
       title: text(entry?.title) || product?.title || "מוצר",
       price: amount(entry?.unitPrice),
-      variant: text(entry?.variant),
-      sku: text(entry?.sku),
+      variant: gift ? "" : text(entry?.variant),
+      sku: gift ? "" : text(entry?.sku),
     });
   });
   const customer = customers.find((person) => person.sourceId === text(item?.customerId));
@@ -202,6 +212,7 @@ function mapOrder(value: unknown, products: Product[], customers: Customer[]): O
     totalAmount: amount(item?.total),
     pay: payStatus(item?.pay),
     fulfillment: fulfillmentStatus(item?.fulfillment),
+    customerStatus: customerOrderStatus(item?.customerStatus, fulfillmentStatus(item?.fulfillment)),
     note: text(item?.note) || undefined,
     tags,
     refunded: amount(item?.refunded),
@@ -413,6 +424,25 @@ function mapGiftCards(value: unknown): GiftCard[] {
       note: text(item?.note),
     }];
   });
+}
+
+export function applyOrderRefresh(snapshot: StoreSnapshot) {
+  const products = listCatalogProducts();
+  const customers = listPeople();
+  const orders = Array.isArray(snapshot.orders)
+    ? snapshot.orders.flatMap((entry) => {
+        const order = mapOrder(entry, products, customers);
+        return order ? [order] : [];
+      })
+    : [];
+  const events: Record<number, TimelineEvent[]> = {};
+  if (Array.isArray(snapshot.orders)) {
+    snapshot.orders.forEach((entry) => {
+      const number = amount(row(entry)?.number);
+      if (number) events[number] = mapTimeline(entry);
+    });
+  }
+  syncLiveOrders(orders, events);
 }
 
 export function applyStoreSnapshot(storeId: string, snapshot: StoreSnapshot) {

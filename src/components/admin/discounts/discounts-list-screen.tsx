@@ -116,7 +116,7 @@ export function DiscountsListScreen() {
                   <td className="px-2.5 whitespace-nowrap">{discount.method === "code" ? "קוד" : "אוטומטי"}</td>
                   <td className="px-2.5 whitespace-nowrap">{discount.eligibility === "all" ? "כל הלקוחות" : discount.segment}</td>
                   <td className="px-2.5 whitespace-nowrap">{KIND_LABEL[discount.type]}</td>
-                  <td className="px-2.5 text-[#616161]">{[discount.combProduct && "מוצר", discount.combOrder && "הזמנה", discount.combShip && "משלוח"].filter(Boolean).join(" · ") || "—"}</td>
+                  <td className="px-2.5 text-[#616161]">{[discount.combProduct && "מוצר", discount.combOrder && "הזמנה", discount.combShip && "משלוח", discount.blockGift && "בלי כרטיס מתנה"].filter(Boolean).join(" · ") || "—"}</td>
                   <td className="px-4 text-left">{discount.uses}</td>
                 </tr>
               );
