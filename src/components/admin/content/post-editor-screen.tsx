@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
-import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
-import { getCatalogVersion, listCatalogProducts, subscribeCatalog } from "@/data/mock/catalog-session";
+import { getCatalogVersion, isVideoMedia, listCatalogProducts, subscribeCatalog } from "@/data/mock/catalog-session";
 import { deletePost, getPost, getPostsVersion, nextPostId, postCover, postHasOwnImage, savePost, subscribePosts, type Post } from "@/data/mock/content-session";
 import { getSettings, getSettingsVersion, subscribeSettings } from "@/data/mock/settings-session";
 import { slugifyHandle } from "@/lib/catalog/present";
+import { formatMoney0 } from "@/lib/formatting/money";
+import type { Product } from "@/types/commerce";
 
 const field = "h-[34px] w-full rounded-[10px] border border-[#c9c9c9] bg-white px-3 text-sm text-[#303030] outline-none placeholder:text-[#8a8a8a]";
 const selectField = "h-[34px] w-full appearance-none rounded-[10px] border border-[#c9c9c9] bg-white ps-3 pe-8 text-sm text-[#303030] outline-none";
@@ -37,6 +40,134 @@ function blank(id: number): Post {
     handle: "",
     template: TEMPLATES[0],
   };
+}
+
+function productPhoto(product: Product) {
+  return product.media?.find((item) => item && !isVideoMedia(item)) ?? "";
+}
+
+function ProductThumb({ product }: { product: Product }) {
+  const photo = productPhoto(product);
+  return photo ? (
+    <img src={photo} alt="" className="size-9 rounded-lg object-cover shadow-[inset_0_0_0_1px_rgba(0,0,0,.08)]" />
+  ) : (
+    <span className="size-9 rounded-lg shadow-[inset_0_0_0_1px_rgba(0,0,0,.08)]" style={{ background: product.tone || "#ececec" }} />
+  );
+}
+
+function ProductSearch({ productId, onPick }: { productId: string; onPick: (id: string) => void }) {
+  const products = listCatalogProducts().filter((product) => product.sourceId);
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const selected = products.find((product) => product.sourceId === productId) ?? null;
+  const needle = query.trim().toLowerCase();
+  const matches = needle ? products.filter((product) => product.title.toLowerCase().includes(needle)) : products;
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = requestAnimationFrame(() => inputRef.current?.focus());
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  function choose(id: string) {
+    onPick(id);
+    setQuery("");
+    setOpen(false);
+    setActive(0);
+  }
+
+  return (
+    <div className="min-w-0">
+      {selected ? (
+        <div className="mb-2 grid grid-cols-[36px_minmax(0,1fr)_auto_auto] items-center gap-2.5 rounded-xl border border-[#e3e3e3] bg-[#fafafa] px-2.5 py-2">
+          <ProductThumb product={selected} />
+          <span className="truncate text-sm font-semibold">{selected.title}</span>
+          <span dir="ltr" className="text-[13px] text-[#616161]">{formatMoney0(selected.price)}</span>
+          <button type="button" className="h-7 rounded-lg border-0 bg-white px-2.5 text-[13px] font-semibold text-[#8e1f0b] shadow-[0_0_0_1px_rgba(0,0,0,.08)]" onClick={() => onPick("")}>הסרה</button>
+        </div>
+      ) : null}
+      <button type="button" className={`${field} flex items-center gap-2 text-start text-[#8a8a8a]`} onClick={() => { setQuery(""); setActive(0); setOpen(true); }}>
+        <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+          <path d="M9 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM17 17l-3.5-3.5" />
+        </svg>
+        חיפוש מוצר
+      </button>
+      {open ? createPortal(
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4" onMouseDown={() => setOpen(false)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="בחירת מוצר"
+            className="flex max-h-[min(560px,78vh)] w-full max-w-[480px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_24px_48px_rgba(0,0,0,.28),0_0_0_1px_rgba(0,0,0,.08)]"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 border-b border-[#ebebeb] px-4 py-3">
+              <h2 className="m-0 flex-1 text-[15px] font-semibold">בחירת מוצר</h2>
+              <button type="button" aria-label="סגירה" className="grid size-8 place-items-center rounded-lg border-0 bg-transparent text-[#4a4a4a] hover:bg-[#f1f1f1]" onClick={() => setOpen(false)}>
+                <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden><path d="M6 6l8 8M14 6l-8 8" /></svg>
+              </button>
+            </div>
+            <div className="border-b border-[#ebebeb] px-4 py-3">
+              <div className="flex items-center gap-2 rounded-xl bg-[#f6f6f6] px-3">
+                <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="#616161" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+                  <path d="M9 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM17 17l-3.5-3.5" />
+                </svg>
+                <input
+                  ref={inputRef}
+                  value={query}
+                  placeholder="חיפוש לפי שם"
+                  className="h-11 min-w-0 flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-[#8a8a8a]"
+                  onChange={(event) => { setQuery(event.target.value); setActive(0); }}
+                  onKeyDown={(event) => {
+                    if (matches.length === 0) return;
+                    if (event.key === "ArrowDown") { event.preventDefault(); setActive((index) => (index + 1) % matches.length); }
+                    if (event.key === "ArrowUp") { event.preventDefault(); setActive((index) => (index <= 0 ? matches.length - 1 : index - 1)); }
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      const item = matches[active];
+                      if (item?.sourceId) choose(item.sourceId);
+                    }
+                  }}
+                />
+              </div>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-2">
+              {matches.length ? matches.map((product, index) => {
+                const current = product.sourceId === productId;
+                return (
+                  <button
+                    key={product.sourceId}
+                    type="button"
+                    className="grid w-full grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border-0 px-2 py-2 text-start hover:bg-[#f6f6f6]"
+                    style={{ background: index === active || current ? "#f1f1f1" : undefined }}
+                    onMouseEnter={() => setActive(index)}
+                    onClick={() => { if (product.sourceId) choose(product.sourceId); }}
+                  >
+                    <ProductThumb product={product} />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{product.title}</span>
+                      {current ? <span className="block text-[12px] text-[#616161]">נבחר למאמר</span> : null}
+                    </span>
+                    <span dir="ltr" className="text-[13px] tabular-nums text-[#616161]">{formatMoney0(product.price)}</span>
+                  </button>
+                );
+              }) : <div className="px-3 py-10 text-center text-sm text-[#616161]">אין מוצר תואם</div>}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      ) : null}
+    </div>
+  );
 }
 
 function isAuthorLine(line: string) {
@@ -320,13 +451,8 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
 
             <div className="border-t border-[#ebebeb] pt-4">
               <span className="mb-1.5 block text-[13px] font-semibold">מוצר מומלץ</span>
-              <p className="m-0 mb-2 text-[13px] text-[#616161]">לא חובה. אם בוחרים מוצר, הוא מופיע ככרטיס בסוף המאמר.</p>
-              <select value={draft.productId} onChange={(event) => patch({ productId: event.target.value, productNote: event.target.value ? draft.productNote : "" })} className={selectField} style={{ backgroundImage: chevron, backgroundRepeat: "no-repeat", backgroundPosition: "left 10px center", backgroundSize: "14px" }}>
-                <option value="">בלי מוצר</option>
-                {listCatalogProducts().filter((product) => product.sourceId).map((product) => (
-                  <option key={product.sourceId} value={product.sourceId}>{product.title}</option>
-                ))}
-              </select>
+              <p className="m-0 mb-2 text-[13px] text-[#616161]">לא חובה. חפשו מוצר ובחרו אותו מההשלמה, והוא יופיע ככרטיס בסוף המאמר.</p>
+              <ProductSearch productId={draft.productId} onPick={(productId) => patch({ productId, productNote: productId ? draft.productNote : "" })} />
               {draft.productId ? (
                 <textarea value={draft.productNote} onChange={(event) => patch({ productNote: event.target.value })} rows={2} placeholder="משפט קצר ליד המוצר. אם נשאר ריק, יוצג תיאור המוצר" className="mt-2 w-full rounded-[10px] border border-[#c9c9c9] bg-white px-3 py-2 text-sm outline-none placeholder:text-[#8a8a8a]" />
               ) : null}
