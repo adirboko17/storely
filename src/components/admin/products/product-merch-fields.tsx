@@ -7,6 +7,7 @@ import { OLI_ARTICLES } from "@/data/oli-articles";
 import { isVideoMedia, listCatalogProducts, releaseProductMedia, stageProductMedia } from "@/data/mock/catalog-session";
 import { currencySymbol } from "@/lib/formatting/currency";
 import { formatMoney } from "@/lib/formatting/money";
+import { fitVideo, needsVideoFit, VideoFitError } from "@/lib/media/fit-video";
 import type { ProductFaqTag, ProductPage, ProductPanel, ProductPanelLink } from "@/types/commerce";
 
 const field = "h-9 w-full rounded-lg border border-[#d0d0d0] bg-white px-3 text-sm text-ink outline-none transition-[border-color,box-shadow] placeholder:text-[#9b9b9b] hover:border-[#a8a8a8] focus:border-[#303030] focus:shadow-[0_0_0_3px_rgba(48,48,48,.1)]";
@@ -247,27 +248,31 @@ export function ProductMerchFields({
               untitled="המלצה בלי שם"
               empty="עדיין אין המלצות."
               summary={(review) => ({ title: [review.name, review.title].filter((part) => part.trim()).join(" · "), sub: review.body })}
-              adds={[{ label: "הוספת המלצה", make: () => ({ name: "", title: "", body: "", date: "", verified: false }) }]}
+              adds={[{ label: "הוספת המלצה", make: () => ({ name: "", title: "", body: "", date: "", rating: 5, verified: false }) }]}
               render={(review, update) => (
                 <>
                   <div className="grid gap-3 min-[700px]:grid-cols-2">
                     <Field label="שם">
                       <input value={review.name} maxLength={80} onChange={(event) => update({ name: event.target.value })} placeholder="לדוגמה: נועה" className={field} />
                     </Field>
-                    <Field label="תאריך">
+                    <Field label="תאריך" hint="לא חובה">
                       <input value={review.date} maxLength={40} onChange={(event) => update({ date: event.target.value })} placeholder="22 ביוני" className={field} />
                     </Field>
                   </div>
-                  <Field label="כותרת קצרה">
+                  <StarPicker value={review.rating} onChange={(rating) => update({ rating })} />
+                  <Field label="כותרת קצרה" hint="לא חובה">
                     <input value={review.title} maxLength={120} onChange={(event) => update({ title: event.target.value })} placeholder="לדוגמה: אין לי אף סימן מתיחה" className={field} />
                   </Field>
                   <Field label="ההמלצה">
                     <TextArea value={review.body} max={1000} onChange={(body) => update({ body })} placeholder="מה הלקוחה כתבה" />
                   </Field>
-                  <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
-                    <input type="checkbox" checked={review.verified} onChange={(event) => update({ verified: event.target.checked })} className="size-4 accent-[#303030]" />
-                    רכישה מאומתת
-                  </label>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
+                      <input type="checkbox" checked={review.verified} onChange={(event) => update({ verified: event.target.checked })} className="size-4 accent-[#303030]" />
+                      רכישה מאומתת
+                    </label>
+                    {review.verified ? <VerifiedCustomer /> : null}
+                  </div>
                 </>
               )}
             />
@@ -521,6 +526,42 @@ function IconButton({ label, disabled, danger, onClick, children }: { label: str
   );
 }
 
+function StarPicker({ value, onChange }: { value: number; onChange: (rating: number) => void }) {
+  const rating = Number.isInteger(value) && value >= 1 && value <= 5 ? value : 5;
+  return (
+    <div>
+      <span className="mb-1.5 block text-[13px] font-semibold text-[#303030]">כוכבים</span>
+      <div dir="ltr" className="flex w-fit gap-0.5" role="radiogroup" aria-label="דירוג כוכבים">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            role="radio"
+            aria-checked={rating === star}
+            aria-label={`${star} מתוך 5`}
+            className={`grid size-8 place-items-center border-0 bg-transparent text-[22px] leading-none transition-colors ${star <= rating ? "text-[#e0a100]" : "text-[#d0d0d0] hover:text-[#b9b9b9]"}`}
+            onClick={() => onChange(star)}
+          >
+            ★
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function VerifiedCustomer() {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1a1a1a]">
+      <svg width="16" height="16" viewBox="0 0 22 22" aria-hidden="true" className="shrink-0">
+        <circle cx="11" cy="11" r="11" fill="#0095F6" />
+        <path d="M6.2 11.3 9.4 14.5 15.8 7.6" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      לקוחה מאומתת
+    </span>
+  );
+}
+
 function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <label className="block">
@@ -652,49 +693,86 @@ function PanelLinkEditor({ link, onChange }: { link?: ProductPanelLink; onChange
   );
 }
 
+function megabytes(bytes: number) {
+  return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+}
+
 function releaseStory(url: string) {
   if (url.startsWith("blob:") || url.startsWith("data:video/")) releaseProductMedia(url);
 }
 
 function StoryVideo({ story, onChange }: { story: ProductPage["stories"][number]; onChange: (url: string) => void }) {
   const [error, setError] = useState("");
+  const [note, setNote] = useState("");
+  const [progress, setProgress] = useState<number | null>(null);
   const video = isVideoMedia(story.url);
+
+  async function pick(file: File) {
+    if (file.type !== "video/mp4" && file.type !== "video/webm" && file.type !== "video/quicktime") {
+      setError("אפשר להעלות סרטון mp4, webm או mov");
+      return;
+    }
+    setError("");
+    setNote("");
+    const original = file.size;
+    let ready = file;
+    if (needsVideoFit(file)) {
+      setProgress(0);
+      try {
+        ready = await fitVideo(file, setProgress);
+      } catch (failure) {
+        setError(failure instanceof VideoFitError ? failure.message : "כיווץ הסרטון נכשל.");
+        return;
+      } finally {
+        setProgress(null);
+      }
+      setNote(`הסרטון כווץ מ־${megabytes(original)} ל־${megabytes(ready.size)}.`);
+    }
+    const url = URL.createObjectURL(ready);
+    releaseStory(story.url);
+    stageProductMedia(url, ready);
+    onChange(url);
+  }
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-[13px] font-semibold text-[#303030]">סרטון</span>
+      <span className="flex items-baseline gap-2">
+        <span className="text-[13px] font-semibold text-[#303030]">סרטון</span>
+        <span className="text-xs text-ink-secondary">סרטון מעל 50MB יכווץ אוטומטית</span>
+      </span>
       {video ? (
         <video src={story.url} muted playsInline controls className="h-56 w-32 rounded-xl bg-[#f3e6de] object-cover" />
       ) : story.url ? (
         <p className="m-0 text-sm text-ink-secondary">יש כאן קישור ישן. העלאת סרטון תחליף אותו.</p>
       ) : null}
-      <label className={`${chip} w-fit cursor-pointer`}>
-        <Icon name="plus" size={14} strokeWidth={2} />
-        {video || story.url ? "החלפת סרטון" : "העלאת סרטון"}
-        <input
-          type="file"
-          accept="video/mp4,video/webm,video/quicktime"
-          className="hidden"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            event.target.value = "";
-            if (!file) return;
-            if (file.type !== "video/mp4" && file.type !== "video/webm" && file.type !== "video/quicktime") {
-              setError("אפשר להעלות סרטון mp4, webm או mov");
-              return;
-            }
-            if (file.size > 50 * 1024 * 1024) {
-              setError("סרטון יכול להיות עד 50MB");
-              return;
-            }
-            const url = URL.createObjectURL(file);
-            releaseStory(story.url);
-            stageProductMedia(url, file);
-            setError("");
-            onChange(url);
-          }}
-        />
-      </label>
+      {progress !== null ? (
+        <div className="flex max-w-sm flex-col gap-1.5 rounded-xl border border-[#e3e3e3] bg-[#fafafa] p-3">
+          <span className="flex items-center justify-between text-[13px]">
+            <span className="font-semibold text-[#303030]">מכווץ את הסרטון…</span>
+            <span className="text-ink-secondary">{Math.round(progress * 100)}%</span>
+          </span>
+          <span className="block h-1.5 overflow-hidden rounded-full bg-[#e6e6e6]">
+            <span className="block h-full rounded-full bg-[#303030] transition-[width] duration-300" style={{ width: `${Math.max(2, progress * 100)}%` }} />
+          </span>
+          <span className="text-xs text-ink-secondary">זה יכול לקחת דקה או שתיים. השאירו את הדף פתוח.</span>
+        </div>
+      ) : (
+        <label className={`${chip} w-fit cursor-pointer`}>
+          <Icon name="plus" size={14} strokeWidth={2} />
+          {video || story.url ? "החלפת סרטון" : "העלאת סרטון"}
+          <input
+            type="file"
+            accept="video/mp4,video/webm,video/quicktime"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) void pick(file);
+            }}
+          />
+        </label>
+      )}
+      {note ? <p className="m-0 text-[13px] text-[#0c5132]">{note}</p> : null}
       {error ? <p className="m-0 text-sm text-[#8e1f0b]">{error}</p> : null}
     </div>
   );

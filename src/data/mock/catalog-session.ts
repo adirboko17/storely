@@ -51,6 +51,7 @@ function cloneProduct(product: Product): Product {
     options: product.options?.map((option) => ({ name: option.name, values: [...option.values] })),
     quantities: product.quantities ? [...product.quantities] : undefined,
     bundles: product.bundles?.map((bundle) => ({ ...bundle })),
+    headline: product.headline ? { ...product.headline } : undefined,
     page: product.page
       ? {
           highlights: [...(product.page.highlights ?? [])],
@@ -310,6 +311,7 @@ async function persistProduct(product: Product, previousStories: ProductStory[] 
       bundles: product.bundles ?? [],
       page: nextPage,
       badge: { label: (product.badge ?? "").trim().slice(0, 24), hidden: product.badgeHidden === true },
+      headline: product.headline ?? { mode: "single", subtitle: "" },
     },
   });
   if (merchError) {

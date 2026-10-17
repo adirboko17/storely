@@ -1,4 +1,4 @@
-import { emptyProductPage, type ProductBundle, type ProductFaq, type ProductFaqTag, type ProductIngredient, type ProductPage, type ProductPanel, type ProductPanelLink, type ProductReview, type ProductStep, type ProductStory } from "@/types/commerce";
+import { emptyProductPage, type ProductBundle, type ProductFaq, type ProductFaqTag, type ProductHeadline, type ProductIngredient, type ProductPage, type ProductPanel, type ProductPanelLink, type ProductReview, type ProductStep, type ProductStory } from "@/types/commerce";
 
 function record(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
@@ -16,6 +16,15 @@ export function parseProductMerch(value: unknown) {
     page: parsePage(row?.page),
     badge: text(badge?.label).slice(0, 24),
     badgeHidden: badge?.hidden === true,
+    headline: parseHeadline(row?.headline),
+  };
+}
+
+export function parseHeadline(value: unknown): ProductHeadline {
+  const row = record(value);
+  return {
+    mode: row?.mode === "split" ? "split" : "single",
+    subtitle: text(row?.subtitle).replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 120),
   };
 }
 
@@ -73,6 +82,7 @@ export function parsePage(value: unknown): ProductPage {
       title: text(item.title).slice(0, 120),
       body,
       date: text(item.date).slice(0, 40),
+      rating: starRating(item.rating),
       verified: item.verified === true,
     } satisfies ProductReview];
   });
@@ -83,6 +93,11 @@ export function parsePage(value: unknown): ProductPage {
     return q && a && tag ? [{ q, a, tag } satisfies ProductFaq] : [];
   });
   return page;
+}
+
+function starRating(value: unknown) {
+  const rating = Number(value);
+  return Number.isInteger(rating) && rating >= 1 && rating <= 5 ? rating : 5;
 }
 
 function faqTag(value: string): ProductFaqTag | null {

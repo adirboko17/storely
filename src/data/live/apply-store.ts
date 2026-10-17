@@ -83,6 +83,7 @@ function mapProduct(value: unknown, index: number): Product {
     page: merch.page,
     badge: merch.badge || undefined,
     badgeHidden: merch.badgeHidden || undefined,
+    headline: merch.headline,
   };
 }
 

@@ -6,9 +6,11 @@ export type ProductPanel = { title: string; body: string; link?: ProductPanelLin
 export type ProductStory = { handle: string; url: string };
 export type ProductStep = { title: string; body: string };
 export type ProductIngredient = { en: string; he: string; body: string };
-export type ProductReview = { name: string; title: string; body: string; date: string; verified: boolean };
+export type ProductReview = { name: string; title: string; body: string; date: string; rating: number; verified: boolean };
 export type ProductFaqTag = "use" | "ing" | "post" | "buy";
 export type ProductFaq = { q: string; a: string; tag: ProductFaqTag };
+export type ProductHeadlineMode = "single" | "split";
+export type ProductHeadline = { mode: ProductHeadlineMode; subtitle: string };
 
 export type ProductPage = {
   highlights: string[];
@@ -56,6 +58,7 @@ export type Product = {
   page?: ProductPage;
   badge?: string;
   badgeHidden?: boolean;
+  headline?: ProductHeadline;
 };
 
 export type Customer = {

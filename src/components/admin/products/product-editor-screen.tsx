@@ -28,7 +28,8 @@ import { getStoreIdentity, getStoreIdentityVersion, subscribeStoreIdentity } fro
 import { parseBundles, parsePage } from "@/lib/catalog/merch";
 import { PRODUCT_STATUS, slugifyHandle } from "@/lib/catalog/present";
 import { formatMoney } from "@/lib/formatting/money";
-import { emptyProductPage, OLI_STORE_OWNER, type Product, type ProductPage, type ProductStatus } from "@/types/commerce";
+import { fitVideo, needsVideoFit, VideoFitError } from "@/lib/media/fit-video";
+import { emptyProductPage, OLI_STORE_OWNER, type Product, type ProductHeadlineMode, type ProductPage, type ProductStatus } from "@/types/commerce";
 
 const field = "h-[34px] w-full rounded-[10px] border border-[#c9c9c9] bg-white px-3 text-sm text-ink outline-none";
 const card = "rounded-xl border border-[#d9d9d9] bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,.06)]";
@@ -84,6 +85,8 @@ type Draft = {
   page: ProductPage;
   badge: string;
   badgeHidden: boolean;
+  headlineMode: ProductHeadlineMode;
+  headlineSubtitle: string;
 };
 
 function selectedCategories(product: Product | null) {
@@ -126,6 +129,8 @@ function fromProduct(product: Product | null): Draft {
     bundles: (product?.bundles ?? []).map((bundle) => ({ label: bundle.label, qty: String(bundle.qty), price: bundle.price.toFixed(2) })),
     badge: product?.badge ?? "",
     badgeHidden: product?.badgeHidden === true,
+    headlineMode: product?.headline?.mode === "split" ? "split" : "single",
+    headlineSubtitle: product?.headline?.subtitle ?? "",
     page: product?.page
       ? {
           highlights: [...(product.page.highlights ?? [])],
@@ -172,6 +177,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [fitProgress, setFitProgress] = useState<number | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const [fileDrag, setFileDrag] = useState(false);
@@ -327,6 +333,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
       page: getStoreIdentity().ownerEmail.toLowerCase() === OLI_STORE_OWNER ? parsePage(draft.page) : product?.page,
       badge: draft.badge.trim().slice(0, 24),
       badgeHidden: draft.badgeHidden,
+      headline: { mode: draft.headlineMode, subtitle: draft.headlineSubtitle },
     };
     void saveCatalogProduct(savedProduct)
       .then((stored) => {
@@ -399,6 +406,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
     return true;
   }
   const titleError = errors.some((item) => item.includes("כותרת"));
+  const splitTitle = draft.headlineMode === "split";
   const priceError = errors.some((item) => item.includes("מחיר"));
   const variantLabels = optionLabels(draft.options);
   const hasVariants = variantLabels.length > 0;
@@ -412,19 +420,31 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
       if (selected.length) toast("אפשר להעלות תמונה או סרטון mp4, webm או mov");
       return;
     }
-    const tooLarge = videos.find((file) => file.size > 50 * 1024 * 1024);
-    if (tooLarge) {
-      toast("סרטון יכול להיות עד 50MB");
-      return;
-    }
     setUploading(true);
     try {
       const urls = (await Promise.all(images.map(readImageFile))).filter(Boolean);
-      const clips = videos.map((file) => {
+      const ready: File[] = [];
+      for (const file of videos) {
+        if (!needsVideoFit(file)) {
+          ready.push(file);
+          continue;
+        }
+        toast("הסרטון גדול מ־50MB, מכווצים אותו…");
+        setFitProgress(0);
+        try {
+          ready.push(await fitVideo(file, setFitProgress));
+        } catch (failure) {
+          toast(failure instanceof VideoFitError ? failure.message : "כיווץ הסרטון נכשל.");
+        } finally {
+          setFitProgress(null);
+        }
+      }
+      const clips = ready.map((file) => {
         const url = URL.createObjectURL(file);
         stageProductMedia(url, file);
         return url;
       });
+      if (!urls.length && !clips.length) return;
       const added = [...urls, ...clips];
       setDraft((current) => ({ ...current, media: [...current.media, ...added] }));
       setErrors([]);
@@ -489,11 +509,44 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
           ) : null}
 
           <div className={`${card} flex flex-col gap-[18px]`}>
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-semibold">כותרת</span>
-              <input value={draft.title} onChange={(event) => patch({ title: event.target.value, seoTitle: draft.seoTitle === saved.seoTitle || draft.seoTitle === draft.title ? event.target.value : draft.seoTitle, handle: slugifyHandle(event.target.value) })} placeholder="לדוגמה: ספל קרמיקה עבודת יד" className={field} style={{ borderColor: titleError ? "#e51c00" : "#c9c9c9", background: titleError ? "#fff4f4" : "#fff" }} />
-              {titleError ? <div className="mt-1.5 text-[13px] text-[#8e1f0b]">יש להזין כותרת למוצר</div> : null}
-            </label>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-semibold">{splitTitle ? "כותרת גדולה" : "כותרת"}</span>
+                <div role="radiogroup" aria-label="סוג הכותרת" className="flex rounded-lg bg-[#f1f1f1] p-0.5">
+                  {(["single", "split"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      role="radio"
+                      aria-checked={draft.headlineMode === mode}
+                      className={`h-7 rounded-md border-0 px-2.5 text-[13px] ${draft.headlineMode === mode ? "bg-white font-semibold text-[#1a1a1a] shadow-[0_1px_2px_rgba(0,0,0,.12)]" : "bg-transparent font-medium text-[#616161]"}`}
+                      onClick={() => patch({ headlineMode: mode })}
+                    >
+                      {mode === "single" ? "כותרת אחת" : "כותרת גדולה והמשך"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <label className="block">
+                {splitTitle ? <span className="mb-1.5 block text-xs text-ink-secondary">השם בכרטיסי המוצר, בסל, בפירורי לחם ובקישור</span> : null}
+                <input aria-label={splitTitle ? "כותרת גדולה" : "כותרת"} value={draft.title} onChange={(event) => patch({ title: event.target.value, seoTitle: draft.seoTitle === saved.seoTitle || draft.seoTitle === draft.title ? event.target.value : draft.seoTitle, handle: slugifyHandle(event.target.value) })} placeholder="לדוגמה: אולילסטיק" className={field} style={{ borderColor: titleError ? "#e51c00" : "#c9c9c9", background: titleError ? "#fff4f4" : "#fff" }} />
+                {titleError ? <div className="mt-1.5 text-[13px] text-[#8e1f0b]">יש להזין כותרת למוצר</div> : null}
+              </label>
+              {splitTitle ? (
+                <label className="block">
+                  <span className="mb-1.5 flex items-baseline justify-between gap-2">
+                    <span className="text-sm font-semibold">המשך כותרת</span>
+                    <span className="text-xs text-ink-secondary">{draft.headlineSubtitle.length} / 120</span>
+                  </span>
+                  <input value={draft.headlineSubtitle} maxLength={120} onChange={(event) => patch({ headlineSubtitle: event.target.value.replace(/[\r\n]/g, "") })} placeholder="למניעה וטשטוש סימני מתיחה" className={field} />
+                  <span className="mt-1.5 block text-xs text-ink-secondary">מופיע רק בעמוד המוצר, מתחת לכותרת הגדולה. אם נשאר ריק, מוצגת רק הכותרת הגדולה.</span>
+                </label>
+              ) : null}
+              <div className="rounded-xl bg-[#f6f6f6] px-4 py-3.5">
+                <div className="text-[26px] leading-8 font-semibold text-[#1a1a1a]">{draft.title.trim() || "כותרת המוצר"}</div>
+                {splitTitle && draft.headlineSubtitle.trim() ? <div className="mt-1 text-[15px] leading-6 text-[#4a4a4a]">{draft.headlineSubtitle.trim()}</div> : null}
+              </div>
+            </div>
             <div>
               <span className="mb-1.5 block text-sm font-semibold">תיאור</span>
               <div className="overflow-hidden rounded-[10px] border border-[#c9c9c9]">
@@ -582,7 +635,17 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
                     <button type="button" aria-label="הסרת תמונה" className="absolute end-1.5 top-1.5 grid size-6 place-items-center rounded-md border-0 bg-white text-sm opacity-0 shadow-[0_0_0_1px_rgba(0,0,0,.08)] group-hover:opacity-100" onClick={() => removeMedia(index)}>×</button>
                   </div>
                 ))}
-                {uploading ? <span className="grid size-[116px] place-items-center rounded-xl bg-[#f1f1f1]"><span className="size-5 animate-spin rounded-full border-2 border-black/15 border-t-[#303030]" /></span> : null}
+                {uploading ? (
+                  <span className="flex size-[116px] flex-col items-center justify-center gap-2 rounded-xl bg-[#f1f1f1] px-3 text-center">
+                    <span className="size-5 animate-spin rounded-full border-2 border-black/15 border-t-[#303030]" />
+                    {fitProgress !== null ? (
+                      <>
+                        <span className="text-xs font-semibold text-[#303030]">מכווץ {Math.round(fitProgress * 100)}%</span>
+                        <span className="block h-1 w-full overflow-hidden rounded-full bg-black/10"><span className="block h-full rounded-full bg-[#303030] transition-[width] duration-300" style={{ width: `${Math.max(2, fitProgress * 100)}%` }} /></span>
+                      </>
+                    ) : null}
+                  </span>
+                ) : null}
                 <button type="button" aria-label="הוספת מדיה" onClick={() => fileRef.current?.click()} className="grid size-[116px] place-items-center rounded-xl border-[1.5px] border-dashed border-[#c9c9c9] bg-[#fafafa] text-2xl text-[#616161]">+</button>
               </div>
               <div className="mt-1.5 text-[13px] text-ink-secondary">{draft.media.length > 1 ? "גררו תמונה או סרטון למקום הראשון כדי להפוך אותו לראשי." : "אפשר לבחור תמונות וסרטונים, או לגרור אותם לכאן."}</div>
