@@ -5,7 +5,9 @@ import { notFound, useRouter } from "next/navigation";
 import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
-import { deletePost, getPost, getPostsVersion, nextPostId, savePost, subscribePosts, type Post } from "@/data/mock/content-session";
+import { getCatalogVersion, listCatalogProducts, subscribeCatalog } from "@/data/mock/catalog-session";
+import { deletePost, getPost, getPostsVersion, nextPostId, postCover, postHasOwnImage, savePost, subscribePosts, type Post } from "@/data/mock/content-session";
+import { getSettings, getSettingsVersion, subscribeSettings } from "@/data/mock/settings-session";
 import { slugifyHandle } from "@/lib/catalog/present";
 
 const field = "h-[34px] w-full rounded-[10px] border border-[#c9c9c9] bg-white px-3 text-sm text-[#303030] outline-none placeholder:text-[#8a8a8a]";
@@ -22,6 +24,9 @@ function blank(id: number): Post {
     excerpt: "",
     body: "",
     author: "",
+    updated: "",
+    productId: "",
+    productNote: "",
     blog: "חדשות",
     visible: false,
     tags: [],
@@ -34,14 +39,46 @@ function blank(id: number): Post {
   };
 }
 
+function isAuthorLine(line: string) {
+  return line.length < 140 && /מיילדת|גינקולוג|פיזיותרפ|מנהל מחלק|מנהל החטיב|רופא|נטע צמח|אלינה /.test(line) && !line.endsWith("?");
+}
+
 function hydrate(post: Post): Post {
-  return { ...blank(post.id), ...post, tags: [...post.tags] };
+  const next = { ...blank(post.id), ...post, tags: [...post.tags] };
+  if (next.author.trim() || next.updated.trim()) return next;
+  const lines = next.body.split("\n");
+  let cursor = 0;
+  const lead: string[] = [];
+  while (cursor < lines.length && lines[cursor].trim() && !lines[cursor].trim().startsWith("עודכן") && !isAuthorLine(lines[cursor].trim())) {
+    if (lines[cursor].trim().length > 80 && lines[cursor].trim().endsWith("?")) break;
+    lead.push(lines[cursor].trim());
+    cursor += 1;
+    if (lead.join(" ").length > 500) break;
+  }
+  let author = "";
+  let updated = "";
+  while (cursor < lines.length && (!lines[cursor].trim() || lines[cursor].trim().startsWith("עודכן") || isAuthorLine(lines[cursor].trim()))) {
+    const line = lines[cursor].trim();
+    if (line.startsWith("עודכן")) updated = line.replace(/^עודכן:\s*/, "");
+    else if (line) author = author ? `${author} · ${line}` : line;
+    cursor += 1;
+  }
+  if (!author && !updated) return next;
+  return {
+    ...next,
+    excerpt: lead.join(" ") || next.excerpt,
+    author,
+    updated,
+    body: lines.slice(cursor).join("\n").trim(),
+  };
 }
 
 export function PostEditorScreen({ postId }: { postId: number | null }) {
   const router = useRouter();
   const { toast } = useAdmin();
   useSyncExternalStore(subscribePosts, getPostsVersion, () => 0);
+  useSyncExternalStore(subscribeSettings, getSettingsVersion, () => 0);
+  useSyncExternalStore(subscribeCatalog, getCatalogVersion, () => 0);
   const existing = postId == null ? null : getPost(postId);
   const missing = postId != null && !existing;
   const baseline = existing ? hydrate(existing) : blank(0);
@@ -51,9 +88,7 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
   const [tag, setTag] = useState("");
-  const [excerptOpen, setExcerptOpen] = useState(false);
   const [seoOpen, setSeoOpen] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
   const [block, setBlock] = useState("פסקה");
   const [align, setAlign] = useState<"start" | "center" | "end">("start");
   const [code, setCode] = useState(false);
@@ -65,7 +100,6 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
     setBound(postId);
     setDraft(baseline);
     setSaved(baseline);
-    setExcerptOpen(false);
     setSeoOpen(false);
   }
 
@@ -148,7 +182,6 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
   useUnsavedEditor(dirty, saving, save, () => {
     setDraft(saved);
     setError(false);
-    setExcerptOpen(false);
     setSeoOpen(false);
   });
   if (missing) notFound();
@@ -193,8 +226,41 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
               {error ? <span className="mt-1.5 block text-[13px] font-normal text-[#8e1f0b]">יש להזין כותרת</span> : null}
             </label>
 
+            <label className="block">
+              <span className="mb-1.5 block text-[13px] font-semibold">פסקה מתחת לכותרת</span>
+              <textarea value={draft.excerpt} onChange={(event) => patch({ excerpt: event.target.value })} rows={4} placeholder="הפסקה שמופיעה מתחת לכותרת, לפני המחבר" className="w-full rounded-[10px] border border-[#c9c9c9] bg-white px-3 py-2 text-sm leading-6 outline-none placeholder:text-[#8a8a8a]" />
+            </label>
+
+            <div className="grid gap-3 min-[700px]:grid-cols-2">
+              <label>
+                <span className="mb-1.5 block text-[13px] font-semibold">מחבר</span>
+                <input value={draft.author} onChange={(event) => patch({ author: event.target.value })} placeholder="לדוגמה: פרופ׳ אייל שיינר" className={field} />
+              </label>
+              <label>
+                <span className="mb-1.5 block text-[13px] font-semibold">תאריך</span>
+                <input value={draft.updated} onChange={(event) => patch({ updated: event.target.value })} placeholder="13.06.2023" className={field} />
+              </label>
+            </div>
+
             <div>
-              <span className="mb-1.5 block text-[13px] font-semibold">תוכן</span>
+              <span className="mb-1.5 block text-[13px] font-semibold">תמונה</span>
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(event) => { readImage(event.target.files?.[0]); event.target.value = ""; }} />
+              {postCover(draft.image, getSettings().logo) ? (
+                <div className="relative overflow-hidden rounded-xl border border-[#e3e3e3] bg-[#f6f6f6]">
+                  <img src={postCover(draft.image, getSettings().logo)} alt="" className={"h-[220px] w-full " + (postHasOwnImage(draft.image) ? "object-cover" : "object-contain p-8")} />
+                  <div className="absolute end-2 top-2 flex gap-2">
+                    <button type="button" className="h-7 rounded-lg border-0 bg-white px-2.5 text-[13px] font-semibold shadow-[0_0_0_1px_rgba(0,0,0,.08)]" onClick={() => fileRef.current?.click()}>החלפה</button>
+                    {postHasOwnImage(draft.image) ? <button type="button" className="h-7 rounded-lg border-0 bg-white px-2.5 text-[13px] font-semibold shadow-[0_0_0_1px_rgba(0,0,0,.08)]" onClick={() => patch({ image: "" })}>הסרה</button> : null}
+                  </div>
+                  {postHasOwnImage(draft.image) ? null : <span className="absolute start-2 top-2 rounded-md bg-white px-2 py-1 text-[12px] font-semibold shadow-[0_0_0_1px_rgba(0,0,0,.08)]">לוגו החנות</span>}
+                </div>
+              ) : (
+                <button type="button" className="h-9 rounded-lg border border-dashed border-[#b5b5b5] bg-white px-3 text-sm" onClick={() => fileRef.current?.click()}>הוספת תמונה</button>
+              )}
+            </div>
+
+            <div>
+              <span className="mb-1.5 block text-[13px] font-semibold">גוף המאמר</span>
               <div className="overflow-hidden rounded-[10px] border border-[#c9c9c9] bg-white">
                 <div className="flex flex-wrap items-center gap-0.5 border-b border-[#ebebeb] px-1 py-1">
                   <button type="button" aria-label="כתיבה בעזרת העוזר" className="grid size-7 place-items-center rounded-md border-0 bg-transparent text-[#5c2e91] hover:bg-[#f1f1f1]" onClick={() => setBody(draft.body || "הכינו שולחן חג עם ספלים, קערות ומפיות מהסטודיו. כל פריט נעשה ביד ואפשר לשלב אותו עם כלי ההגשה הקיימים.", true)}>
@@ -251,30 +317,21 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
                 />
               </div>
             </div>
-          </div>
 
-          <section>
-            <div className="mb-2 flex items-center">
-              <h2 className="m-0 flex-1 text-[13px] font-semibold">תקציר</h2>
-              <button type="button" aria-label="עריכת תקציר" className="grid size-7 place-items-center rounded-md border-0 bg-transparent text-[#4a4a4a] hover:bg-[#f1f1f1]" onClick={() => setExcerptOpen((open) => !open)}>
-                <PencilIcon />
-              </button>
+            <div className="border-t border-[#ebebeb] pt-4">
+              <span className="mb-1.5 block text-[13px] font-semibold">מוצר מומלץ</span>
+              <p className="m-0 mb-2 text-[13px] text-[#616161]">לא חובה. אם בוחרים מוצר, הוא מופיע ככרטיס בסוף המאמר.</p>
+              <select value={draft.productId} onChange={(event) => patch({ productId: event.target.value, productNote: event.target.value ? draft.productNote : "" })} className={selectField} style={{ backgroundImage: chevron, backgroundRepeat: "no-repeat", backgroundPosition: "left 10px center", backgroundSize: "14px" }}>
+                <option value="">בלי מוצר</option>
+                {listCatalogProducts().filter((product) => product.sourceId).map((product) => (
+                  <option key={product.sourceId} value={product.sourceId}>{product.title}</option>
+                ))}
+              </select>
+              {draft.productId ? (
+                <textarea value={draft.productNote} onChange={(event) => patch({ productNote: event.target.value })} rows={2} placeholder="משפט קצר ליד המוצר. אם נשאר ריק, יוצג תיאור המוצר" className="mt-2 w-full rounded-[10px] border border-[#c9c9c9] bg-white px-3 py-2 text-sm outline-none placeholder:text-[#8a8a8a]" />
+              ) : null}
             </div>
-            {excerptOpen ? (
-              <textarea
-                autoFocus
-                value={draft.excerpt}
-                onChange={(event) => patch({ excerpt: event.target.value })}
-                rows={3}
-                placeholder="הוסיפו סיכום של הפוסט שיופיע בדף הבית או בבלוג."
-                className="w-full rounded-[10px] border border-[#8a8a8a] bg-white px-3 py-2.5 text-sm leading-5 text-[#303030] outline-none placeholder:text-[#616161]"
-              />
-            ) : (
-              <button type="button" onClick={() => setExcerptOpen(true)} className="w-full rounded-[10px] border border-[#c9c9c9] bg-white px-3 py-2.5 text-start text-sm leading-5">
-                <span className={draft.excerpt ? "text-[#303030]" : "text-[#616161]"}>{draft.excerpt || "הוסיפו סיכום של הפוסט שיופיע בדף הבית או בבלוג."}</span>
-              </button>
-            )}
-          </section>
+          </div>
 
           <section>
             <div className="mb-2 flex items-center">
@@ -335,39 +392,8 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
             </label>
           </section>
 
-          <section className="border-b border-[#ebebeb] pb-4">
-            <h2 className="m-0 mb-2 text-[13px] font-semibold">תמונה</h2>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(event) => { readImage(event.target.files?.[0]); event.target.value = ""; }} />
-            {draft.image ? (
-              <div className="relative overflow-hidden rounded-xl border border-[#e3e3e3]">
-                <img src={draft.image} alt="" className="h-[160px] w-full object-cover" />
-                <button type="button" className="absolute end-2 top-2 h-7 rounded-lg border-0 bg-white px-2.5 text-[13px] font-semibold shadow-[0_0_0_1px_rgba(0,0,0,.08)]" onClick={() => patch({ image: "" })}>הסרה</button>
-              </div>
-            ) : (
-              <div
-                onDragOver={(event) => { event.preventDefault(); setDragOver(true); }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={(event) => { event.preventDefault(); setDragOver(false); readImage(event.dataTransfer.files?.[0]); }}
-                className="grid min-h-[148px] place-items-center rounded-xl border border-dashed px-4 py-6 text-center"
-                style={{ borderColor: dragOver ? "#303030" : "#b5b5b5", background: dragOver ? "#f7f7f7" : "transparent" }}
-              >
-                <div>
-                  <button type="button" className="h-7 rounded-lg border-0 bg-[#e3e3e3] px-3 text-[13px] font-medium text-[#303030]" onClick={() => fileRef.current?.click()}>הוספת תמונה</button>
-                  <div className="mt-1.5 text-[13px] text-[#616161]">או גררו תמונה להעלאה</div>
-                </div>
-              </div>
-            )}
-          </section>
-
           <section className="flex flex-col gap-3">
             <h2 className="m-0 text-[13px] font-medium text-[#616161]">ארגון</h2>
-            <label>
-              <span className="mb-1.5 block text-[13px] font-semibold">מחבר</span>
-              <span className="flex h-[34px] items-center gap-2 rounded-[10px] border border-[#c9c9c9] bg-white px-2">
-                <span className="grid size-5 shrink-0 place-items-center rounded bg-[#ebebeb] text-[11px] font-semibold text-[#303030]">{draft.author.trim().slice(0, 1) || "מ"}</span>
-                <input value={draft.author} onChange={(event) => patch({ author: event.target.value })} className="h-full min-w-0 flex-1 border-0 bg-transparent text-sm outline-none" />
-              </span>
-            </label>
             <label>
               <span className="mb-1.5 block text-[13px] font-semibold">בלוג</span>
               <select value={draft.blog} onChange={(event) => patch({ blog: event.target.value })} className={selectField} style={{ backgroundImage: chevron, backgroundRepeat: "no-repeat", backgroundPosition: "left 10px center", backgroundSize: "14px" }}>

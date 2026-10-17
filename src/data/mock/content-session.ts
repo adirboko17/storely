@@ -6,6 +6,9 @@ export type Post = {
   excerpt: string;
   body: string;
   author: string;
+  updated: string;
+  productId: string;
+  productNote: string;
   blog: string;
   visible: boolean;
   tags: string[];
@@ -45,6 +48,15 @@ function copyPost(post: Post): Post {
     ...post,
     tags: [...post.tags],
   };
+}
+
+export function postHasOwnImage(image: string) {
+  const value = image.trim();
+  return value.startsWith("https://") || value.startsWith("http://") || value.startsWith("data:image/");
+}
+
+export function postCover(image: string, logo: string) {
+  return postHasOwnImage(image) ? image : logo.trim();
 }
 
 export function listPosts() {

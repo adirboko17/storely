@@ -4,13 +4,16 @@ import { useRouter } from "next/navigation";
 import { useSyncExternalStore } from "react";
 import { darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
-import { getPostsVersion, listPosts, subscribePosts } from "@/data/mock/content-session";
+import { getPostsVersion, listPosts, postCover, postHasOwnImage, subscribePosts } from "@/data/mock/content-session";
+import { getSettings, getSettingsVersion, subscribeSettings } from "@/data/mock/settings-session";
 
 export function PostsScreen() {
   const router = useRouter();
   const { toast } = useAdmin();
   useSyncExternalStore(subscribePosts, getPostsVersion, () => 0);
+  useSyncExternalStore(subscribeSettings, getSettingsVersion, () => 0);
   const posts = listPosts();
+  const logo = getSettings().logo;
 
   return (
     <div className="flex min-h-full flex-col">
@@ -42,8 +45,8 @@ export function PostsScreen() {
           <div className="overflow-hidden rounded-[14px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
             {posts.map((post) => (
               <button key={post.id} type="button" className="flex w-full items-center gap-3.5 border-0 border-b border-[#f1f1f1] bg-white px-4 py-3 text-start hover:bg-[#f7f7f7]" onClick={() => router.push(`/admin/content/posts/${post.id}`)}>
-                {post.image ? (
-                  <img src={post.image} alt="" className="h-10 w-14 shrink-0 rounded-lg object-cover" />
+                {postCover(post.image, logo) ? (
+                  <img src={postCover(post.image, logo)} alt="" className={"h-10 w-14 shrink-0 rounded-lg bg-[#f6f6f6] " + (postHasOwnImage(post.image) ? "object-cover" : "object-contain p-1")} />
                 ) : (
                   <span className="h-10 w-14 shrink-0 rounded-lg" style={{ background: post.tone || "#e3e3e3" }} />
                 )}
