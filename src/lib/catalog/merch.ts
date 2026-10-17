@@ -1,4 +1,4 @@
-import { emptyProductPage, type ProductBundle, type ProductIngredient, type ProductPage, type ProductPanel, type ProductReview, type ProductStep, type ProductStory } from "@/types/commerce";
+import { emptyProductPage, type ProductBundle, type ProductFaq, type ProductFaqTag, type ProductIngredient, type ProductPage, type ProductPanel, type ProductReview, type ProductStep, type ProductStory } from "@/types/commerce";
 
 function record(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
@@ -75,7 +75,17 @@ export function parsePage(value: unknown): ProductPage {
       verified: item.verified === true,
     } satisfies ProductReview];
   });
+  page.faqs = list(row.faqs, 20).flatMap((item) => {
+    const q = text(item.q).slice(0, 180);
+    const a = text(item.a).slice(0, 1000);
+    const tag = faqTag(text(item.tag));
+    return q && a && tag ? [{ q, a, tag } satisfies ProductFaq] : [];
+  });
   return page;
+}
+
+function faqTag(value: string): ProductFaqTag | null {
+  return value === "use" || value === "ing" || value === "post" || value === "buy" ? value : null;
 }
 
 function highlightList(value: unknown) {

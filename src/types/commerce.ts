@@ -6,6 +6,8 @@ export type ProductStory = { handle: string; url: string };
 export type ProductStep = { title: string; body: string };
 export type ProductIngredient = { en: string; he: string; body: string };
 export type ProductReview = { name: string; title: string; body: string; date: string; verified: boolean };
+export type ProductFaqTag = "use" | "ing" | "post" | "buy";
+export type ProductFaq = { q: string; a: string; tag: ProductFaqTag };
 
 export type ProductPage = {
   highlights: string[];
@@ -15,12 +17,13 @@ export type ProductPage = {
   ingredientsIntro: string;
   ingredients: ProductIngredient[];
   reviews: ProductReview[];
+  faqs: ProductFaq[];
 };
 
 export const OLI_STORE_OWNER = "itsfrontale@gmail.com";
 
 export function emptyProductPage(): ProductPage {
-  return { highlights: [], panels: [], stories: [], steps: [], ingredientsIntro: "", ingredients: [], reviews: [] };
+  return { highlights: [], panels: [], stories: [], steps: [], ingredientsIntro: "", ingredients: [], reviews: [], faqs: [] };
 }
 export type PayStatus = "paid" | "pending" | "partially_refunded" | "refunded";
 export type FulfillmentStatus = "unfulfilled" | "fulfilled" | "partial" | "onhold";

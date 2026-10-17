@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { getStoreIdentity } from "@/data/live/store-identity";
 import { listCatalogProducts } from "@/data/mock/catalog-session";
-import type { ProductPage } from "@/types/commerce";
+import type { ProductFaqTag, ProductPage } from "@/types/commerce";
 
 const field = "h-[34px] w-full rounded-[10px] border border-[#c9c9c9] bg-white px-3 text-sm text-ink outline-none";
 const area = "w-full rounded-[10px] border border-[#c9c9c9] bg-white px-3 py-2 text-sm text-ink outline-none";
@@ -12,6 +12,12 @@ const card = "rounded-xl border border-[#d9d9d9] bg-white p-5 shadow-[0_1px_2px_
 type BundleDraft = { label: string; qty: string; price: string };
 
 const PANEL_PRESETS = ["תיאור", "הוראות שימוש", "רשימת INCI מלאה"];
+const FAQ_TOPICS: Array<{ id: ProductFaqTag; label: string }> = [
+  { id: "use", label: "שימוש" },
+  { id: "ing", label: "רכיבים" },
+  { id: "post", label: "אחרי לידה" },
+  { id: "buy", label: "רכישה" },
+];
 const STARTER_HIGHLIGHTS = ["ללא בישום", "ללא אלכוהול", "באישור משרד הבריאות", "100 ml"];
 
 function highlightKey(storeId: string) {
@@ -176,6 +182,22 @@ export function ProductMerchFields({
             ))}
             <Add label="הוספת המלצה" onClick={() => onPage({ ...page, reviews: [...page.reviews, { name: "", title: "", body: "", date: "", verified: false }] })} />
           </Block>
+
+          <Block title="שאלות ותשובות" hint="אם אין שאלות, האזור לא מופיע בעמוד. כל שאלה מקבלת נושא, והנושאים מופיעים כסינון באתר.">
+            {(page.faqs ?? []).map((item, index) => (
+              <div key={index} className="flex flex-col gap-2 rounded-xl border border-[#e3e3e3] p-3">
+                <input value={item.q} onChange={(event) => updateFaq(index, { q: event.target.value })} placeholder="השאלה" className={field} />
+                <textarea value={item.a} onChange={(event) => updateFaq(index, { a: event.target.value })} rows={3} placeholder="התשובה" className={area} />
+                <select value={item.tag} onChange={(event) => updateFaq(index, { tag: event.target.value as ProductFaqTag })} className={field}>
+                  {FAQ_TOPICS.map((topic) => <option key={topic.id} value={topic.id}>{topic.label}</option>)}
+                </select>
+                <button type="button" className="self-start text-sm font-semibold text-[#d72c0d]" onClick={() => onPage({ ...page, faqs: (page.faqs ?? []).filter((_, entry) => entry !== index) })}>הסרה</button>
+              </div>
+            ))}
+            {(page.faqs ?? []).length < 20 ? (
+              <Add label="הוספת שאלה" onClick={() => onPage({ ...page, faqs: [...(page.faqs ?? []), { q: "", a: "", tag: "use" }] })} />
+            ) : null}
+          </Block>
         </section>
       ) : null}
     </>
@@ -203,6 +225,10 @@ export function ProductMerchFields({
 
   function updateReview(index: number, partial: Partial<ProductPage["reviews"][number]>) {
     onPage({ ...page, reviews: page.reviews.map((item, itemIndex) => (itemIndex === index ? { ...item, ...partial } : item)) });
+  }
+
+  function updateFaq(index: number, partial: Partial<ProductPage["faqs"][number]>) {
+    onPage({ ...page, faqs: (page.faqs ?? []).map((item, itemIndex) => (itemIndex === index ? { ...item, ...partial } : item)) });
   }
 }
 

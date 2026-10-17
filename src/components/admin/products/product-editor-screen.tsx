@@ -128,12 +128,14 @@ function fromProduct(product: Product | null): Draft {
     badgeHidden: product?.badgeHidden === true,
     page: product?.page
       ? {
+          highlights: [...(product.page.highlights ?? [])],
           panels: product.page.panels.map((item) => ({ ...item })),
           stories: product.page.stories.map((item) => ({ ...item })),
           steps: product.page.steps.map((item) => ({ ...item })),
           ingredientsIntro: product.page.ingredientsIntro,
           ingredients: product.page.ingredients.map((item) => ({ ...item })),
           reviews: product.page.reviews.map((item) => ({ ...item })),
+          faqs: (product.page.faqs ?? []).map((item) => ({ ...item })),
         }
       : emptyProductPage(),
   };
