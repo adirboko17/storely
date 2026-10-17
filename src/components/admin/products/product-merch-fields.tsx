@@ -1,6 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { getStoreIdentity } from "@/data/live/store-identity";
+import { listCatalogProducts } from "@/data/mock/catalog-session";
 import type { ProductPage } from "@/types/commerce";
 
 const field = "h-[34px] w-full rounded-[10px] border border-[#c9c9c9] bg-white px-3 text-sm text-ink outline-none";
@@ -10,6 +12,49 @@ const card = "rounded-xl border border-[#d9d9d9] bg-white p-5 shadow-[0_1px_2px_
 type BundleDraft = { label: string; qty: string; price: string };
 
 const PANEL_PRESETS = ["תיאור", "הוראות שימוש", "רשימת INCI מלאה"];
+const STARTER_HIGHLIGHTS = ["ללא בישום", "ללא אלכוהול", "באישור משרד הבריאות", "100 ml"];
+
+function highlightKey(storeId: string) {
+  return `storely-highlights:${storeId || "local"}`;
+}
+
+function rememberedHighlights() {
+  const storeId = getStoreIdentity().storeId;
+  let stored: unknown = [];
+  if (typeof window !== "undefined") {
+    try {
+      stored = JSON.parse(window.localStorage.getItem(highlightKey(storeId)) || "[]");
+    } catch {
+      stored = [];
+    }
+  }
+  const saved = Array.isArray(stored) ? stored.filter((item): item is string => typeof item === "string") : [];
+  const used = listCatalogProducts().flatMap((product) => product.page?.highlights ?? []);
+  return uniqueHighlights([...STARTER_HIGHLIGHTS, ...saved, ...used]);
+}
+
+function rememberHighlight(label: string) {
+  const storeId = getStoreIdentity().storeId;
+  const next = uniqueHighlights([...rememberedHighlights(), label]);
+  try {
+    window.localStorage.setItem(highlightKey(storeId), JSON.stringify(next));
+  } catch {
+    return;
+  }
+}
+
+function uniqueHighlights(labels: string[]) {
+  const seen = new Set<string>();
+  const highlights: string[] = [];
+  labels.forEach((label) => {
+    const clean = label.trim().replace(/[\u0000-\u001f]/g, "").slice(0, 40);
+    const key = clean.toLocaleLowerCase("he");
+    if (!clean || seen.has(key)) return;
+    seen.add(key);
+    highlights.push(clean);
+  });
+  return highlights;
+}
 
 export function ProductMerchFields({
   bundles,
@@ -60,6 +105,8 @@ export function ProductMerchFields({
             <h2 className="m-0 text-[15px] font-semibold">עמוד המוצר בחנות</h2>
             <p className="m-0 mt-1 text-[13px] text-ink-secondary">אזור שלא מולא לא יופיע בעמוד המוצר.</p>
           </div>
+
+          <HighlightEditor page={page} onPage={onPage} />
 
           <Block title="מתחת לכפתור ההוספה לסל" hint="תיאור, הוראות שימוש, רשימת INCI, או כותרת משלך.">
             {page.panels.map((panel, index) => (
@@ -157,6 +204,49 @@ export function ProductMerchFields({
   function updateReview(index: number, partial: Partial<ProductPage["reviews"][number]>) {
     onPage({ ...page, reviews: page.reviews.map((item, itemIndex) => (itemIndex === index ? { ...item, ...partial } : item)) });
   }
+}
+
+function HighlightEditor({ page, onPage }: { page: ProductPage; onPage: (page: ProductPage) => void }) {
+  const [draft, setDraft] = useState("");
+  const selected = page.highlights ?? [];
+  const library = rememberedHighlights().filter((label) => !selected.some((item) => item.toLocaleLowerCase("he") === label.toLocaleLowerCase("he")));
+  const full = selected.length >= 4;
+
+  function add(label: string) {
+    const clean = label.trim().replace(/[\u0000-\u001f]/g, "").slice(0, 40);
+    if (!clean || selected.some((item) => item.toLocaleLowerCase("he") === clean.toLocaleLowerCase("he"))) return;
+    rememberHighlight(clean);
+    setDraft("");
+    if (full) return;
+    onPage({ ...page, highlights: [...selected, clean] });
+  }
+
+  return (
+    <Block title="מתחת לתיאור הראשון" hint="עד 4 סימונים בעמוד. במובייל מוצגים 3 הראשונים. סימון חדש נשמר, ואפשר להוסיף אותו בלחיצה גם למוצרים הבאים.">
+      {selected.length ? (
+        <div className="flex flex-wrap gap-2">
+          {selected.map((label) => (
+            <button key={label} type="button" className="inline-flex h-8 items-center gap-1 rounded-full border-0 bg-[#f1f1f1] px-3 text-sm font-semibold" onClick={() => onPage({ ...page, highlights: selected.filter((item) => item !== label) })}>
+              {label}
+              <span aria-hidden>×</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {library.length ? (
+        <div className="flex flex-wrap gap-2">
+          {library.map((label) => (
+            <button key={label} type="button" disabled={full} className="h-8 rounded-full border border-[#d4d4d4] bg-white px-3 text-sm disabled:opacity-40" onClick={() => add(label)}>+ {label}</button>
+          ))}
+        </div>
+      ) : null}
+      <form className="flex flex-wrap items-center gap-2" onSubmit={(event) => { event.preventDefault(); add(draft); }}>
+        <input value={draft} maxLength={40} onChange={(event) => setDraft(event.target.value)} placeholder="טקסט חדש, למשל: ללא בישום" className={`${field} max-w-sm`} />
+        <button type="submit" disabled={!draft.trim()} className="h-[34px] rounded-lg border-0 bg-[#1a1a1a] px-3 text-sm font-semibold text-white disabled:opacity-40">יצירה והוספה</button>
+      </form>
+      {full ? <p className="m-0 text-[13px] text-ink-secondary">אפשר עד 4 סימונים במוצר הזה.</p> : null}
+    </Block>
+  );
 }
 
 function Block({ title, hint, children }: { title: string; hint: string; children: ReactNode }) {

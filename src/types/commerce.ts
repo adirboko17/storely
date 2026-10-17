@@ -8,6 +8,7 @@ export type ProductIngredient = { en: string; he: string; body: string };
 export type ProductReview = { name: string; title: string; body: string; date: string; verified: boolean };
 
 export type ProductPage = {
+  highlights: string[];
   panels: ProductPanel[];
   stories: ProductStory[];
   steps: ProductStep[];
@@ -19,7 +20,7 @@ export type ProductPage = {
 export const OLI_STORE_OWNER = "itsfrontale@gmail.com";
 
 export function emptyProductPage(): ProductPage {
-  return { panels: [], stories: [], steps: [], ingredientsIntro: "", ingredients: [], reviews: [] };
+  return { highlights: [], panels: [], stories: [], steps: [], ingredientsIntro: "", ingredients: [], reviews: [] };
 }
 export type PayStatus = "paid" | "pending" | "partially_refunded" | "refunded";
 export type FulfillmentStatus = "unfulfilled" | "fulfilled" | "partial" | "onhold";

@@ -40,6 +40,7 @@ export function parsePage(value: unknown): ProductPage {
   const row = record(value);
   const page = emptyProductPage();
   if (!row) return page;
+  page.highlights = highlightList(row.highlights);
   page.panels = list(row.panels, 8).flatMap((item) => {
     const title = text(item.title).slice(0, 80);
     const body = text(item.body).slice(0, 4000);
@@ -75,6 +76,21 @@ export function parsePage(value: unknown): ProductPage {
     } satisfies ProductReview];
   });
   return page;
+}
+
+function highlightList(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const highlights: string[] = [];
+  for (const item of value) {
+    const label = text(item).replace(/[\u0000-\u001f]/g, "").slice(0, 40);
+    const key = label.toLocaleLowerCase("he");
+    if (!label || seen.has(key)) continue;
+    seen.add(key);
+    highlights.push(label);
+    if (highlights.length === 4) break;
+  }
+  return highlights;
 }
 
 function list(value: unknown, limit: number) {

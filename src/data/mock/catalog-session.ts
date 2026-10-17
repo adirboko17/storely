@@ -4,7 +4,7 @@ import { isHydrating, writeStore } from "@/data/live/write";
 import { COLLECTION_SEEDS } from "@/lib/catalog/present";
 import { packProductTags, subcategoryRules } from "@/lib/catalog/subcategories";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import type { Product, ProductStatus } from "@/types/commerce";
+import { emptyProductPage, type Product, type ProductStatus } from "@/types/commerce";
 
 export type GiftCard = {
   code: string;
@@ -261,7 +261,7 @@ async function persistProduct(product: Product) {
     product_id: data,
     merch: {
       bundles: product.bundles ?? [],
-      page: product.page ?? { panels: [], stories: [], steps: [], ingredientsIntro: "", ingredients: [], reviews: [] },
+      page: product.page ?? emptyProductPage(),
       badge: { label: (product.badge ?? "").trim().slice(0, 24), hidden: product.badgeHidden === true },
     },
   });
