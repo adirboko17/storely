@@ -158,6 +158,31 @@ function rememberProductSource(localId: number, sourceId: string) {
 }
 
 const mediaBucket = "product-media";
+const pendingMedia = new Map<string, Blob>();
+const videoExtensions = new Set(["mp4", "webm", "mov"]);
+
+export function stageProductMedia(key: string, file: Blob) {
+  pendingMedia.set(key, file);
+}
+
+export function releaseProductMedia(key: string) {
+  const file = pendingMedia.get(key);
+  pendingMedia.delete(key);
+  if (key.startsWith("blob:")) URL.revokeObjectURL(key);
+  return file;
+}
+
+export function isVideoMedia(value: string) {
+  if (/\.(mp4|webm|mov)(\?|$)/i.test(value)) return true;
+  return pendingMedia.get(value)?.type.startsWith("video/") ?? false;
+}
+
+function mediaExtension(type: string) {
+  if (type === "image/jpeg") return "jpg";
+  if (type === "video/quicktime") return "mov";
+  const extension = type.split("/")[1]?.split(";")[0] ?? "";
+  return ["png", "webp", "gif", "avif", "mp4", "webm", "mov"].includes(extension) || videoExtensions.has(extension) ? extension : "";
+}
 
 function publicMediaUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
@@ -185,15 +210,16 @@ async function uploadProductMedia(storeId: string, productId: string, media: str
       paths.push(item);
       continue;
     }
-    if (!item.startsWith("data:image/")) continue;
-    const blob = await fetch(item).then((response) => response.blob());
-    const extension = blob.type === "image/jpeg" ? "jpg" : blob.type.split("/")[1];
-    if (!extension || !["jpg", "png", "webp", "gif", "avif"].includes(extension)) {
-      throw new Error("אפשר לשמור רק תמונות jpg, png, webp, gif או avif");
-    }
+    const staged = pendingMedia.get(item);
+    const blob = staged ?? (item.startsWith("data:image/") || item.startsWith("data:video/") ? await fetch(item).then((response) => response.blob()) : null);
+    if (!blob) continue;
+    const extension = mediaExtension(blob.type);
+    if (!extension) throw new Error("אפשר לשמור תמונות jpg, png, webp, gif, avif או סרטוני mp4, webm ו-mov");
     const path = `${storeId}/${productId}/${crypto.randomUUID()}.${extension}`;
     const { error } = await supabase.storage.from(mediaBucket).upload(path, blob, { contentType: blob.type, upsert: false });
-    if (error) throw new Error("העלאת התמונה נכשלה");
+    if (error) throw new Error(blob.type.startsWith("video/") ? "העלאת הסרטון נכשלה" : "העלאת התמונה נכשלה");
+    pendingMedia.delete(item);
+    if (item.startsWith("blob:")) URL.revokeObjectURL(item);
     paths.push(path);
   }
   const { data: removed, error } = await supabase.rpc("save_store_product_media", {

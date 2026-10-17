@@ -17,8 +17,11 @@ import {
   listExtraCollections,
   listHiddenCollections,
   nextProductId,
+  isVideoMedia,
+  releaseProductMedia,
   saveCatalogProduct,
   saveCollectionDraft,
+  stageProductMedia,
   subscribeCatalog,
 } from "@/data/mock/catalog-session";
 import { getStoreIdentity, getStoreIdentityVersion, subscribeStoreIdentity } from "@/data/live/store-identity";
@@ -77,7 +80,7 @@ type Draft = {
   variantPrices: string[];
   variantQty: string[];
   media: string[];
-  bundles: { qty: string; price: string }[];
+  bundles: { label: string; qty: string; price: string }[];
   page: ProductPage;
 };
 
@@ -118,7 +121,7 @@ function fromProduct(product: Product | null): Draft {
     variantPrices: labels.map(() => (product ? product.price.toFixed(2) : "")),
     variantQty: labels.map((_, index) => String(quantities[index] ?? 0)),
     media: product?.media ? [...product.media] : [],
-    bundles: (product?.bundles ?? []).map((bundle) => ({ qty: String(bundle.qty), price: bundle.price.toFixed(2) })),
+    bundles: (product?.bundles ?? []).map((bundle) => ({ label: bundle.label, qty: String(bundle.qty), price: bundle.price.toFixed(2) })),
     page: product?.page
       ? {
           panels: product.page.panels.map((item) => ({ ...item })),
@@ -314,7 +317,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
       options: options.length ? options : undefined,
       quantities: labels.length ? quantities : undefined,
       description: draft.description,
-      bundles: parseBundles(draft.bundles.map((bundle) => ({ qty: Number(bundle.qty), price: Number(bundle.price) }))),
+      bundles: parseBundles(draft.bundles.map((bundle) => ({ label: bundle.label, qty: Number(bundle.qty), price: Number(bundle.price) }))),
       page: getStoreIdentity().ownerEmail.toLowerCase() === OLI_STORE_OWNER ? parsePage(draft.page) : product?.page,
     };
     void saveCatalogProduct(savedProduct)
@@ -394,19 +397,33 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
   const presetOptions = OPTION_PRESETS.filter((name) => !optionQuery.trim() || name.includes(optionQuery.trim()));
 
   async function addMedia(files: FileList | File[] | null | undefined) {
-    const images = Array.from(files ?? []).filter((file) => file.type.startsWith("image/"));
-    if (!images.length) {
-      if (files && Array.from(files).length) toast("אפשר להעלות רק קובץ תמונה");
+    const selected = Array.from(files ?? []);
+    const images = selected.filter((file) => file.type.startsWith("image/"));
+    const videos = selected.filter((file) => file.type === "video/mp4" || file.type === "video/webm" || file.type === "video/quicktime");
+    if (!images.length && !videos.length) {
+      if (selected.length) toast("אפשר להעלות תמונה או סרטון mp4, webm או mov");
+      return;
+    }
+    const tooLarge = videos.find((file) => file.size > 50 * 1024 * 1024);
+    if (tooLarge) {
+      toast("סרטון יכול להיות עד 50MB");
       return;
     }
     setUploading(true);
     try {
       const urls = (await Promise.all(images.map(readImageFile))).filter(Boolean);
-      setDraft((current) => ({ ...current, media: [...current.media, ...urls] }));
+      const clips = videos.map((file) => {
+        const url = URL.createObjectURL(file);
+        stageProductMedia(url, file);
+        return url;
+      });
+      const added = [...urls, ...clips];
+      setDraft((current) => ({ ...current, media: [...current.media, ...added] }));
       setErrors([]);
-      toast(urls.length === 1 ? "התמונה נוספה" : `${urls.length} תמונות נוספו`);
+      const count = added.length;
+      toast(count === 1 ? (clips.length ? "הסרטון נוסף" : "התמונה נוספה") : `${count} קבצי מדיה נוספו`);
     } catch {
-      toast("העלאת התמונה נכשלה");
+      toast("העלאת המדיה נכשלה");
     } finally {
       setUploading(false);
     }
@@ -424,7 +441,11 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
   }
 
   function removeMedia(index: number) {
-    setDraft((current) => ({ ...current, media: current.media.filter((_, item) => item !== index) }));
+    setDraft((current) => {
+      const removed = current.media[index];
+      if (removed) releaseProductMedia(removed);
+      return { ...current, media: current.media.filter((_, item) => item !== index) };
+    });
     setErrors([]);
   }
 
@@ -486,7 +507,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
               <input
                 ref={fileRef}
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp,image/gif,image/avif,video/mp4,video/webm,video/quicktime"
                 multiple
                 className="hidden"
                 onChange={(event) => {
@@ -548,7 +569,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
                     className="group relative size-[116px] cursor-grab overflow-hidden rounded-xl shadow-[inset_0_0_0_1px_rgba(0,0,0,.1)] active:cursor-grabbing"
                     style={{ opacity: dragIndex === index ? 0.45 : 1, outline: dropIndex === index && dragIndex !== index ? "2px solid #303030" : undefined, outlineOffset: 2 }}
                   >
-                    <img src={src} alt="" className="size-full object-cover" />
+                    {isVideoMedia(src) ? <video src={src} muted playsInline className="size-full object-cover" /> : <img src={src} alt="" className="size-full object-cover" />}
                     {index === 0 ? <span className="absolute start-1.5 top-1.5 rounded-md bg-white px-1.5 py-0.5 text-[11px] font-semibold shadow-[0_0_0_1px_rgba(0,0,0,.08)]">ראשית</span> : null}
                     <button type="button" aria-label="הסרת תמונה" className="absolute end-1.5 top-1.5 grid size-6 place-items-center rounded-md border-0 bg-white text-sm opacity-0 shadow-[0_0_0_1px_rgba(0,0,0,.08)] group-hover:opacity-100" onClick={() => removeMedia(index)}>×</button>
                   </div>
@@ -556,7 +577,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
                 {uploading ? <span className="grid size-[116px] place-items-center rounded-xl bg-[#f1f1f1]"><span className="size-5 animate-spin rounded-full border-2 border-black/15 border-t-[#303030]" /></span> : null}
                 <button type="button" aria-label="הוספת מדיה" onClick={() => fileRef.current?.click()} className="grid size-[116px] place-items-center rounded-xl border-[1.5px] border-dashed border-[#c9c9c9] bg-[#fafafa] text-2xl text-[#616161]">+</button>
               </div>
-              <div className="mt-1.5 text-[13px] text-ink-secondary">{draft.media.length > 1 ? "גררו תמונה למקום הראשון כדי להפוך אותה לראשית." : "אפשר לבחור כמה תמונות, או לגרור אותן לכאן."}</div>
+              <div className="mt-1.5 text-[13px] text-ink-secondary">{draft.media.length > 1 ? "גררו תמונה או סרטון למקום הראשון כדי להפוך אותו לראשי." : "אפשר לבחור תמונות וסרטונים, או לגרור אותם לכאן."}</div>
             </div>
           </div>
 

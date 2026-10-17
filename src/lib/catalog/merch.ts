@@ -27,7 +27,8 @@ export function parseBundles(value: unknown): ProductBundle[] {
     if (!Number.isInteger(qty) || qty < 1 || qty > 99 || !Number.isFinite(price) || price < 0 || price > 1_000_000) continue;
     if (seen.has(qty)) continue;
     seen.add(qty);
-    bundles.push({ qty, price: Math.round(price * 100) / 100 });
+    const label = text(row?.label).slice(0, 80) || `קנה ${qty}`;
+    bundles.push({ qty, price: Math.round(price * 100) / 100, label });
   }
   return bundles.sort((a, b) => a.qty - b.qty);
 }

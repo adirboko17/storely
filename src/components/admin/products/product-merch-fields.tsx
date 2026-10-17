@@ -7,7 +7,7 @@ const field = "h-[34px] w-full rounded-[10px] border border-[#c9c9c9] bg-white p
 const area = "w-full rounded-[10px] border border-[#c9c9c9] bg-white px-3 py-2 text-sm text-ink outline-none";
 const card = "rounded-xl border border-[#d9d9d9] bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,.06)]";
 
-type BundleDraft = { qty: string; price: string };
+type BundleDraft = { label: string; qty: string; price: string };
 
 const PANEL_PRESETS = ["תיאור", "הוראות שימוש", "רשימת INCI מלאה"];
 
@@ -29,10 +29,14 @@ export function ProductMerchFields({
       <section className={`${card} flex flex-col gap-3`}>
         <div>
           <h2 className="m-0 text-[15px] font-semibold">באנדלים</h2>
-          <p className="m-0 mt-1 text-[13px] text-ink-secondary">קנה כמות במחיר אחד. לדוגמה: קנה 1 ב־129, קנה 2 ב־240.</p>
+          <p className="m-0 mt-1 text-[13px] text-ink-secondary">כל שורה מופיעה תחת «בחרי כמות» עם הכיתוב שתבחרו.</p>
         </div>
         {bundles.map((bundle, index) => (
-          <div key={index} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
+          <div key={index} className="grid items-end gap-2 border-t border-[#ebebeb] pt-3 min-[700px]:grid-cols-[minmax(0,1.4fr)_90px_120px_auto]">
+            <label>
+              <span className="mb-1.5 block text-sm font-semibold">כיתוב</span>
+              <input value={bundle.label} onChange={(event) => updateBundle(index, { label: event.target.value })} placeholder="לדוגמה: יחידה" className={field} />
+            </label>
             <label>
               <span className="mb-1.5 block text-sm font-semibold">כמות</span>
               <input dir="ltr" inputMode="numeric" value={bundle.qty} onChange={(event) => updateBundle(index, { qty: event.target.value })} className={`${field} text-end`} />
@@ -44,7 +48,7 @@ export function ProductMerchFields({
             <button type="button" className="h-[34px] rounded-lg border-0 bg-transparent px-2 text-sm font-semibold text-[#d72c0d]" onClick={() => onBundles(bundles.filter((_, item) => item !== index))}>הסרה</button>
           </div>
         ))}
-        <button type="button" className="inline-flex h-9 w-fit items-center gap-2 rounded-full border border-[#d4d4d4] bg-white px-3 text-sm" onClick={() => onBundles([...bundles, { qty: String(bundles.length + 1), price: "" }])}>
+        <button type="button" className="inline-flex h-9 w-fit items-center gap-2 rounded-full border border-[#d4d4d4] bg-white px-3 text-sm" onClick={() => onBundles([...bundles, { label: "", qty: String(bundles.length + 1), price: "" }])}>
           <span className="grid size-5 place-items-center rounded-full border border-[#8a8a8a]">+</span>
           הוספת באנדל
         </button>
