@@ -4,7 +4,7 @@ import { isHydrating, writeStore } from "@/data/live/write";
 import { COLLECTION_SEEDS } from "@/lib/catalog/present";
 import { packProductTags, subcategoryRules } from "@/lib/catalog/subcategories";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { emptyProductPage, type Product, type ProductStatus } from "@/types/commerce";
+import { emptyProductPage, type Product, type ProductStatus, type ProductStory } from "@/types/commerce";
 
 export type GiftCard = {
   code: string;
@@ -54,7 +54,7 @@ function cloneProduct(product: Product): Product {
     page: product.page
       ? {
           highlights: [...(product.page.highlights ?? [])],
-          panels: product.page.panels.map((item) => ({ ...item })),
+          panels: product.page.panels.map((item) => ({ ...item, link: item.link ? { ...item.link } : undefined })),
           stories: product.page.stories.map((item) => ({ ...item })),
           steps: product.page.steps.map((item) => ({ ...item })),
           ingredientsIntro: product.page.ingredientsIntro,
@@ -235,7 +235,48 @@ async function uploadProductMedia(storeId: string, productId: string, media: str
   return paths.map(publicMediaUrl);
 }
 
-async function persistProduct(product: Product) {
+async function uploadStoryVideos(storeId: string, productId: string, stories: ProductStory[]) {
+  const supabase = createSupabaseBrowserClient();
+  const next: ProductStory[] = [];
+  const uploaded: { local: string; path: string }[] = [];
+  try {
+    for (const story of stories) {
+      const url = story.url;
+      if (!url || /^https:\/\//i.test(url)) {
+        next.push(story);
+        continue;
+      }
+      const staged = pendingMedia.get(url);
+      const blob = staged ?? (url.startsWith("data:video/") ? await fetch(url).then((response) => response.blob()) : null);
+      if (!blob?.type.startsWith("video/")) continue;
+      const extension = mediaExtension(blob.type);
+      if (!extension || !videoExtensions.has(extension)) throw new Error("אפשר לשמור סרטוני mp4, webm ו-mov");
+      const path = `${storeId}/${productId}/${crypto.randomUUID()}.${extension}`;
+      const { error } = await supabase.storage.from(mediaBucket).upload(path, blob, { contentType: blob.type, upsert: false });
+      if (error) throw new Error("העלאת הסרטון נכשלה");
+      uploaded.push({ local: url, path });
+      next.push({ ...story, url: publicMediaUrl(path) });
+    }
+  } catch (error) {
+    if (uploaded.length > 0) await supabase.storage.from(mediaBucket).remove(uploaded.map((item) => item.path));
+    throw error;
+  }
+  return { stories: next, uploaded };
+}
+
+async function removeStoryVideos(storeId: string, productId: string, previous: ProductStory[], next: ProductStory[]) {
+  const kept = new Set(next.map((story) => story.url));
+  const stale = previous.flatMap((story) => {
+    if (!story.url || kept.has(story.url)) return [];
+    const path = storedMediaPath(story.url, storeId, productId);
+    return path ? [path] : [];
+  });
+  if (stale.length === 0) return;
+  const supabase = createSupabaseBrowserClient();
+  await supabase.storage.from(mediaBucket).remove(stale);
+}
+
+async function persistProduct(product: Product, previousStories: ProductStory[] = []) {
   if (typeof window === "undefined") return null;
   const storeId = getStoreIdentity().storeId;
   if (!storeId) return null;
@@ -258,22 +299,35 @@ async function persistProduct(product: Product) {
     variant_title: product.variant,
   });
   if (error || typeof data !== "string" || !data) throw new Error("שמירת המוצר נכשלה");
+  const page = product.page ?? emptyProductPage();
+  const uploadedStories = await uploadStoryVideos(storeId, data, page.stories ?? []);
+  const stories = uploadedStories.stories;
+  const nextPage = { ...page, stories };
   const { error: merchError } = await supabase.rpc("save_store_product_merch", {
     target_store: storeId,
     product_id: data,
     merch: {
       bundles: product.bundles ?? [],
-      page: product.page ?? emptyProductPage(),
+      page: nextPage,
       badge: { label: (product.badge ?? "").trim().slice(0, 24), hidden: product.badgeHidden === true },
     },
   });
-  if (merchError) throw new Error("שמירת הבאנדלים והתוכן לעמוד המוצר נכשלה");
+  if (merchError) {
+    if (uploadedStories.uploaded.length > 0) await supabase.storage.from(mediaBucket).remove(uploadedStories.uploaded.map((item) => item.path));
+    throw new Error("שמירת הבאנדלים והתוכן לעמוד המוצר נכשלה");
+  }
+  for (const item of uploadedStories.uploaded) {
+    pendingMedia.delete(item.local);
+    if (item.local.startsWith("blob:")) URL.revokeObjectURL(item.local);
+  }
+  await removeStoryVideos(storeId, data, previousStories, stories);
   if (data !== product.sourceId) rememberProductSource(product.id, data);
+  const stored = { ...product, sourceId: data, page: nextPage };
   if (product.media) {
     const media = await uploadProductMedia(storeId, data, product.media);
-    return { ...product, sourceId: data, media };
+    return { ...stored, media };
   }
-  return { ...product, sourceId: data };
+  return stored;
 }
 
 export function setProductStatuses(ids: number[], status: ProductStatus) {
@@ -297,12 +351,13 @@ export async function deleteCatalogProducts(ids: number[]) {
 
 export async function saveCatalogProduct(product: Product) {
   const exists = current.products.some((item) => item.id === product.id);
+  const previousStories = current.products.find((item) => item.id === product.id)?.page?.stories ?? [];
   const saved = cloneProduct(product);
   publish({
     ...current,
     products: exists ? current.products.map((item) => (item.id === product.id ? saved : item)) : [saved, ...current.products],
   });
-  const stored = await persistProduct(saved);
+  const stored = await persistProduct(saved, previousStories);
   if (!stored) return saved;
   publish({
     ...current,

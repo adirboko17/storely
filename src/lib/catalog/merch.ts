@@ -1,4 +1,4 @@
-import { emptyProductPage, type ProductBundle, type ProductFaq, type ProductFaqTag, type ProductIngredient, type ProductPage, type ProductPanel, type ProductReview, type ProductStep, type ProductStory } from "@/types/commerce";
+import { emptyProductPage, type ProductBundle, type ProductFaq, type ProductFaqTag, type ProductIngredient, type ProductPage, type ProductPanel, type ProductPanelLink, type ProductReview, type ProductStep, type ProductStory } from "@/types/commerce";
 
 function record(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
@@ -44,12 +44,13 @@ export function parsePage(value: unknown): ProductPage {
   page.panels = list(row.panels, 8).flatMap((item) => {
     const title = text(item.title).slice(0, 80);
     const body = text(item.body).slice(0, 4000);
-    return title && body ? [{ title, body } satisfies ProductPanel] : [];
+    const link = panelLink(item.link);
+    return title && body ? [{ title, body, ...(link ? { link } : {}) } satisfies ProductPanel] : [];
   });
   page.stories = list(row.stories, 20).flatMap((item) => {
     const handle = text(item.handle).slice(0, 80);
-    const url = instagramUrl(text(item.url));
-    return handle ? [{ handle, url } satisfies ProductStory] : [];
+    const url = storyUrl(text(item.url));
+    return handle || url ? [{ handle, url } satisfies ProductStory] : [];
   });
   page.steps = list(row.steps, 8).flatMap((item) => {
     const title = text(item.title).slice(0, 80);
@@ -111,6 +112,22 @@ function list(value: unknown, limit: number) {
   });
 }
 
-function instagramUrl(value: string) {
-  return /^https:\/\/([a-z0-9-]+\.)*instagram\.com\/\S+$/i.test(value) ? value.slice(0, 300) : "";
+function panelLink(value: unknown): ProductPanelLink | null {
+  const row = record(value);
+  if (!row) return null;
+  const label = text(row.label).replace(/[\u0000-\u001f]/g, "").slice(0, 120);
+  const href = text(row.href).replace(/[\u0000-\u001f]/g, "").slice(0, 300);
+  if (!label || !href || href.includes("..")) return null;
+  if (row.kind === "article" && /^\/articles\/[a-z0-9-]+$/.test(href)) return { kind: "article", label, href };
+  if (row.kind === "url" && (/^https:\/\/\S+$/i.test(href) || /^\/[^/\s]/.test(href))) return { kind: "url", label, href };
+  return null;
+}
+
+function storyUrl(value: string) {
+  const url = value.trim().slice(0, 500);
+  if (!url || url.includes("..")) return "";
+  if (/^https:\/\/([a-z0-9-]+\.)*instagram\.com\/\S+$/i.test(url)) return url.slice(0, 300);
+  if (/^https:\/\/[a-z0-9.-]+\/storage\/v1\/object\/public\/product-media\/[a-z0-9._/-]+\.(mp4|webm|mov)$/i.test(url.split("?")[0] ?? "")) return (url.split("?")[0] ?? "").slice(0, 500);
+  if (url.startsWith("blob:") || url.startsWith("data:video/")) return url;
+  return "";
 }

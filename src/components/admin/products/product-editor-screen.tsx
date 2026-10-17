@@ -129,7 +129,7 @@ function fromProduct(product: Product | null): Draft {
     page: product?.page
       ? {
           highlights: [...(product.page.highlights ?? [])],
-          panels: product.page.panels.map((item) => ({ ...item })),
+          panels: product.page.panels.map((item) => ({ ...item, link: item.link ? { ...item.link } : undefined })),
           stories: product.page.stories.map((item) => ({ ...item })),
           steps: product.page.steps.map((item) => ({ ...item })),
           ingredientsIntro: product.page.ingredientsIntro,
@@ -781,6 +781,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
             bundles={draft.bundles}
             page={draft.page}
             showPage={getStoreIdentity().ownerEmail.toLowerCase() === OLI_STORE_OWNER}
+            unitPrice={priceNumber}
             onBundles={(bundles) => patch({ bundles })}
             onPage={(page) => patch({ page })}
           />
