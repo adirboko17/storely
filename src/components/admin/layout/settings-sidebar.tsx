@@ -13,6 +13,7 @@ import type { IconName } from "@/lib/icons";
 
 const ITEMS: Array<{ href: string; label: string; icon: IconName; exact?: boolean }> = [
   { href: "/admin/settings", label: "כללי", icon: "store", exact: true },
+  { href: "/admin/settings/ai", label: "חיבור AI", icon: "spark" },
   { href: "/admin/settings/users", label: "משתמשים", icon: "user" },
   { href: "/admin/settings/shipping", label: "משלוחים", icon: "truck" },
   { href: "/admin/settings/policies", label: "פוליסות", icon: "document" },

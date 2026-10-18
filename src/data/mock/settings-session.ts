@@ -321,7 +321,7 @@ export function addShipZone(profileId: string, zone: Omit<ShipZone, "rates"> & {
                 id: zone.id,
                 name: zone.name,
                 country: zone.country,
-                rates: price ? [{ id: `${zone.id}-rate`, name: zone.name || "משלוח", price }] : [],
+                rates: price ? [{ id: `${zone.id}-rate`, name: profile.name.trim() || zone.name || "משלוח", price }] : [],
               },
             ],
           }
@@ -342,7 +342,7 @@ export function setZonePrice(profileId: string, zoneId: string, price: string) {
           const next = price.trim();
           const first = zone.rates[0];
           if (!first) {
-            return next ? { ...zone, rates: [{ id: `${zone.id}-rate`, name: zone.name || "משלוח", price: next }] } : zone;
+            return next ? { ...zone, rates: [{ id: `${zone.id}-rate`, name: profile.name.trim() || zone.name || "משלוח", price: next }] } : zone;
           }
           return { ...zone, rates: zone.rates.map((rate, index) => (index === 0 ? { ...rate, price: next } : rate)) };
         }),
