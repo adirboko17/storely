@@ -101,6 +101,7 @@ function mapCustomer(value: unknown, index: number): Customer {
     city: text(item?.city),
     zip: text(item?.zip),
     orders: amount(item?.orders),
+    createdAt: text(item?.createdAt) || undefined,
   };
 }
 

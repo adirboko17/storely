@@ -7,12 +7,30 @@ import { notFound } from "next/navigation";
 import { darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { customerSpent } from "@/components/admin/customers/customers-list-screen";
+import { isVideoMedia } from "@/data/mock/catalog-session";
 import { getPeopleVersion, getPerson, listPeople, patchProfile, profileOf, subscribePeople } from "@/data/mock/people-session";
 import { getOrderSessionVersion, listResolvedOrders, subscribeOrderSession } from "@/data/mock/order-session";
 import { formatMoney } from "@/lib/formatting/money";
+import { fulfillmentBadge, payBadge, type ResolvedOrder } from "@/lib/orders/present";
+import type { Product } from "@/types/commerce";
 
 const clearInput = { backgroundColor: "transparent", color: "#303030" } as const;
-const SINCE = ["מרץ 2024", "יוני 2024", "אוגוסט 2024", "ינואר 2025", "פברואר 2025", "אפריל 2025", "מאי 2025", "יולי 2025", "ספטמבר 2025", "נובמבר 2025", "דצמבר 2025", "פברואר 2026"];
+
+function hebrewDate(value: string | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("he-IL", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jerusalem" }).format(date);
+}
+
+function customerSince(personCreatedAt: string | undefined, orders: ResolvedOrder[]) {
+  const oldest = [...orders].reverse().find((order) => order.at)?.at;
+  return hebrewDate(personCreatedAt || oldest);
+}
+
+function linePhoto(product: Product) {
+  return product.media?.find((item) => item && !isVideoMedia(item));
+}
 
 export function CustomerProfileScreen({ customerId }: { customerId: number }) {
   const router = useRouter();
@@ -28,15 +46,15 @@ export function CustomerProfileScreen({ customerId }: { customerId: number }) {
   const [noteDraft, setNoteDraft] = useState("");
   const [addressOpen, setAddressOpen] = useState(false);
   const [street, setStreet] = useState("");
-  const [more, setMore] = useState(false);
-  const [blockMenu, setBlockMenu] = useState(false);
   if (!person) notFound();
   const profile = profileOf(person);
   const orders = listResolvedOrders().filter((order) => order.customer.id === person.id);
-  const last = orders[0];
   const orderCount = orders.length;
   const spent = customerSpent(person.id, orderCount);
-  const rfm = orderCount >= 8 ? "אלופים" : orderCount >= 4 ? "נאמנים" : orderCount >= 2 ? "מבטיחים" : "חדשים";
+  const since = customerSince(person.createdAt, orders);
+  const last = orders[0];
+  const average = orderCount ? spent / orderCount : 0;
+  const ships = [...new Set(orders.map((order) => order.ship.trim()).filter(Boolean))];
 
   return (
     <div className="flex min-h-full flex-col">
@@ -55,59 +73,62 @@ export function CustomerProfileScreen({ customerId }: { customerId: number }) {
         <div className="flex min-w-0 flex-col gap-4">
           <h1 dir="auto" className="m-0 text-right text-2xl leading-[30px] font-bold">{person.name}</h1>
           <div className="grid overflow-hidden rounded-[14px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,.08)] min-[800px]:grid-cols-4">
-            {[["סכום שהוצא", formatMoney(spent)], ["הזמנות", String(orderCount)], ["לקוח מאז", SINCE[person.id] ?? "אוקטובר 2026"], ["פלח RFM", rfm]].map(([label, value], itemIndex) => (
+            {[
+              ["סכום שהוצא", formatMoney(spent)],
+              ["הזמנות", String(orderCount)],
+              ["ממוצע להזמנה", formatMoney(average)],
+              ["לקוח מאז", since || "—"],
+            ].map(([label, value], itemIndex) => (
               <div key={label} className="flex flex-col gap-1 px-[18px] py-3.5" style={{ borderInlineStart: itemIndex ? "1px solid #ebebeb" : undefined }}>
-                <span className="self-start text-sm font-semibold underline decoration-dotted decoration-[#8a8a8a] underline-offset-[3px]">{label}</span>
-                <b dir={label === "סכום שהוצא" ? "ltr" : undefined}>{value}</b>
+                <span className="self-start text-sm font-semibold">{label}</span>
+                <b dir={label === "לקוח מאז" || label === "הזמנות" ? undefined : "ltr"}>{value}</b>
               </div>
             ))}
           </div>
-          <div className="mt-3 flex items-center gap-2">
-            <h2 className="m-0 flex-1 text-base font-semibold">ההזמנה האחרונה</h2>
-            <button type="button" className="rounded-lg border-0 bg-transparent px-1.5 py-1 text-sm font-medium" onClick={() => router.push("/admin/orders")}>לכל ההזמנות</button>
-          </div>
-          <div className="overflow-hidden rounded-[14px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
-            {last ? (
-              <>
+          <h2 className="m-0 mt-3 text-base font-semibold">הזמנות</h2>
+          {orders.length ? orders.map((order) => {
+            const pay = payBadge(order.pay);
+            const fulfillment = fulfillmentBadge(order.fulfillment);
+            return (
+              <div key={order.id} className="overflow-hidden rounded-[14px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
                 <div className="border-b border-[#ebebeb] px-4 py-3.5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Link href={`/admin/orders/${last.id}`} dir="ltr" className="text-[15px] font-bold text-ink no-underline">#{last.id}</Link>
-                    <b dir="ltr" className="ms-auto text-[15px]">{formatMoney(last.total)}</b>
+                    <Link href={`/admin/orders/${order.id}`} dir="ltr" className="text-[15px] font-bold text-ink no-underline">#{order.id}</Link>
+                    <span className="inline-flex h-[22px] items-center rounded-lg px-2 text-[13px] font-medium" style={{ background: pay.background, color: pay.color }}>{pay.label}</span>
+                    <span className="inline-flex h-[22px] items-center rounded-lg px-2 text-[13px] font-medium" style={{ background: fulfillment.background, color: fulfillment.color }}>{fulfillment.label}</span>
+                    <b dir="ltr" className="ms-auto text-[15px]">{formatMoney(order.total)}</b>
                   </div>
-                  <span className="text-sm text-[#4a4a4a]">{last.date} · דרך {last.channel}</span>
+                  <span className="text-sm text-[#4a4a4a]">
+                    {order.date} · {order.channel}
+                    {order.ship ? ` · ${order.ship}` : ""}
+                    {order.discountAmount ? ` · הנחה ${formatMoney(order.discountAmount)}` : ""}
+                  </span>
                 </div>
-                {(more ? last.lines : last.lines.slice(0, 3)).map((line) => (
-                  <div key={line.product.id} className="grid grid-cols-[40px_minmax(0,1fr)_50px_90px] items-center gap-3.5 border-b border-[#f1f1f1] px-4 py-3.5">
-                    <span className="size-10 rounded-lg" style={{ background: line.product.tone }} />
+                {order.lines.map((line, lineIndex) => {
+                  const photo = linePhoto(line.product);
+                  const title = line.product.id >= 0 ? (
+                    <Link href={`/admin/products/${line.product.id}`} className="font-medium text-ink no-underline hover:underline">{line.product.title}</Link>
+                  ) : (
                     <span className="font-medium">{line.product.title}</span>
-                    <span dir="ltr">× {line.quantity}</span>
-                    <span dir="ltr" className="text-left">{formatMoney(line.product.price * line.quantity)}</span>
-                  </div>
-                ))}
-                {last.lines.length > 3 ? <button type="button" className="h-11 w-full border-0 bg-white text-sm font-medium" onClick={() => setMore((value) => !value)}>{more ? "הצגת פחות" : "הצגת כל הפריטים"}</button> : null}
-              </>
-            ) : <div className="p-6 text-ink-secondary">עדיין אין הזמנות ללקוח הזה.</div>}
-          </div>
-          <h2 className="m-0 mt-4 text-base font-semibold">בלוקים</h2>
-          <div className="flex flex-col items-center gap-2.5 rounded-[14px] border-[1.5px] border-dashed border-[#d4d4d4] p-4">
-            {profile.blocks.map((block) => (
-              <div key={block.title} className="flex w-full items-center gap-2 rounded-[14px] bg-white px-3.5 py-3 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
-                <span className="flex-1 font-semibold">{block.title}</span>
-                <span className="text-[#4a4a4a]">{block.value}</span>
-                <button type="button" aria-label="הסרה" className="border-0 bg-transparent text-ink-secondary" onClick={() => patchProfile(person.id, { blocks: profile.blocks.filter((item) => item.title !== block.title) })}>×</button>
+                  );
+                  return (
+                    <div key={`${order.id}-${line.product.id}-${lineIndex}`} className="grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3.5 border-b border-[#f1f1f1] px-4 py-3.5 last:border-b-0">
+                      {photo ? (
+                        <img src={photo} alt="" className="size-10 rounded-lg object-cover shadow-[inset_0_0_0_1px_rgba(0,0,0,.08)]" />
+                      ) : (
+                        <span className="size-10 rounded-lg" style={{ background: line.product.tone }} />
+                      )}
+                      <span className="min-w-0">
+                        {title}
+                        {line.product.variant ? <span className="mt-0.5 block text-[13px] text-[#4a4a4a]">{line.product.variant}</span> : null}
+                      </span>
+                      <span dir="ltr" className="whitespace-nowrap text-left">{formatMoney(line.product.price)} × {line.quantity}</span>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-            <div className="relative">
-              <button type="button" className="inline-flex h-[30px] items-center rounded-[10px] border-0 bg-[#ebebeb] px-3 text-sm font-semibold" onClick={() => setBlockMenu((open) => !open)}>בלוק</button>
-              {blockMenu ? (
-                <div className="absolute top-9 z-50 w-[220px] -translate-x-1/2 rounded-xl bg-white p-1.5 shadow-[0_8px_24px_rgba(0,0,0,.16)] left-1/2">
-                  {[["נקודות נאמנות", "120"], ["הזמנה פתוחה", "אין"], ["העדפת משלוח", "שליח"]].map(([title, value]) => (
-                    <button key={title} type="button" className="flex w-full rounded-lg border-0 bg-transparent px-2 py-1.5 text-start text-sm hover:bg-[#f1f1f1]" onClick={() => { patchProfile(person.id, { blocks: [...profile.blocks.filter((item) => item.title !== title), { title, value }] }); setBlockMenu(false); }}>{title}</button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </div>
+            );
+          }) : <div className="rounded-[14px] bg-white p-6 text-ink-secondary shadow-[0_0_0_1px_rgba(0,0,0,.08)]">עדיין אין הזמנות ללקוח הזה.</div>}
           <h2 className="m-0 mt-4 text-base font-semibold">ציר זמן</h2>
           <div className="overflow-hidden rounded-[14px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
             <div className="flex items-center gap-3 p-3">
@@ -129,7 +150,7 @@ export function CustomerProfileScreen({ customerId }: { customerId: number }) {
             ))}
             <div className="relative py-2">
               <span className="absolute top-3 -right-[21px] size-3 rounded-[3px] bg-[#303030] shadow-[0_0_0_3px_#fafafa]" />
-              <div>הלקוח נוסף לחנות · {SINCE[person.id] ?? "אוקטובר 2026"}</div>
+              <div>הלקוח נוסף לחנות{since ? ` · ${since}` : ""}</div>
             </div>
           </div>
         </div>
@@ -137,10 +158,14 @@ export function CustomerProfileScreen({ customerId }: { customerId: number }) {
           <div className="flex flex-col gap-1.5">
             <span className="text-[#4a4a4a]">פרטי קשר</span>
             <div className="flex items-center gap-2">
-              <a dir="ltr" href={`mailto:${person.email}`} className="flex-1 text-right">{person.email}</a>
-              <button type="button" aria-label="העתקה" className="border-0 bg-transparent" onClick={() => { void navigator.clipboard?.writeText(person.email); toast("הדוא״ל הועתק"); }}>העתק</button>
+              <a dir="ltr" href={`mailto:${person.email}`} className="flex-1 text-right">{person.email || "אין דוא״ל"}</a>
+              {person.email ? <button type="button" aria-label="העתקה" className="border-0 bg-transparent" onClick={() => { void navigator.clipboard?.writeText(person.email); toast("הדוא״ל הועתק"); }}>העתק</button> : null}
             </div>
-            <span>יקבל הודעות בעברית</span>
+            <span>{profile.language === "en" ? "שפת החשבון: אנגלית" : "שפת החשבון: עברית"}</span>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-[#4a4a4a]">חשבון באתר</span>
+            <span>אין חשבון. הלקוח נוצר מהזמנה, בלי התחברות לאתר.</span>
           </div>
           <div className="flex flex-col gap-1">
             <div className="flex items-center"><span className="flex-1 text-[#4a4a4a]">כתובת ברירת מחדל</span><button type="button" aria-label="הוספת כתובת" className="border-0 bg-transparent" onClick={() => setAddressOpen(true)}>עריכה</button></div>
@@ -148,13 +173,19 @@ export function CustomerProfileScreen({ customerId }: { customerId: number }) {
             <span>{person.street || "אין רחוב"}</span>
             <span>{person.city} <span dir="ltr">{person.zip}</span></span>
             <span>ישראל</span>
-            <span dir="ltr" className="text-right">{person.phone}</span>
+            <span dir="ltr" className="text-right">{person.phone || "אין טלפון"}</span>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[#4a4a4a]">משלוחים ששימשו</span>
+            <span>{ships.length ? ships.join(" · ") : "עדיין לא נבחר משלוח"}</span>
+            {last ? <span className="text-[#4a4a4a]">הזמנה אחרונה · {last.date}</span> : null}
           </div>
           <button type="button" className="flex items-center gap-2 border-0 bg-transparent p-0 text-start text-sm" onClick={() => { patchProfile(person.id, { subscribed: !profile.subscribed }); toast(profile.subscribed ? "הלקוח הוסר מדיוור" : "הלקוח נרשם לדיוור"); }}>
             <span className="relative h-4 w-7 rounded-full" style={{ background: profile.subscribed ? "#303030" : "#d4d4d4" }}><span className="absolute top-0.5 size-3 rounded-full bg-white" style={{ left: profile.subscribed ? 14 : 2 }} /></span>
-            {profile.subscribed ? "מנוי לדיוור" : "לא מנוי לדיוור"}
+            {profile.subscribed ? "מנוי לדיוור בדוא״ל" : "לא מנוי לדיוור בדוא״ל"}
           </button>
-          <span className="text-[#4a4a4a]">פרטי מס · גביית מע״מ</span>
+          <span>{profile.sms ? "מסכימים ל-SMS" : "לא רשומים ל-SMS"}</span>
+          <span>{profile.whatsapp ? "מסכימים לוואטסאפ" : "לא רשומים לוואטסאפ"}</span>
           <div className="h-px bg-[#e3e3e3]" />
           <div className="flex items-center"><span className="flex-1 text-[#4a4a4a]">קרדיט בחנות</span><button type="button" className="border-0 bg-transparent" onClick={() => { patchProfile(person.id, { credit: profile.credit + 50 }); toast("נוסף קרדיט של ₪50"); }}>עריכה</button></div>
           <span>{formatMoney(profile.credit)}</span>
