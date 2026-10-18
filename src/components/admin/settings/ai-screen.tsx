@@ -96,7 +96,7 @@ export function AiConnectionsScreen() {
         <div>
           <h1 className="m-0 text-[20px] font-bold text-[#1a1a1a]">חיבור AI</h1>
           <p className="mt-1 mb-0 max-w-[62ch] text-sm leading-6 text-[#616161]">
-            כל משתמש יוצר מפתח משלו. קלוד, ChatGPT, או כל כלי שתומך ב-MCP מרוחק, יכולים דרכו להעלות מוצרים, לעדכן אותם ולערוך לקוחות — רק בחנות הזו, ורק עם ההרשאות של מי שיצר את המפתח.
+            בקלוד, ב-Cursor או ב-ChatGPT מדביקים רק את הכתובת. נפתח חלון התחברות של Storely, והכלי פועל בשמכם. מפתח אישי נשאר אפשרות לכלים ישנים יותר.
           </p>
         </div>
 

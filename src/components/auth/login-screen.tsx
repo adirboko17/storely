@@ -7,7 +7,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 const field =
   "h-11 w-full rounded-lg border border-[#8a8a8a] bg-white px-3 text-[15px] text-[#1a1a1a] outline-none";
 
-export function LoginScreen() {
+export function LoginScreen({ nextPath = "" }: { nextPath?: string }) {
   const router = useRouter();
   const emailId = useId();
   const passwordId = useId();
@@ -43,6 +43,11 @@ export function LoginScreen() {
       const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
       if (authError) {
         setError(authError.message.toLowerCase().includes("invalid") ? "האימייל או הסיסמה לא נכונים" : "לא הצלחנו להתחבר. נסו שוב");
+        return;
+      }
+      if (nextPath) {
+        router.push(nextPath);
+        router.refresh();
         return;
       }
       const { data: allowed } = await supabase.rpc("has_platform_access");

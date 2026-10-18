@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
-    "@supabase/supabase-js": "^2.117.3",
+    "@supabase/supabase-js": "^2.118.0",
     "d3-geo": "^3.1.1",
     "mediabunny": "^1.61.6",
     "next": "16.4.0",
