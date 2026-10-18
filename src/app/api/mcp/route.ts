@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { publicOrigin, supabaseAuthUrl, wwwAuthenticate } from "@/lib/mcp/resource";
 import { MCP_INSTRUCTIONS, MCP_TOOLS } from "@/lib/mcp/tools";
 import { negotiatedProtocol, parseRpcMessage, rpcError, rpcResult, toolCallParams } from "@/lib/mcp/protocol";
-import { createSupabaseServiceClient, createSupabaseUserClient } from "@/lib/supabase/service";
+import { createSupabaseAuthClient, createSupabaseServiceClient, createSupabaseUserClient } from "@/lib/supabase/service";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -98,18 +98,23 @@ type Actor = { kind: "key"; hash: string } | { kind: "user"; token: string };
 const USER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function identify(request: Request): Promise<Actor | null> {
-  const token = bearer(request);
-  if (token.startsWith("stly_") && token.length >= 20 && token.length <= 200) {
-    return { kind: "key", hash: tokenHash(token) };
+  try {
+    const token = bearer(request);
+    if (token.startsWith("stly_") && token.length >= 20 && token.length <= 200) {
+      return { kind: "key", hash: tokenHash(token) };
+    }
+    if (token.split(".").length !== 3) return null;
+    const supabase = createSupabaseAuthClient();
+    const { data, error } = await supabase.auth.getClaims(token);
+    const claims = data?.claims;
+    const subject = typeof claims?.sub === "string" ? claims.sub : "";
+    if (error || !claims || claims.role !== "authenticated" || !USER_ID.test(subject)) return null;
+    if (claims.iss !== supabaseAuthUrl()) return null;
+    return { kind: "user", token };
+  } catch (error) {
+    console.error("MCP authentication failed", error);
+    return null;
   }
-  if (token.split(".").length !== 3) return null;
-  const supabase = createSupabaseUserClient(token);
-  const { data, error } = await supabase.auth.getClaims(token);
-  const claims = data?.claims;
-  const subject = typeof claims?.sub === "string" ? claims.sub : "";
-  if (error || !claims || claims.role !== "authenticated" || !USER_ID.test(subject)) return null;
-  if (claims.iss !== supabaseAuthUrl()) return null;
-  return { kind: "user", token };
 }
 
 async function callTool(actor: Actor, name: string, args: Record<string, unknown>) {
