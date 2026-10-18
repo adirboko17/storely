@@ -74,6 +74,7 @@ export type Customer = {
   city: string;
   zip: string;
   orders: number;
+  createdAt?: string;
 };
 
 export type Order = {
