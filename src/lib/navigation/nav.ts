@@ -41,6 +41,7 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       { key: "collections", label: "קטגוריות", href: "/admin/products/collections" },
       { key: "inventory", label: "מלאי", href: "/admin/products/inventory" },
+      { key: "reviews", label: "ביקורות", href: "/admin/products/reviews" },
       { key: "giftcards", label: "כרטיסי מתנה", href: "/admin/products/gift-cards" },
     ],
   },
@@ -73,6 +74,7 @@ export const NAV_ITEMS: NavItem[] = [
       { key: "emails", label: "מיילים ו-SMS", href: "/admin/marketing/emails" },
       { key: "automations", label: "אוטומציות", href: "/admin/marketing/automations" },
       { key: "campaigns", label: "קמפיינים", href: "/admin/marketing/campaigns" },
+      { key: "popups", label: "פופאפים", href: "/admin/marketing/popups" },
     ],
   },
   { key: "discounts", label: "הנחות", href: "/admin/discounts", match: "/admin/discounts", icon: "discount" },
@@ -114,6 +116,7 @@ const TITLES: Record<string, string> = {
   "/admin/products/new": "מוצר חדש",
   "/admin/products/collections": "קטגוריות",
   "/admin/products/inventory": "מלאי",
+  "/admin/products/reviews": "ביקורות",
   "/admin/products/gift-cards": "כרטיסי מתנה",
   "/admin/products/gift-cards/new": "יצירת כרטיס מתנה",
   "/admin/products/gift-cards/product": "יצירת מוצר כרטיס מתנה",
@@ -126,6 +129,7 @@ const TITLES: Record<string, string> = {
   "/admin/marketing/emails": "מיילים ו-SMS",
   "/admin/marketing/automations": "אוטומציות",
   "/admin/marketing/campaigns": "קמפיינים",
+  "/admin/marketing/popups": "פופאפים",
   "/admin/discounts": "הנחות",
   "/admin/discounts/new": "הנחה חדשה",
   "/admin/content/posts": "פוסטים בבלוג",
@@ -154,6 +158,7 @@ export function titleForPath(path: string) {
   if (/^\/admin\/content\/posts\/[^/]+$/.test(path)) return "פוסט";
   if (/^\/admin\/marketing\/automations\/[^/]+$/.test(path)) return "אוטומציה";
   if (/^\/admin\/marketing\/campaigns\/[^/]+$/.test(path)) return "קמפיין";
+  if (/^\/admin\/marketing\/popups\/[^/]+$/.test(path)) return "פופאפ";
   if (/^\/admin\/marketing\/emails\/[^/]+$/.test(path)) return "מייל";
   if (/^\/admin\/marketing\/sms\/[^/]+$/.test(path)) return "SMS";
   if (/^\/admin\/settings\/users\/[^/]+$/.test(path)) return "עריכת משתמש";

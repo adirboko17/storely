@@ -2,7 +2,8 @@ export type ProductStatus = "active" | "draft" | "archived";
 
 export type ProductBundle = { qty: number; price: number; label: string };
 export type ProductPanelLink = { kind: "url" | "article"; label: string; href: string };
-export type ProductPanel = { title: string; body: string; link?: ProductPanelLink };
+export type ProductPanelAlign = "right" | "left";
+export type ProductPanel = { title: string; body: string; align?: ProductPanelAlign; links?: ProductPanelLink[] };
 export type ProductStory = { handle: string; url: string };
 export type ProductStep = { title: string; body: string };
 export type ProductIngredient = { en: string; he: string; body: string };

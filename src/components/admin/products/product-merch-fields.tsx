@@ -144,7 +144,7 @@ export function ProductMerchFields({
             <HighlightEditor page={page} onPage={onPage} />
           </Section>
 
-          <Section title="מתחת לכפתור ההוספה לסל" hint="שורות שנפתחות בלחיצה: תיאור, הוראות שימוש, רשימת INCI, או כותרת משלך. אפשר להוסיף בתחתית קישור או מאמר מהאתר." status={names(page.panels.map((panel) => panel.title))} filled={page.panels.length > 0}>
+          <Section title="מתחת לכפתור ההוספה לסל" hint="שורות שנפתחות בלחיצה: תיאור, הוראות שימוש, רשימת INCI, או כותרת משלך. לכל שורה אפשר ליישר את הטקסט לשמאל, ולשייך כמה קישורים ומאמרים מהאתר." status={names(page.panels.map((panel) => panel.title))} filled={page.panels.length > 0}>
             <ItemList<ProductPanel>
               items={page.panels}
               onChange={(panels) => onPage({ ...page, panels })}
@@ -152,16 +152,23 @@ export function ProductMerchFields({
               untitled="שורה בלי כותרת"
               empty="עדיין אין שורות. בחרו אחת מהאפשרויות למטה."
               summary={(panel) => ({ title: panel.title, sub: panel.body })}
-              adds={[...PANEL_PRESETS.map((title) => ({ label: title, make: () => ({ title, body: "" }) })), { label: "כותרת משלך", make: () => ({ title: "", body: "" }) }]}
+              adds={[...PANEL_PRESETS.map((title) => ({ label: title, make: () => ({ title, body: "", ...(title === "רשימת INCI מלאה" ? { align: "left" as const } : {}) }) })), { label: "כותרת משלך", make: () => ({ title: "", body: "" }) }]}
               render={(panel, update) => (
                 <>
                   <Field label="כותרת השורה">
                     <input value={panel.title} maxLength={80} onChange={(event) => update({ title: event.target.value })} placeholder="לדוגמה: הוראות שימוש" className={field} />
                   </Field>
-                  <Field label="הטקסט שנפתח בלחיצה">
-                    <TextArea value={panel.body} max={4000} rows={5} onChange={(body) => update({ body })} placeholder="כתבו כאן. אפשר לרדת שורה ולהשאיר שורה ריקה בין פסקאות." />
-                  </Field>
-                  <PanelLinkEditor link={panel.link} onChange={(link) => update({ link })} />
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[13px] font-semibold text-[#303030]">יישור הטקסט</span>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" className={alignTab(panel.align !== "left")} onClick={() => update({ align: "right" })}>לימין</button>
+                      <button type="button" className={alignTab(panel.align === "left")} onClick={() => update({ align: "left" })}>לשמאל</button>
+                    </div>
+                    <Field label="הטקסט שנפתח בלחיצה">
+                      <TextArea value={panel.body} max={4000} rows={5} align={panel.align === "left" ? "left" : "right"} onChange={(body) => update({ body })} placeholder="כתבו כאן. אפשר לרדת שורה ולהשאיר שורה ריקה בין פסקאות." />
+                    </Field>
+                  </div>
+                  <PanelLinksEditor links={panel.links ?? []} onChange={(links) => update({ links })} />
                 </>
               )}
             />
@@ -574,11 +581,15 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   );
 }
 
-function TextArea({ value, max, rows = 3, placeholder, onChange }: { value: string; max: number; rows?: number; placeholder?: string; onChange: (value: string) => void }) {
+function alignTab(active: boolean) {
+  return `h-8 rounded-full border px-3 text-sm transition-colors ${active ? "border-[#303030] bg-white font-medium" : "border-[#d4d4d4] bg-transparent hover:border-[#8a8a8a]"}`;
+}
+
+function TextArea({ value, max, rows = 3, placeholder, align = "right", onChange }: { value: string; max: number; rows?: number; placeholder?: string; align?: "right" | "left"; onChange: (value: string) => void }) {
   const near = value.length > max * 0.85;
   return (
     <>
-      <textarea value={value} maxLength={max} rows={rows} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} className={area} />
+      <textarea value={value} maxLength={max} rows={rows} dir={align === "left" ? "ltr" : "rtl"} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} className={align === "left" ? `${area} text-left` : area} />
       <span className={`mt-1 block text-end text-xs ${near ? "text-[#b98900]" : "text-ink-secondary"}`}>
         {value.length} / {max}
       </span>
@@ -640,54 +651,109 @@ function HighlightEditor({ page, onPage }: { page: ProductPage; onPage: (page: P
   );
 }
 
-function PanelLinkEditor({ link, onChange }: { link?: ProductPanelLink; onChange: (link: ProductPanelLink | undefined) => void }) {
-  const [mode, setMode] = useState<"off" | "url" | "article">(link?.kind ?? "off");
+const PANEL_LINK_LIMIT = 6;
+
+function PanelLinksEditor({ links, onChange }: { links: ProductPanelLink[]; onChange: (links: ProductPanelLink[]) => void }) {
+  const [adding, setAdding] = useState<"url" | "article" | null>(null);
+  const [label, setLabel] = useState("");
+  const [href, setHref] = useState("");
   const [query, setQuery] = useState("");
+  const [urlError, setUrlError] = useState("");
+  const full = links.length >= PANEL_LINK_LIMIT;
   const articles = OLI_ARTICLES.filter((article) => {
     const needle = query.trim().toLocaleLowerCase("he");
     if (!needle) return true;
     return article.title.toLocaleLowerCase("he").includes(needle) || article.category.toLocaleLowerCase("he").includes(needle);
-  }).slice(0, 6);
-  const selected = link?.kind === "article" ? OLI_ARTICLES.find((article) => `/articles/${article.slug}` === link.href) : null;
+  }).slice(0, 8);
   const tab = (active: boolean) => `h-8 rounded-full border px-3 text-sm transition-colors ${active ? "border-[#303030] bg-white font-medium" : "border-[#d4d4d4] bg-transparent hover:border-[#8a8a8a]"}`;
+
+  function resetDraft() {
+    setAdding(null);
+    setLabel("");
+    setHref("");
+    setQuery("");
+    setUrlError("");
+  }
+
+  function add(link: ProductPanelLink) {
+    if (full || links.some((item) => item.kind === link.kind && item.href === link.href)) return;
+    onChange([...links, link]);
+    resetDraft();
+  }
+
+  function move(index: number, step: number) {
+    const target = index + step;
+    if (target < 0 || target >= links.length) return;
+    const next = [...links];
+    [next[index], next[target]] = [next[target], next[index]];
+    onChange(next);
+  }
 
   return (
     <div className="flex flex-col gap-2 rounded-xl bg-[#f7f7f7] p-3">
-      <span className="text-[13px] font-semibold text-[#303030]">קישור בתחתית <span className="font-normal text-ink-secondary">(לא חובה)</span></span>
-      <div className="flex flex-wrap gap-2">
-        <button type="button" className={tab(mode === "off")} onClick={() => { setMode("off"); onChange(undefined); }}>בלי קישור</button>
-        <button type="button" className={tab(mode === "url")} onClick={() => { setMode("url"); if (link?.kind !== "url") onChange({ kind: "url", label: link?.label && link.kind !== "article" ? link.label : "", href: "" }); }}>קישור</button>
-        <button type="button" className={tab(mode === "article")} onClick={() => { setMode("article"); if (link?.kind !== "article") onChange(undefined); }}>מאמר מהאתר</button>
-      </div>
-      {mode === "url" ? (
-        <>
-          <input value={link?.kind === "url" ? link.label : ""} onChange={(event) => onChange({ kind: "url", label: event.target.value, href: link?.kind === "url" ? link.href : "" })} placeholder="הטקסט שיופיע, למשל: לקריאה נוספת" className={field} />
-          <input dir="ltr" value={link?.kind === "url" ? link.href : ""} onChange={(event) => onChange({ kind: "url", label: link?.kind === "url" ? link.label : "", href: event.target.value })} placeholder="https://" className={`${field} text-end`} />
-        </>
+      <span className="text-[13px] font-semibold text-[#303030]">קישורים בתחתית <span className="font-normal text-ink-secondary">(לא חובה, עד {PANEL_LINK_LIMIT})</span></span>
+      {links.length ? (
+        <ol className="m-0 flex list-none flex-col gap-2 p-0">
+          {links.map((link, index) => {
+            const article = link.kind === "article" ? OLI_ARTICLES.find((item) => `/articles/${item.slug}` === link.href) : null;
+            return (
+              <li key={`${link.kind}:${link.href}:${index}`} className="flex items-center gap-2 rounded-xl border border-[#e3e3e3] bg-white px-3 py-2">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs text-ink-secondary">{link.kind === "article" ? (article?.category ?? "מאמר באתר") : "קישור"}</span>
+                  <span className="block truncate text-sm font-semibold">{article?.title ?? link.label}</span>
+                  {link.kind === "url" ? <span dir="ltr" className="block truncate text-end text-xs text-ink-secondary">{link.href}</span> : null}
+                </span>
+                <IconButton label="הזזה למעלה" disabled={index === 0} onClick={() => move(index, -1)}>
+                  <Icon name="chevron" size={16} className="rotate-90" />
+                </IconButton>
+                <IconButton label="הזזה למטה" disabled={index === links.length - 1} onClick={() => move(index, 1)}>
+                  <Icon name="chevron" size={16} className="-rotate-90" />
+                </IconButton>
+                <button type="button" className="shrink-0 text-sm font-semibold text-[#d72c0d]" onClick={() => onChange(links.filter((_, item) => item !== index))}>הסרה</button>
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+        <p className="m-0 text-[13px] text-ink-secondary">עדיין אין קישורים בשורה הזאת.</p>
+      )}
+      {full ? <p className="m-0 text-[13px] text-ink-secondary">אפשר עד {PANEL_LINK_LIMIT} קישורים בשורה.</p> : null}
+      {!full && adding === null ? (
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={tab(false)} onClick={() => setAdding("url")}>הוספת קישור</button>
+          <button type="button" className={tab(false)} onClick={() => setAdding("article")}>הוספת מאמר מהאתר</button>
+        </div>
       ) : null}
-      {mode === "article" ? (
-        selected || (link?.kind === "article" && link.label) ? (
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-[#e3e3e3] bg-white px-3 py-2">
-            <span className="min-w-0">
-              <span className="block text-xs text-ink-secondary">{selected?.category ?? "מאמר באתר"}</span>
-              <span className="block truncate text-sm font-semibold">{selected?.title ?? link?.label}</span>
-            </span>
-            <button type="button" className="shrink-0 text-sm font-semibold text-[#d72c0d]" onClick={() => onChange(undefined)}>הסרה</button>
+      {adding === "url" ? (
+        <form className="flex flex-col gap-2" onSubmit={(event) => { event.preventDefault(); const nextLabel = label.trim(); const nextHref = href.trim(); if (!nextLabel || !nextHref) return; if (!/^https:\/\/\S+$/i.test(nextHref) && !/^\/[^/\s]/.test(nextHref)) { setUrlError("הקישור צריך להתחיל ב-https:// או בנתיב באתר, למשל /articles/name"); return; } add({ kind: "url", label: nextLabel, href: nextHref }); }}>
+          <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="הטקסט שיופיע, למשל: לקריאה נוספת" className={field} />
+          <input dir="ltr" value={href} onChange={(event) => { setHref(event.target.value); setUrlError(""); }} placeholder="https://" className={`${field} text-end`} />
+          {urlError ? <p className="m-0 text-sm text-[#8e1f0b]">{urlError}</p> : null}
+          <div className="flex flex-wrap gap-2">
+            <button type="submit" disabled={!label.trim() || !href.trim()} className="h-8 rounded-lg border-0 bg-[#1a1a1a] px-3 text-sm font-semibold text-white disabled:opacity-40">הוספה</button>
+            <button type="button" className={tab(false)} onClick={resetDraft}>ביטול</button>
           </div>
-        ) : (
-          <>
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="חיפוש כתבה לפי שם" className={field} />
-            <div className="flex max-h-52 flex-col overflow-auto rounded-lg bg-white">
-              {articles.map((article) => (
-                <button key={article.slug} type="button" className="border-0 border-b border-[#eee] bg-transparent px-3 py-2 text-start text-sm transition-colors last:border-b-0 hover:bg-[#fafafa]" onClick={() => onChange({ kind: "article", label: article.title, href: `/articles/${article.slug}` })}>
+        </form>
+      ) : null}
+      {adding === "article" ? (
+        <>
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="חיפוש כתבה לפי שם" className={field} />
+          <div className="flex max-h-52 flex-col overflow-auto rounded-lg bg-white">
+            {articles.map((article) => {
+              const href = `/articles/${article.slug}`;
+              const taken = links.some((link) => link.kind === "article" && link.href === href);
+              return (
+                <button key={article.slug} type="button" disabled={taken} className="border-0 border-b border-[#eee] bg-transparent px-3 py-2 text-start text-sm transition-colors last:border-b-0 hover:bg-[#fafafa] disabled:opacity-40" onClick={() => add({ kind: "article", label: article.title, href })}>
                   <span className="block text-xs text-ink-secondary">{article.category}</span>
                   {article.title}
+                  {taken ? <span className="block text-xs text-ink-secondary">כבר משויך</span> : null}
                 </button>
-              ))}
-              {articles.length === 0 ? <span className="px-3 py-2 text-sm text-ink-secondary">אין כתבה בשם הזה</span> : null}
-            </div>
-          </>
-        )
+              );
+            })}
+            {articles.length === 0 ? <span className="px-3 py-2 text-sm text-ink-secondary">אין כתבה בשם הזה</span> : null}
+          </div>
+          <button type="button" className={`${tab(false)} w-fit`} onClick={resetDraft}>סיום</button>
+        </>
       ) : null}
     </div>
   );

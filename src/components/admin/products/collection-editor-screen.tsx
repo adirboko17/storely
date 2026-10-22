@@ -48,24 +48,36 @@ function productImage(product: Product) {
   return product.media?.find((item) => item && !isVideoMedia(item)) ?? "";
 }
 
-function ProductTile({ product, view, onAdd, onRemove }: { product: Product; view: "grid" | "list"; onAdd?: () => void; onRemove?: () => void }) {
+function ProductTile({ product, view, member, onAdd, onRemove, subcategories, unmarked }: { product: Product; view: "grid" | "list"; member?: boolean; onAdd?: () => void; onRemove?: () => void; subcategories?: string[]; unmarked?: boolean }) {
   const photo = productImage(product);
   const status = PRODUCT_STATUS[product.status];
   const image = (
     <span className={`relative block overflow-hidden ${view === "grid" ? "aspect-square" : "size-16 shrink-0 rounded-lg"}`} style={{ background: product.tone }}>
       {photo ? <img src={photo} alt="" className="absolute inset-0 size-full object-cover" /> : null}
+      {member ? (
+        <span className="absolute top-2 right-2 inline-flex h-6 items-center gap-1 rounded-full bg-[#303030] px-2 text-[11px] font-semibold text-white">
+          <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><path d="M2.2 6.2 4.7 8.6 9.8 3.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          בקטגוריה
+        </span>
+      ) : null}
       {onAdd ? <span className="absolute top-2 left-2 grid size-6 place-items-center rounded-full bg-white text-sm shadow-[0_0_0_1px_rgba(0,0,0,.08)]">+</span> : null}
-      {onRemove ? <button type="button" aria-label="הסרה" className="absolute top-2 left-2 grid size-6 place-items-center rounded-full border-0 bg-white text-sm" onClick={onRemove}>×</button> : null}
+      {onRemove ? <button type="button" aria-label="הסרה מהקטגוריה" className="absolute top-2 left-2 grid size-6 place-items-center rounded-full border-0 bg-white text-sm shadow-[0_0_0_1px_rgba(0,0,0,.08)]" onClick={onRemove}>×</button> : null}
     </span>
   );
   const copy = (
     <span className={`block min-w-0 ${view === "grid" ? "p-3" : "flex-1"}`}>
       <span className="block truncate text-sm font-medium">{product.title}</span>
       <span dir="ltr" className="block text-start text-[13px] text-[#4a4a4a]">{formatMoney(product.price)}</span>
-      <span className="mt-1 inline-flex h-5 items-center rounded-md px-1.5 text-xs font-semibold" style={{ background: status.background, color: status.color }}>{status.label}</span>
+      <span className="mt-1.5 flex flex-wrap items-center gap-1">
+        <span className="inline-flex h-5 items-center rounded-md px-1.5 text-xs font-semibold" style={{ background: status.background, color: status.color }}>{status.label}</span>
+        {(subcategories ?? []).map((name) => (
+          <span key={name} className="inline-flex h-5 max-w-full items-center truncate rounded-md bg-[#e3e3e3] px-1.5 text-xs font-medium text-[#303030]">{name}</span>
+        ))}
+        {member && unmarked ? <span className="inline-flex h-5 items-center rounded-md bg-[#fff1e3] px-1.5 text-xs font-medium text-[#5e4200]">בלי תת קטגוריה</span> : null}
+      </span>
     </span>
   );
-  const className = `w-full overflow-hidden rounded-xl bg-[#fafafa] text-start ${view === "list" ? "flex items-center gap-3 p-2" : ""} ${onAdd ? "cursor-pointer border border-dashed border-[#c9c9c9]" : "border border-transparent"}`;
+  const className = `w-full overflow-hidden rounded-xl text-start ${view === "list" ? "flex items-center gap-3 p-2" : ""} ${member ? "border-2 border-[#303030] bg-white" : onAdd ? "cursor-pointer border border-dashed border-[#c9c9c9] bg-[#fafafa]" : "border border-transparent bg-[#fafafa]"}`;
   if (onAdd) {
     return (
       <button type="button" className={className} onClick={onAdd}>
@@ -207,8 +219,6 @@ export function CollectionEditorScreen({ collectionKey }: { collectionKey: strin
           />
         </div>
         <div>
-          <b className="text-sm">פריטים בקטגוריה {items.length}</b>
-          {draft.conditions.length === 0 && products.some((product) => !draft.ids.includes(product.id)) ? <p className="m-0 mt-1 text-[13px] text-[#616161]">לחצו על מוצר כדי להוסיף אותו לקטגוריה</p> : null}
           <div className="mt-2 rounded-xl bg-white p-3 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
             <label className="mb-3 flex h-9 items-center gap-2 rounded-lg border border-[#c9c9c9] bg-white px-2.5 focus-within:border-[#005bd3] focus-within:shadow-[0_0_0_1px_#005bd3]">
               <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="#616161" strokeWidth="1.7" aria-hidden><circle cx="8.5" cy="8.5" r="5.2" /><path d="M12.4 12.4 16 16" strokeLinecap="round" /></svg>
@@ -225,28 +235,46 @@ export function CollectionEditorScreen({ collectionKey }: { collectionKey: strin
               </select>
               <span className="inline-flex h-7 items-center rounded-full bg-[#f3f3f3] px-2.5 text-[12px]">סטטוס: פעיל, טיוטה ובארכיון</span>
             </div>
-            {visibleItems.length === 0 && available.length === 0 ? (
-              <p className="m-0 py-8 text-center text-sm text-[#616161]">{needle ? "אין מוצרים תואמים" : draft.conditions.length > 0 ? "אין מוצרים שעונים על התנאים" : "אין מוצרים"}</p>
+            <div className="mb-3 flex items-center gap-2">
+              <b className="text-sm">בקטגוריה</b>
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#303030] px-1.5 text-[11px] font-semibold text-white">{visibleItems.length}</span>
+            </div>
+            {visibleItems.length === 0 ? (
+              <p className="m-0 rounded-lg bg-[#fafafa] px-3 py-6 text-center text-sm text-[#616161]">{needle ? "אין בקטגוריה מוצרים תואמים" : draft.conditions.length > 0 ? "אין מוצרים שעונים על התנאים" : "אין עדיין מוצרים בקטגוריה"}</p>
             ) : (
               <div className={view === "grid" ? "grid grid-cols-2 gap-3 min-[800px]:grid-cols-4" : "flex flex-col gap-2"}>
-                {visibleItems.map((product) => (
-                  <ProductTile
-                    key={product.id}
-                    product={product}
-                    view={view}
-                    onRemove={draft.conditions.length === 0 ? () => setDraft({ ...draft, ids: draft.ids.filter((id) => id !== product.id) }) : undefined}
-                  />
-                ))}
-                {available.map((product) => (
-                  <ProductTile
-                    key={product.id}
-                    product={product}
-                    view={view}
-                    onAdd={() => setDraft({ ...draft, ids: [...draft.ids, product.id] })}
-                  />
-                ))}
+                {visibleItems.map((product) => {
+                  const subcategories = (product.subcategories ?? []).map((name) => name.trim()).filter((name) => name && draft.subcategories.includes(name));
+                  return (
+                    <ProductTile
+                      key={product.id}
+                      product={product}
+                      view={view}
+                      member
+                      subcategories={subcategories}
+                      unmarked={draft.subcategories.length > 0 && subcategories.length === 0}
+                      onRemove={draft.conditions.length === 0 ? () => setDraft({ ...draft, ids: draft.ids.filter((id) => id !== product.id) }) : undefined}
+                    />
+                  );
+                })}
               </div>
             )}
+            {available.length > 0 ? (
+              <div className="mt-5 border-t border-[#f1f1f1] pt-4">
+                <b className="text-sm">לא בקטגוריה</b>
+                <p className="m-0 mt-1 mb-3 text-[13px] text-[#616161]">לחצו על מוצר כדי להוסיף אותו לקטגוריה</p>
+                <div className={view === "grid" ? "grid grid-cols-2 gap-3 min-[800px]:grid-cols-4" : "flex flex-col gap-2"}>
+                  {available.map((product) => (
+                    <ProductTile
+                      key={product.id}
+                      product={product}
+                      view={view}
+                      onAdd={() => setDraft({ ...draft, ids: [...draft.ids, product.id] })}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

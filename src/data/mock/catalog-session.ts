@@ -58,7 +58,7 @@ function cloneProduct(product: Product): Product {
     page: product.page
       ? {
           highlights: [...(product.page.highlights ?? [])],
-          panels: product.page.panels.map((item) => ({ ...item, link: item.link ? { ...item.link } : undefined })),
+          panels: product.page.panels.map((item) => ({ ...item, links: item.links?.map((link) => ({ ...link })) })),
           stories: product.page.stories.map((item) => ({ ...item })),
           steps: product.page.steps.map((item) => ({ ...item })),
           ingredientsIntro: product.page.ingredientsIntro,

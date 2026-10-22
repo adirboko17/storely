@@ -53,8 +53,9 @@ export function parsePage(value: unknown): ProductPage {
   page.panels = list(row.panels, 8).flatMap((item) => {
     const title = text(item.title).slice(0, 80);
     const body = text(item.body).slice(0, 4000);
-    const link = panelLink(item.link);
-    return title && body ? [{ title, body, ...(link ? { link } : {}) } satisfies ProductPanel] : [];
+    const links = panelLinks(item);
+    const align = item.align === "left" ? "left" : undefined;
+    return title && body ? [{ title, body, ...(align ? { align } : {}), ...(links.length ? { links } : {}) } satisfies ProductPanel] : [];
   });
   page.stories = list(row.stories, 20).flatMap((item) => {
     const handle = text(item.handle).slice(0, 80);
@@ -125,6 +126,25 @@ function list(value: unknown, limit: number) {
     const row = record(item);
     return row ? [row] : [];
   });
+}
+
+function panelLinks(item: Record<string, unknown>): ProductPanelLink[] {
+  const listed = Array.isArray(item.links) ? item.links.flatMap((entry) => {
+    const link = panelLink(entry);
+    return link ? [link] : [];
+  }) : [];
+  const legacy = panelLink(item.link);
+  const source = listed.length ? listed : legacy ? [legacy] : [];
+  const seen = new Set<string>();
+  const links: ProductPanelLink[] = [];
+  for (const link of source) {
+    const key = `${link.kind}:${link.href}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    links.push(link);
+    if (links.length === 6) break;
+  }
+  return links;
 }
 
 function panelLink(value: unknown): ProductPanelLink | null {
