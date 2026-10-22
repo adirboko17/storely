@@ -307,6 +307,7 @@ function mapCollections(value: unknown, products: Product[]) {
       excludeOutOfStock: item?.excludeOutOfStock === true,
       image: text(item?.image),
       subcategories: [...new Set([...listed.map((name) => name.trim()).filter(Boolean), ...parsed.subcategories])],
+      manualSort: item?.manualSort === true,
     };
     if (item?.hidden === true) hidden.push(title);
     else extra.push(title);
@@ -402,6 +403,7 @@ function mapPosts(value: unknown): Post[] {
       tags,
       tone: text(item.tone) || "#e4e0d8",
       image: text(item.image),
+      video: text(item.video),
       seoTitle: text(item.seoTitle),
       seoDescription: text(item.seoDescription),
       handle: text(item.handle),

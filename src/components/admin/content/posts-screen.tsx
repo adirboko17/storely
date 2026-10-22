@@ -63,7 +63,9 @@ export function PostsScreen() {
               ) : rows.map((post) => (
                 <div key={post.id} className="flex items-center gap-2 border-b border-[#f1f1f1] pe-2 hover:bg-[#f7f7f7]">
                   <button type="button" className="flex min-w-0 flex-1 items-center gap-3.5 border-0 bg-transparent px-4 py-3 text-start" onClick={() => router.push(`/admin/content/posts/${post.id}`)}>
-                    {postCover(post.image, logo) ? (
+                    {post.video && !postHasOwnImage(post.image) ? (
+                      <video src={post.video} muted className="h-10 w-14 shrink-0 rounded-lg bg-black object-cover" />
+                    ) : postCover(post.image, logo) ? (
                       <img src={postCover(post.image, logo)} alt="" className={"h-10 w-14 shrink-0 rounded-lg bg-[#f6f6f6] " + (postHasOwnImage(post.image) ? "object-cover" : "object-contain p-1")} />
                     ) : (
                       <span className="h-10 w-14 shrink-0 rounded-lg" style={{ background: post.tone || "#e3e3e3" }} />

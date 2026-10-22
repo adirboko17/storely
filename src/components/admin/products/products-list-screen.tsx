@@ -18,6 +18,7 @@ import {
 } from "@/data/mock/catalog-session";
 import { getOrderSessionVersion, listResolvedOrders, subscribeOrderSession } from "@/data/mock/order-session";
 import { BulkEditor } from "@/components/admin/products/bulk-editor";
+import { ProductArrangeScreen } from "@/components/admin/products/product-arrange-screen";
 import { PRODUCT_STATUS, PRODUCT_TABS, inventoryLabel, type ProductTab } from "@/lib/catalog/present";
 import { formatMoney0 } from "@/lib/formatting/money";
 import type { Product, ProductStatus } from "@/types/commerce";
@@ -98,6 +99,7 @@ export function ProductsListScreen() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [transfer, setTransfer] = useState(false);
+  const [arrange, setArrange] = useState(false);
   const [rangeOpen, setRangeOpen] = useState(false);
   const [range, setRange] = useState<DashboardWindow>(defaultDashboardWindow);
   const rangeButton = useRef<HTMLButtonElement>(null);
@@ -129,6 +131,9 @@ export function ProductsListScreen() {
       <div className="flex flex-wrap items-center gap-2 px-3.5 pt-2.5 pb-2">
         <Icon name="tag" size={18} strokeWidth={1.6} />
         <h1 className="m-0 flex-1 text-[15px] leading-5 font-bold">מוצרים</h1>
+        <button type="button" className={softButton} onClick={() => setArrange((open) => !open)}>
+          {arrange ? "חזרה לרשימה" : "סידור בחנות"}
+        </button>
         <button type="button" className={softButton} onClick={() => setTransfer(true)}>
           ייבוא / ייצוא
         </button>
@@ -137,6 +142,8 @@ export function ProductsListScreen() {
         </Link>
       </div>
 
+      {arrange ? <ProductArrangeScreen /> : (
+      <>
       <div className="mx-3 flex overflow-x-auto rounded-xl bg-white shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
         <div className="relative flex shrink-0 items-center border-e border-[#ebebeb] px-3">
           <button ref={rangeButton} type="button" aria-expanded={rangeOpen} className="inline-flex h-[30px] items-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 text-sm font-medium text-ink hover:bg-[#f6f6f6]" onClick={() => setRangeOpen((open) => !open)}>
@@ -277,6 +284,8 @@ export function ProductsListScreen() {
       ) : null}
       <div className="min-h-4 flex-1" />
       <IndexDock pageLabel={rows.length ? `1-${rows.length}` : "0"} />
+      </>
+      )}
 
       {transfer ? <TransferDialog count={products.length} onClose={() => setTransfer(false)} onExport={(fields) => { if (!products.length) { toast("אין מוצרים לייצוא"); return; } if (!fields.length) { toast("בחרו לפחות שדה אחד"); return; } downloadCsv("מוצרים.csv", productCsv(products, fields)); toast("קובץ המוצרים ירד"); }} onTemplate={() => { downloadCsv("תבנית-ייבוא-מוצרים.csv", templateCsv()); toast("קובץ הדוגמה ירד"); }} onFile={(file) => { void importProducts(file, toast, () => setTransfer(false)); }} /> : null}
 

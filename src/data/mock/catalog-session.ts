@@ -1,6 +1,7 @@
 import { PRODUCTS } from "@/data/mock/products";
 import { getStoreIdentity } from "@/data/live/store-identity";
 import { isHydrating, writeStore } from "@/data/live/write";
+import { placeByIds } from "@/lib/catalog/arrange";
 import { COLLECTION_SEEDS } from "@/lib/catalog/present";
 import { GIFT_AMOUNT_PREFIX, OPEN_GIFT_TAG, packProductTags, subcategoryRules } from "@/lib/catalog/subcategories";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -29,6 +30,7 @@ export type CollectionDraft = {
   excludeOutOfStock: boolean;
   image: string;
   subcategories: string[];
+  manualSort?: boolean;
 };
 
 type Snapshot = {
@@ -151,6 +153,7 @@ function collectionPayload(key: string, draft: CollectionDraft, hidden: boolean)
     excludeOutOfStock: draft.excludeOutOfStock,
     image: draft.image,
     hidden,
+    ...(draft.manualSort ? { manualSort: true } : {}),
   };
 }
 
@@ -433,6 +436,39 @@ export function getCollectionDraft(key: string) {
         subcategories: [...draft.subcategories],
       }
     : null;
+}
+
+export async function reorderCatalogProducts(orderedIds: number[]) {
+  const sourceIds = orderedIds.flatMap((id) => {
+    const product = current.products.find((item) => item.id === id);
+    return product?.sourceId ? [product.sourceId] : [];
+  });
+  if (sourceIds.length !== orderedIds.length) throw new Error("חסר מזהה מוצר");
+  await writeStore("reorder_store_products", { product_ids: sourceIds });
+  publish({ ...current, products: placeByIds(current.products, orderedIds).map(cloneProduct) });
+}
+
+export async function reorderCategoryProducts(key: string, orderedIds: number[]) {
+  const existing = current.collections[key];
+  const rest = (existing?.ids ?? []).filter((id) => !orderedIds.includes(id));
+  const draft: CollectionDraft = {
+    title: existing?.title || key,
+    description: existing?.description ?? "",
+    ids: [...orderedIds, ...rest],
+    conditions: existing?.conditions.map((item) => ({ ...item })) ?? [],
+    excludeOutOfStock: existing?.excludeOutOfStock ?? false,
+    image: existing?.image ?? "",
+    subcategories: [...(existing?.subcategories ?? [])],
+    manualSort: true,
+  };
+  const hidden = current.hiddenCollections.includes(key);
+  const known = COLLECTION_SEEDS.some((seed) => seed.title === key) || current.extraCollections.includes(key) || Boolean(existing);
+  await writeStore("save_store_collection", { collection: collectionPayload(key, draft, hidden) });
+  publish({
+    ...current,
+    extraCollections: hidden || known ? current.extraCollections : [key, ...current.extraCollections],
+    collections: { ...current.collections, [key]: draft },
+  });
 }
 
 export function saveCollectionDraft(key: string, draft: CollectionDraft) {

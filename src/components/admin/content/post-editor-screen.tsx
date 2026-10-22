@@ -7,15 +7,89 @@ import { createPortal } from "react-dom";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
 import { getCatalogVersion, isVideoMedia, listCatalogProducts, subscribeCatalog } from "@/data/mock/catalog-session";
-import { deletePost, getPost, getPostsVersion, nextPostId, postCover, postHasOwnImage, savePost, subscribePosts, type Post } from "@/data/mock/content-session";
+import { commitPostVideo, deletePost, getPost, getPostsVersion, nextPostId, postCover, postHasOwnImage, releasePostVideo, savePost, stagePostVideo, subscribePosts, type Post } from "@/data/mock/content-session";
 import { getSettings, getSettingsVersion, subscribeSettings } from "@/data/mock/settings-session";
 import { slugifyHandle } from "@/lib/catalog/present";
+import { fitVideo, needsVideoFit, VideoFitError } from "@/lib/media/fit-video";
 import { formatMoney0 } from "@/lib/formatting/money";
 import type { Product } from "@/types/commerce";
 
 const field = "h-[34px] w-full rounded-[10px] border border-[#c9c9c9] bg-white px-3 text-sm text-[#303030] outline-none placeholder:text-[#8a8a8a]";
 const selectField = "h-[34px] w-full appearance-none rounded-[10px] border border-[#c9c9c9] bg-white ps-3 pe-8 text-sm text-[#303030] outline-none";
 const chevron = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23303030' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E\")";
+
+const MARK = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+|\/[^\s)]+)\)|\*\*([^*\n]+)\*\*|\*([^*\n]+)\*|<u>([^<\n]+)<\/u>/g;
+
+function escapeHtml(text: string) {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function inlineHtml(text: string) {
+  let html = "";
+  let cursor = 0;
+  for (const match of text.matchAll(MARK)) {
+    const start = match.index ?? 0;
+    html += escapeHtml(text.slice(cursor, start));
+    if (match[1] && match[2]) html += `<a href="${escapeHtml(match[2])}">${escapeHtml(match[1])}</a>`;
+    else if (match[3]) html += `<strong>${escapeHtml(match[3])}</strong>`;
+    else if (match[4]) html += `<em>${escapeHtml(match[4])}</em>`;
+    else if (match[5]) html += `<u>${escapeHtml(match[5])}</u>`;
+    cursor = start + match[0].length;
+  }
+  html += escapeHtml(text.slice(cursor));
+  return html;
+}
+
+function bodyToHtml(body: string) {
+  if (!body) return "";
+  return body.split("\n").map((line) => `<div>${inlineHtml(line) || "<br>"}</div>`).join("");
+}
+
+function inlineText(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) return (node.textContent ?? "").replace(/\u00a0/g, " ");
+  if (!(node instanceof HTMLElement) || node.tagName === "BR") return "";
+  const inner = [...node.childNodes].map(inlineText).join("");
+  const tag = node.tagName;
+  if ((tag === "STRONG" || tag === "B") && inner) return `**${inner}**`;
+  if ((tag === "EM" || tag === "I") && inner) return `*${inner}*`;
+  if (tag === "U" && inner) return `<u>${inner}</u>`;
+  if (tag === "A" && inner) {
+    const href = node.getAttribute("href") ?? "";
+    return /^https?:\/\//i.test(href) || href.startsWith("/") ? `[${inner}](${href})` : inner;
+  }
+  return inner;
+}
+
+function htmlToBody(root: HTMLElement) {
+  const lines: string[] = [];
+  let line = "";
+  const pushLine = () => {
+    lines.push(line);
+    line = "";
+  };
+  for (const node of root.childNodes) {
+    if (node instanceof HTMLElement && (node.tagName === "UL" || node.tagName === "OL")) {
+      if (line) pushLine();
+      [...node.children].forEach((item, index) => {
+        if (item.tagName !== "LI") return;
+        lines.push(`${node.tagName === "OL" ? `${index + 1}. ` : "• "}${inlineText(item)}`);
+      });
+      continue;
+    }
+    if (node instanceof HTMLElement && (node.tagName === "DIV" || node.tagName === "P" || /^H[1-3]$/.test(node.tagName))) {
+      if (line) pushLine();
+      lines.push(inlineText(node));
+      continue;
+    }
+    if (node instanceof HTMLBRElement) {
+      pushLine();
+      continue;
+    }
+    line += inlineText(node);
+  }
+  if (line) lines.push(line);
+  return lines.join("\n");
+}
 
 const BLOGS = ["חדשות", "בלוג החנות", "מאחורי הקלעים"];
 const TEMPLATES = ["פוסט בלוג ברירת מחדל", "פוסט בלוג מלא"];
@@ -35,6 +109,7 @@ function blank(id: number): Post {
     tags: [],
     tone: "",
     image: "",
+    video: "",
     seoTitle: "",
     seoDescription: "",
     handle: "",
@@ -217,14 +292,18 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
   const [saved, setSaved] = useState(baseline);
   const [bound, setBound] = useState(postId);
   const [saving, setSaving] = useState(false);
+  const [fitting, setFitting] = useState(false);
+  const [fitProgress, setFitProgress] = useState<number | null>(null);
   const [error, setError] = useState(false);
   const [tag, setTag] = useState("");
   const [seoOpen, setSeoOpen] = useState(false);
   const [block, setBlock] = useState("פסקה");
   const [align, setAlign] = useState<"start" | "center" | "end">("start");
   const [code, setCode] = useState(false);
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const savedRange = useRef<Range | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLInputElement>(null);
   const history = useRef<string[]>([]);
 
   if (bound !== postId) {
@@ -251,35 +330,81 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
     });
   }
 
-  function wrap(before: string, after = before) {
-    const el = bodyRef.current;
-    const source = draft.body;
-    const start = el?.selectionStart ?? source.length;
-    const end = el?.selectionEnd ?? source.length;
-    const selected = source.slice(start, end) || "טקסט";
-    const next = `${source.slice(0, start)}${before}${selected}${after}${source.slice(end)}`;
-    setBody(next, true);
-    window.requestAnimationFrame(() => {
-      const node = bodyRef.current;
-      if (!node) return;
-      node.focus();
-      node.selectionStart = start + before.length;
-      node.selectionEnd = start + before.length + selected.length;
-    });
+  function syncFromEditor() {
+    const node = bodyRef.current;
+    if (!node) return;
+    const body = htmlToBody(node);
+    setDraft((current) => (current.body === body ? current : { ...current, body }));
   }
 
-  function prefixLines(marker: (index: number) => string) {
-    const el = bodyRef.current;
-    const source = draft.body;
-    const start = el?.selectionStart ?? 0;
-    const end = el?.selectionEnd ?? source.length;
-    const lineStart = source.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
-    const lineEnd = source.indexOf("\n", end);
-    const sliceEnd = lineEnd === -1 ? source.length : lineEnd;
-    const lines = source.slice(lineStart, sliceEnd).split("\n");
-    const nextLines = lines.map((line, index) => `${marker(index)}${line.replace(/^(?:• |\d+\. )/, "")}`);
-    setBody(`${source.slice(0, lineStart)}${nextLines.join("\n")}${source.slice(sliceEnd)}`, true);
+  function writeBody(body: string, record = false) {
+    setBody(body, record);
+    if (bodyRef.current) bodyRef.current.innerHTML = bodyToHtml(body);
   }
+
+  function rememberSelection() {
+    const node = bodyRef.current;
+    const selection = window.getSelection();
+    if (!node || !selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+    if (!node.contains(selection.anchorNode) || !node.contains(selection.focusNode)) return;
+    savedRange.current = selection.getRangeAt(0).cloneRange();
+  }
+
+  function restoreSelection() {
+    const node = bodyRef.current;
+    const range = savedRange.current;
+    if (!node || !range) return false;
+    node.focus({ preventScroll: true });
+    const selection = window.getSelection();
+    if (!selection) return false;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return true;
+  }
+
+  function formatText(command: "bold" | "italic" | "underline") {
+    if (!restoreSelection()) {
+      toast("סמנו קודם את הטקסט");
+      return;
+    }
+    document.execCommand(command);
+    rememberSelection();
+    syncFromEditor();
+  }
+
+  function applyLink() {
+    if (!bodyRef.current || !restoreSelection()) {
+      toast("סמנו קודם את הטקסט שיהיה קישור");
+      return;
+    }
+    const url = window.prompt("הדביקו את כתובת הקישור", "https://");
+    if (!url) return;
+    const clean = url.trim();
+    if (!/^https?:\/\/\S+$/i.test(clean) && !clean.startsWith("/")) {
+      toast("הקישור צריך להתחיל ב-https://");
+      return;
+    }
+    restoreSelection();
+    document.execCommand("createLink", false, clean);
+    rememberSelection();
+    syncFromEditor();
+  }
+
+  function insertList(ordered: boolean) {
+    bodyRef.current?.focus({ preventScroll: true });
+    document.execCommand(ordered ? "insertOrderedList" : "insertUnorderedList");
+    rememberSelection();
+    syncFromEditor();
+  }
+
+  const bodySource = useRef(draft.body);
+  bodySource.current = draft.body;
+
+  useEffect(() => {
+    const node = bodyRef.current;
+    if (!node) return;
+    node.innerHTML = bodyToHtml(bodySource.current);
+  }, [postId]);
 
   function readImage(file: File | undefined) {
     if (!file) return;
@@ -292,22 +417,54 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
     reader.readAsDataURL(file);
   }
 
-  function save() {
+  async function readVideo(file: File | undefined) {
+    if (!file) return;
+    const allowed = file.type === "video/mp4" || file.type === "video/webm" || file.type === "video/quicktime";
+    if (!allowed) {
+      toast("אפשר להעלות סרטון mp4, webm או mov");
+      return;
+    }
+    setFitting(true);
+    try {
+      let ready = file;
+      if (needsVideoFit(file)) {
+        toast("הסרטון גדול מ־50MB, מכווצים אותו…");
+        setFitProgress(0);
+        ready = await fitVideo(file, setFitProgress);
+      }
+      if (draft.video.startsWith("blob:")) releasePostVideo(draft.video);
+      const url = URL.createObjectURL(ready);
+      stagePostVideo(url, ready);
+      patch({ video: url });
+      toast("הסרטון נוסף");
+    } catch (failure) {
+      toast(failure instanceof VideoFitError ? failure.message : "כיווץ הסרטון נכשל.");
+    } finally {
+      setFitting(false);
+      setFitProgress(null);
+    }
+  }
+
+  async function save() {
     if (!draft.title.trim()) {
       setError(true);
       return;
     }
     setSaving(true);
-    const id = existing?.id ?? nextPostId();
-    window.setTimeout(() => {
-      const next = { ...draft, id, tone: draft.tone || "#e7e2d9", handle: draft.handle || slugifyHandle(draft.title) };
+    try {
+      const video = await commitPostVideo(draft.video, saved.video);
+      const id = existing?.id ?? nextPostId();
+      const next = { ...draft, id, video, tone: draft.tone || "#e7e2d9", handle: draft.handle || slugifyHandle(draft.title) };
       savePost(next);
       setDraft(next);
       setSaved(next);
-      setSaving(false);
       toast("הפוסט נשמר");
       if (postId == null) router.replace(`/admin/content/posts/${id}`);
-    }, 400);
+    } catch (failure) {
+      toast(failure instanceof Error ? failure.message : "שמירת הסרטון נכשלה");
+    } finally {
+      setSaving(false);
+    }
   }
 
   useUnsavedEditor(dirty, saving, save, () => {
@@ -374,7 +531,8 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
             </div>
 
             <div>
-              <span className="mb-1.5 block text-[13px] font-semibold">תמונה</span>
+              <span className="mb-1.5 block text-[13px] font-semibold">תמונה או סרטון</span>
+              <span className="mb-2 block text-[12px] text-[#616161]">אפשר להעלות תמונה, סרטון, או את שניהם. סרטון מעל 50MB יכווץ אוטומטית.</span>
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(event) => { readImage(event.target.files?.[0]); event.target.value = ""; }} />
               {postCover(draft.image, getSettings().logo) ? (
                 <div className="relative overflow-hidden rounded-xl border border-[#e3e3e3] bg-[#f6f6f6]">
@@ -388,13 +546,26 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
               ) : (
                 <button type="button" className="h-9 rounded-lg border border-dashed border-[#b5b5b5] bg-white px-3 text-sm" onClick={() => fileRef.current?.click()}>הוספת תמונה</button>
               )}
+              <input ref={videoRef} type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" onChange={(event) => { void readVideo(event.target.files?.[0]); event.target.value = ""; }} />
+              {draft.video ? (
+                <div className="relative mt-3 overflow-hidden rounded-xl border border-[#e3e3e3] bg-[#111]">
+                  <video src={draft.video} controls playsInline className="h-[220px] w-full bg-black object-contain" />
+                  <div className="absolute end-2 top-2 flex gap-2">
+                    <button type="button" className="h-7 rounded-lg border-0 bg-white px-2.5 text-[13px] font-semibold shadow-[0_0_0_1px_rgba(0,0,0,.08)]" disabled={fitting} onClick={() => videoRef.current?.click()}>החלפה</button>
+                    <button type="button" className="h-7 rounded-lg border-0 bg-white px-2.5 text-[13px] font-semibold shadow-[0_0_0_1px_rgba(0,0,0,.08)]" disabled={fitting} onClick={() => { if (draft.video.startsWith("blob:")) releasePostVideo(draft.video); patch({ video: "" }); }}>הסרה</button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" className="mt-3 h-9 rounded-lg border border-dashed border-[#b5b5b5] bg-white px-3 text-sm disabled:opacity-60" disabled={fitting} onClick={() => videoRef.current?.click()}>{fitting ? "מכווצים את הסרטון…" : "הוספת סרטון"}</button>
+              )}
+              {fitProgress != null ? <span className="mt-2 block text-[12px] text-[#616161]">כיווץ {Math.round(fitProgress * 100)}%</span> : null}
             </div>
 
             <div>
               <span className="mb-1.5 block text-[13px] font-semibold">גוף המאמר</span>
               <div className="overflow-hidden rounded-[10px] border border-[#c9c9c9] bg-white">
                 <div className="flex flex-wrap items-center gap-0.5 border-b border-[#ebebeb] px-1 py-1">
-                  <button type="button" aria-label="כתיבה בעזרת העוזר" className="grid size-7 place-items-center rounded-md border-0 bg-transparent text-[#5c2e91] hover:bg-[#f1f1f1]" onClick={() => setBody(draft.body || "הכינו שולחן חג עם ספלים, קערות ומפיות מהסטודיו. כל פריט נעשה ביד ואפשר לשלב אותו עם כלי ההגשה הקיימים.", true)}>
+                  <button type="button" aria-label="כתיבה בעזרת העוזר" className="grid size-7 place-items-center rounded-md border-0 bg-transparent text-[#5c2e91] hover:bg-[#f1f1f1]" onMouseDown={(event) => event.preventDefault()} onClick={() => writeBody(draft.body || "הכינו שולחן חג עם ספלים, קערות ומפיות מהסטודיו. כל פריט נעשה ביד ואפשר לשלב אותו עם כלי ההגשה הקיימים.", true)}>
                     <Sparkle />
                   </button>
                   <select aria-label="סגנון פסקה" value={block} onChange={(event) => setBlock(event.target.value)} className="h-7 appearance-none rounded-md border-0 bg-transparent bg-[length:12px] bg-[position:left_4px_center] bg-no-repeat ps-2 pe-5 text-[13px] outline-none hover:bg-[#f1f1f1]" style={{ backgroundImage: chevron }}>
@@ -403,50 +574,56 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
                     <option>כותרת 2</option>
                     <option>כותרת 3</option>
                   </select>
-                  <ToolButton label="מודגש" onClick={() => wrap("**")}>B</ToolButton>
-                  <ToolButton label="נטוי" onClick={() => wrap("*")} italic>I</ToolButton>
-                  <ToolButton label="קו תחתון" onClick={() => wrap("<u>", "</u>")} underline>U</ToolButton>
+                  <ToolButton label="מודגש" onClick={() => formatText("bold")}>B</ToolButton>
+                  <ToolButton label="נטוי" onClick={() => formatText("italic")} italic>I</ToolButton>
+                  <ToolButton label="קו תחתון" onClick={() => formatText("underline")} underline>U</ToolButton>
                   <ToolButton label="צבע טקסט" onClick={() => toast("צבע הטקסט נשמר יחד עם העיצוב של הפסקה")}>
                     <span className="text-[13px] font-semibold underline decoration-[#303030] decoration-2 underline-offset-2">A</span>
                   </ToolButton>
                   <ToolButton label="יישור" onClick={() => setAlign((current) => (current === "start" ? "center" : current === "center" ? "end" : "start"))}>
                     <AlignIcon />
                   </ToolButton>
-                  <ToolButton label="קישור" onClick={() => wrap("[", "](https://)")}>
+                  <ToolButton label="קישור" onClick={applyLink}>
                     <LinkIcon />
                   </ToolButton>
                   <ToolButton label="תמונה" onClick={() => fileRef.current?.click()}>
                     <ImageIcon />
                   </ToolButton>
-                  <ToolButton label="וידאו" onClick={() => setBody(`${draft.body}${draft.body ? "\n" : ""}[וידאו](https://)`, true)}>
+                  <ToolButton label="וידאו" onClick={() => writeBody(`${draft.body}${draft.body ? "\n" : ""}[וידאו](https://)`, true)}>
                     <VideoIcon />
                   </ToolButton>
-                  <ToolButton label="טבלה" onClick={() => setBody(`${draft.body}${draft.body ? "\n" : ""}| עמודה | עמודה |\n| --- | --- |\n|  |  |`, true)}>
+                  <ToolButton label="טבלה" onClick={() => writeBody(`${draft.body}${draft.body ? "\n" : ""}| עמודה | עמודה |\n| --- | --- |\n|  |  |`, true)}>
                     <TableIcon />
                   </ToolButton>
-                  <ToolButton label="רשימה" onClick={() => prefixLines(() => "• ")}>•</ToolButton>
-                  <ToolButton label="רשימה ממוספרת" onClick={() => prefixLines((index) => `${index + 1}. `)}>1.</ToolButton>
-                  <ToolButton label="הזחה" onClick={() => prefixLines(() => "  ")}>
+                  <ToolButton label="רשימה" onClick={() => insertList(false)}>•</ToolButton>
+                  <ToolButton label="רשימה ממוספרת" onClick={() => insertList(true)}>1.</ToolButton>
+                  <ToolButton label="הזחה" onClick={() => { bodyRef.current?.focus({ preventScroll: true }); document.execCommand("indent"); syncFromEditor(); }}>
                     <IndentIcon />
                   </ToolButton>
                   <ToolButton label="ביטול" onClick={() => {
                     const prev = history.current.pop();
                     if (prev == null) return;
-                    setDraft((current) => ({ ...current, body: prev }));
+                    writeBody(prev);
                   }}>
                     <UndoIcon />
                   </ToolButton>
                   <ToolButton label="קוד" onClick={() => setCode((open) => !open)}>&lt;/&gt;</ToolButton>
                 </div>
-                <textarea
+                <div
                   ref={bodyRef}
-                  value={draft.body}
-                  onChange={(event) => patch({ body: event.target.value })}
-                  rows={8}
-                  className="block min-h-[180px] w-full resize-y border-0 bg-white p-3 text-sm leading-6 outline-none"
+                  contentEditable
+                  suppressContentEditableWarning
+                  role="textbox"
+                  aria-multiline
+                  aria-label="גוף המאמר"
+                  onInput={syncFromEditor}
+                  onMouseUp={rememberSelection}
+                  onKeyUp={rememberSelection}
+                  className="block min-h-[180px] w-full resize-y overflow-auto border-0 bg-white p-3 text-sm leading-6 outline-none [&_a]:text-[#1a4fd6] [&_a]:underline [&_b]:font-bold [&_em]:italic [&_i]:italic [&_strong]:font-bold [&_u]:underline"
                   style={{ textAlign: align, fontFamily: code ? "ui-monospace, SFMono-Regular, Menlo, monospace" : undefined }}
                 />
               </div>
+              <p className="m-0 mt-2 text-[12px] leading-5 text-[#616161]">סמנו טקסט ולחצו מודגש, נטוי או קו. הקישור נצבע בכחול עם קו תחתון, והסמן נשאר על אותו טקסט.</p>
             </div>
 
             <div className="border-t border-[#ebebeb] pt-4">
@@ -571,7 +748,7 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
 
 function ToolButton({ label, onClick, children, italic, underline }: { label: string; onClick: () => void; children: ReactNode; italic?: boolean; underline?: boolean }) {
   return (
-    <button type="button" aria-label={label} onClick={onClick} className="grid h-7 min-w-7 place-items-center rounded-md border-0 bg-transparent px-1 text-[13px] font-semibold text-[#303030] hover:bg-[#f1f1f1]" style={{ fontStyle: italic ? "italic" : undefined, textDecoration: underline ? "underline" : undefined }}>
+    <button type="button" aria-label={label} onMouseDown={(event) => event.preventDefault()} onClick={onClick} className="grid h-7 min-w-7 place-items-center rounded-md border-0 bg-transparent px-1 text-[13px] font-semibold text-[#303030] hover:bg-[#f1f1f1]" style={{ fontStyle: italic ? "italic" : undefined, textDecoration: underline ? "underline" : undefined }}>
       {children}
     </button>
   );
