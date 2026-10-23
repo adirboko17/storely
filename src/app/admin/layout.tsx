@@ -8,7 +8,6 @@ import { StoreHydrator } from "@/components/admin/store-hydrator";
 import { PlatformReturnBar } from "@/components/platform/return-bar";
 import type { PlatformStore } from "@/components/platform/types";
 import type { StoreSnapshot } from "@/data/live/apply-store";
-import { emptyTraffic, parseTraffic } from "@/data/live/traffic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { parseStoreAccess, visibleAdminNavigation } from "@/platform/access";
 import { resolveAdminNavigation } from "@/platform/navigation";
@@ -21,7 +20,7 @@ function presentText(value: unknown, fallback: string) {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={<div className="h-dvh bg-shell" />}>
+    <Suspense fallback={<div className="grid h-dvh place-items-center bg-shell text-sm text-white/70">טוען את הניהול…</div>}>
       <AdminFrame>{children}</AdminFrame>
     </Suspense>
   );
@@ -72,9 +71,8 @@ async function AdminFrame({ children }: { children: React.ReactNode }) {
     knownEmail = user.email ?? "";
   }
 
-  const [{ data: snapshot }, { data: traffic }, { data: visitHost }, { data: brand }] = await Promise.all([
+  const [{ data: snapshot }, { data: visitHost }, { data: brand }] = await Promise.all([
     supabase.rpc("store_admin_snapshot", { target_store: storeId }),
-    supabase.rpc("store_traffic_snapshot", { target_store: storeId }),
     supabase.rpc("store_visit_host", { target_store: storeId }),
     supabase.from("store_settings").select("logo_url, brand_colors, currency").eq("store_id", storeId).maybeSingle(),
   ]);
@@ -105,7 +103,7 @@ async function AdminFrame({ children }: { children: React.ReactNode }) {
   const accountEmail = access.email || knownEmail;
 
   return (
-    <StoreHydrator storeId={storeId} snapshot={liveSnapshot} traffic={traffic == null ? emptyTraffic() : parseTraffic(traffic)}>
+    <StoreHydrator storeId={storeId} snapshot={liveSnapshot}>
       <AdminProvider>
         <AdminShell navItems={navItems} access={access} accountName={accountName} accountEmail={accountEmail}>
           {enteredName ? <PlatformReturnBar name={enteredName} /> : null}
