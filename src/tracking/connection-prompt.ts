@@ -51,7 +51,7 @@ design.layout הוא modal, bar או corner. design.blocks: heading, text, image
 אל תפתחו פופאפ כשתפריט, חיפוש, חשבון או סל פתוחים. סוגרים ברקע אם closeOnOverlay, ב-Escape ובכפתור. modal נועל גלילה. כבדו prefers-reduced-motion.
 
 קופון נוצר ב-CMS. בסל קוראים ל-quote_storefront עם lines, code, shipping_name, customer_email ו-gift_code. המחיר, ההנחה, המשלוח והמטבע מגיעים מהתשובה.
-כל שורה ב-lines היא variantId ו-quantity. אם הלקוח בחר באנדל, מארז כמות של אותו מוצר, הוסיפו לשורה bundle: true. בלי זה הקופה לא יודעת שהקנייה היא באנדל, והשילוב "משתלבת עם באנדלים" לא יכול לחול.
+כל שורה ב-lines היא variantId ו-quantity. אם הלקוח בחר באנדל, מארז כמות של אותו מוצר, הוסיפו לשורה bundle: true ו-bundleQty עם מספר היחידות במארז. quantity נשאר מספר הבקבוקים. בלי זה הקופה מחייבת כל בקבוק במחיר המלא, והשילוב "משתלבת עם באנדלים" לא יכול לחול.
 אם התשובה מכילה addGift=true, הוסיפו לעגלה את giftVariantId בכמות giftQuantity, ואז קראו שוב ל-quote_storefront לפני שמציגים את הסכום. בלי זה קוד של מוצר תמורת מוצר נראה פעיל, אבל המוצר במתנה לא נכנס לסל וההנחה נשארת 0. אחרי שהמתנה בעגלה, discount הוא מחיר המתנה. אם bundleBlocked=true, הקוד לא חל כי המוצר הנדרש נקנה בבאנדל וההנחה לא מסומנת כמשתלבת עם באנדלים.
 
 עגלה שננטשה נשמרת ב-save_storefront_checkout עם visitor_key, lines ופרטי הלקוח.

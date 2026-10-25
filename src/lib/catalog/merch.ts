@@ -42,7 +42,8 @@ export function parseBundles(value: unknown): ProductBundle[] {
     if (seen.has(qty)) continue;
     seen.add(qty);
     const label = text(row?.label).slice(0, 80) || `קנה ${qty}`;
-    bundles.push({ qty, price: Math.round(price * 100) / 100, label });
+    const image = bundleImage(row?.image);
+    bundles.push({ qty, price: Math.round(price * 100) / 100, label, ...(image ? { image } : {}) });
   }
   return bundles.sort((a, b) => a.qty - b.qty);
 }
@@ -164,6 +165,15 @@ function panelLink(value: unknown): ProductPanelLink | null {
   if (row.kind === "article" && /^\/articles\/[a-z0-9-]+$/.test(href)) return { kind: "article", label, href };
   if (row.kind === "url" && (/^https:\/\/\S+$/i.test(href) || /^\/[^/\s]/.test(href))) return { kind: "url", label, href };
   return null;
+}
+
+function bundleImage(value: unknown) {
+  const url = text(value).slice(0, 500);
+  if (!url || url.includes("..")) return "";
+  const path = url.split("?")[0] ?? "";
+  if (/^https:\/\/[a-z0-9.-]+\/storage\/v1\/object\/public\/product-media\/[a-z0-9._/-]+\.(jpe?g|png|webp|gif|avif)$/i.test(path)) return path;
+  if (url.startsWith("blob:") || url.startsWith("data:image/")) return url;
+  return "";
 }
 
 function storyUrl(value: string) {

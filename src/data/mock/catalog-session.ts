@@ -5,7 +5,7 @@ import { placeByIds } from "@/lib/catalog/arrange";
 import { COLLECTION_SEEDS } from "@/lib/catalog/present";
 import { GIFT_AMOUNT_PREFIX, OPEN_GIFT_TAG, packProductTags, subcategoryRules } from "@/lib/catalog/subcategories";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { emptyProductPage, type Product, type ProductStatus, type ProductStory } from "@/types/commerce";
+import { emptyProductPage, type Product, type ProductBundle, type ProductStatus, type ProductStory } from "@/types/commerce";
 
 export type GiftCard = {
   code: string;
@@ -270,6 +270,50 @@ async function uploadStoryVideos(storeId: string, productId: string, stories: Pr
   return { stories: next, uploaded };
 }
 
+const imageExtensions = new Set(["jpg", "png", "webp", "gif", "avif"]);
+
+async function uploadBundleImages(storeId: string, productId: string, bundles: ProductBundle[]) {
+  const supabase = createSupabaseBrowserClient();
+  const next: ProductBundle[] = [];
+  const uploaded: { local: string; path: string }[] = [];
+  try {
+    for (const bundle of bundles) {
+      const image = bundle.image ?? "";
+      if (!image || /^https:\/\//i.test(image)) {
+        next.push(bundle);
+        continue;
+      }
+      const staged = pendingMedia.get(image);
+      const blob = staged ?? (image.startsWith("data:image/") ? await fetch(image).then((response) => response.blob()) : null);
+      if (!blob?.type.startsWith("image/")) throw new Error("העלאת תמונת הבאנדל נכשלה");
+      const extension = mediaExtension(blob.type);
+      if (!extension || !imageExtensions.has(extension)) throw new Error("אפשר לשמור תמונות jpg, png, webp, gif או avif");
+      const path = `${storeId}/${productId}/${crypto.randomUUID()}.${extension}`;
+      const { error } = await supabase.storage.from(mediaBucket).upload(path, blob, { contentType: blob.type, upsert: false });
+      if (error) throw new Error("העלאת תמונת הבאנדל נכשלה");
+      uploaded.push({ local: image, path });
+      next.push({ ...bundle, image: publicMediaUrl(path) });
+    }
+  } catch (error) {
+    if (uploaded.length > 0) await supabase.storage.from(mediaBucket).remove(uploaded.map((item) => item.path));
+    throw error;
+  }
+  return { bundles: next, uploaded };
+}
+
+async function removeBundleImages(storeId: string, productId: string, previous: ProductBundle[], next: ProductBundle[], media: string[]) {
+  const kept = new Set([...next.map((bundle) => bundle.image ?? ""), ...media]);
+  const stale = previous.flatMap((bundle) => {
+    const image = bundle.image ?? "";
+    if (!image || kept.has(image)) return [];
+    const path = storedMediaPath(image, storeId, productId);
+    return path ? [path] : [];
+  });
+  if (stale.length === 0) return;
+  const supabase = createSupabaseBrowserClient();
+  await supabase.storage.from(mediaBucket).remove(stale);
+}
+
 async function removeStoryVideos(storeId: string, productId: string, previous: ProductStory[], next: ProductStory[]) {
   const kept = new Set(next.map((story) => story.url));
   const stale = previous.flatMap((story) => {
@@ -282,7 +326,7 @@ async function removeStoryVideos(storeId: string, productId: string, previous: P
   await supabase.storage.from(mediaBucket).remove(stale);
 }
 
-async function persistProduct(product: Product, previousStories: ProductStory[] = []) {
+async function persistProduct(product: Product, previousStories: ProductStory[] = [], previousBundles: ProductBundle[] = []) {
   if (typeof window === "undefined") return null;
   const storeId = getStoreIdentity().storeId;
   if (!storeId) return null;
@@ -313,11 +357,19 @@ async function persistProduct(product: Product, previousStories: ProductStory[] 
   const uploadedStories = await uploadStoryVideos(storeId, data, page.stories ?? []);
   const stories = uploadedStories.stories;
   const nextPage = { ...page, stories };
+  let uploadedBundles: { bundles: ProductBundle[]; uploaded: { local: string; path: string }[] };
+  try {
+    uploadedBundles = await uploadBundleImages(storeId, data, product.bundles ?? []);
+  } catch (failure) {
+    if (uploadedStories.uploaded.length > 0) await supabase.storage.from(mediaBucket).remove(uploadedStories.uploaded.map((item) => item.path));
+    throw failure;
+  }
+  const bundles = uploadedBundles.bundles;
   const { error: merchError } = await supabase.rpc("save_store_product_merch", {
     target_store: storeId,
     product_id: data,
     merch: {
-      bundles: product.bundles ?? [],
+      bundles,
       page: nextPage,
       badge: { label: (product.badge ?? "").trim().slice(0, 24), hidden: product.badgeHidden === true },
       headline: product.headline ?? { mode: "single", subtitle: "" },
@@ -329,16 +381,18 @@ async function persistProduct(product: Product, previousStories: ProductStory[] 
     },
   });
   if (merchError) {
-    if (uploadedStories.uploaded.length > 0) await supabase.storage.from(mediaBucket).remove(uploadedStories.uploaded.map((item) => item.path));
+    const fresh = [...uploadedStories.uploaded, ...uploadedBundles.uploaded].map((item) => item.path);
+    if (fresh.length > 0) await supabase.storage.from(mediaBucket).remove(fresh);
     throw new Error(merchError.message?.includes("הכתובת כבר בשימוש") ? "הכתובת כבר בשימוש" : "שמירת הבאנדלים והתוכן לעמוד המוצר נכשלה");
   }
-  for (const item of uploadedStories.uploaded) {
+  for (const item of [...uploadedStories.uploaded, ...uploadedBundles.uploaded]) {
     pendingMedia.delete(item.local);
     if (item.local.startsWith("blob:")) URL.revokeObjectURL(item.local);
   }
   await removeStoryVideos(storeId, data, previousStories, stories);
+  await removeBundleImages(storeId, data, previousBundles, bundles, product.media ?? []);
   if (data !== product.sourceId) rememberProductSource(product.id, data);
-  const stored = { ...product, sourceId: data, page: nextPage };
+  const stored = { ...product, sourceId: data, page: nextPage, bundles };
   if (product.media) {
     const media = await uploadProductMedia(storeId, data, product.media);
     return { ...stored, media };
@@ -367,13 +421,15 @@ export async function deleteCatalogProducts(ids: number[]) {
 
 export async function saveCatalogProduct(product: Product) {
   const exists = current.products.some((item) => item.id === product.id);
-  const previousStories = current.products.find((item) => item.id === product.id)?.page?.stories ?? [];
+  const previous = current.products.find((item) => item.id === product.id);
+  const previousStories = previous?.page?.stories ?? [];
+  const previousBundles = previous?.bundles ?? [];
   const saved = cloneProduct(product);
   publish({
     ...current,
     products: exists ? current.products.map((item) => (item.id === product.id ? saved : item)) : [saved, ...current.products],
   });
-  const stored = await persistProduct(saved, previousStories);
+  const stored = await persistProduct(saved, previousStories, previousBundles);
   if (!stored) return saved;
   publish({
     ...current,
@@ -442,6 +498,19 @@ export function getCollectionDraft(key: string) {
         subcategories: [...draft.subcategories],
       }
     : null;
+}
+
+export async function reorderCollections(titles: string[]) {
+  const previous = current.extraCollections;
+  const hidden = new Set(current.hiddenCollections);
+  const extra = [...titles.filter((title) => !hidden.has(title)), ...previous.filter((title) => !titles.includes(title) && !hidden.has(title))];
+  publish({ ...current, extraCollections: extra });
+  try {
+    await writeStore("reorder_store_collections", { titles });
+  } catch (error) {
+    publish({ ...current, extraCollections: previous });
+    throw error;
+  }
 }
 
 export async function reorderCatalogProducts(orderedIds: number[]) {

@@ -6,7 +6,8 @@ import { ColumnsButton, IndexDock, darkButton } from "@/components/admin/orders/
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { Icon } from "@/components/ui/icon";
 import { TermPicker } from "@/components/admin/products/term-picker";
-import { addCategorySubcategory, deleteCategorySubcategory, getCatalogVersion, getCollectionDraft, hideCollection, listCatalogProducts, listExtraCollections, listHiddenCollections, removeCategorySubcategory, subscribeCatalog, type CollectionCondition } from "@/data/mock/catalog-session";
+import { addCategorySubcategory, deleteCategorySubcategory, getCatalogVersion, getCollectionDraft, hideCollection, listCatalogProducts, listExtraCollections, listHiddenCollections, removeCategorySubcategory, reorderCollections, subscribeCatalog, type CollectionCondition } from "@/data/mock/catalog-session";
+import { moveItem } from "@/lib/catalog/arrange";
 import { formatInteger } from "@/lib/formatting/money";
 
 const clearInput = { backgroundColor: "transparent", color: "#303030" } as const;
@@ -25,6 +26,9 @@ export function CollectionsScreen() {
   const hidden = listHiddenCollections();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [over, setOver] = useState<number | null>(null);
+  const [savingOrder, setSavingOrder] = useState(false);
   const fromProducts = products.map((product) => product.category.trim()).filter(Boolean);
   const keys = [...listExtraCollections(), ...fromProducts].filter((key, index, all) => all.indexOf(key) === index && !hidden.includes(key));
   const rows = keys
@@ -37,10 +41,28 @@ export function CollectionsScreen() {
       const sample = products.find((product) => product.category.trim() === title);
       return { key, title, count, conditions: draft?.conditions.map(conditionLine) ?? [], tone: sample?.tone || "#f3f3f3" };
     })
-    .filter((row) => !query.trim() || row.title.includes(query.trim()))
-    .sort((a, b) => a.title.localeCompare(b.title, "he"));
+    .filter((row) => !query.trim() || row.title.includes(query.trim()));
   const allSelected = rows.length > 0 && rows.every((row) => selected.includes(row.key));
   const picked = selected.filter((key) => rows.some((row) => row.key === key));
+
+  const canDrag = !query.trim() && !savingOrder && rows.length > 1;
+
+  async function dropAt(index: number) {
+    if (dragFrom == null || !canDrag) return;
+    const next = moveItem(rows, dragFrom, index);
+    setDragFrom(null);
+    setOver(null);
+    if (next === rows) return;
+    setSavingOrder(true);
+    try {
+      await reorderCollections(next.map((row) => row.key));
+      toast("הסדר נשמר ויופיע באתר");
+    } catch {
+      toast("לא הצלחנו לשמור את הסדר");
+    } finally {
+      setSavingOrder(false);
+    }
+  }
 
   function removeSelected() {
     picked.forEach((key) => hideCollection(key));
@@ -73,11 +95,13 @@ export function CollectionsScreen() {
           </div>
         )}
       </div>
+      <p className="mx-3 mt-2 mb-0 text-[13px] text-[#616161]">{query.trim() ? "נקו את החיפוש כדי לשנות את סדר הקטגוריות." : "גררו את הידית כדי לקבוע את סדר הקטגוריות באתר."}</p>
       <div className="mx-3 mt-2 overflow-x-auto rounded-[10px]">
         <table className="w-full min-w-[820px] border-collapse text-sm">
           <thead>
             <tr className="text-[13px] text-[#4a4a4a]">
               <th className="h-8 w-10 rounded-s-[10px] bg-[#f3f3f3] px-2.5"><input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? [] : rows.map((row) => row.key))} className="size-4 accent-[#303030]" /></th>
+              <th className="w-8 bg-[#f3f3f3]" />
               <th className="w-12 bg-[#f3f3f3]" />
               <th className="bg-[#f3f3f3] px-2.5 text-start font-semibold">כותרת</th>
               <th className="w-[280px] bg-[#f3f3f3] px-2.5 text-start font-semibold">תתי קטגוריה</th>
@@ -86,11 +110,54 @@ export function CollectionsScreen() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
+            {rows.map((row, index) => {
               const on = selected.includes(row.key);
               return (
-                <tr key={row.key} className="min-h-[49px] cursor-pointer border-b border-[#ebebeb] hover:bg-[#f7f7f7]" style={{ background: on ? "#f1f1f1" : "#fff" }} onClick={() => router.push(`/admin/products/collections/${encodeURIComponent(row.key)}`)}>
+                <tr
+                  key={row.key}
+                  className="min-h-[49px] cursor-pointer border-b border-[#ebebeb] hover:bg-[#f7f7f7]"
+                  style={{ background: on ? "#f1f1f1" : "#fff", outline: over === index && dragFrom !== index ? "2px solid #303030" : undefined, opacity: dragFrom === index ? 0.45 : 1 }}
+                  onDragOver={(event) => {
+                    if (!canDrag || dragFrom == null) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                    setOver(index);
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    void dropAt(index);
+                  }}
+                  onClick={() => router.push(`/admin/products/collections/${encodeURIComponent(row.key)}`)}
+                >
                   <td className="px-2.5 align-top pt-3.5" onClick={(event) => event.stopPropagation()}><input type="checkbox" checked={on} onChange={() => setSelected((current) => (current.includes(row.key) ? current.filter((key) => key !== row.key) : [...current, row.key]))} className="size-4 accent-[#303030]" /></td>
+                  <td className="px-1 align-top pt-3" onClick={(event) => event.stopPropagation()}>
+                    <button
+                      type="button"
+                      draggable={canDrag}
+                      aria-label={`גרירת ${row.title}`}
+                      title="גרירה לשינוי הסדר"
+                      className="grid size-7 cursor-grab place-items-center rounded-md border-0 bg-transparent text-[#8a8a8a] active:cursor-grabbing disabled:cursor-default disabled:opacity-30"
+                      disabled={!canDrag}
+                      onDragStart={(event) => {
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", String(index));
+                        setDragFrom(index);
+                      }}
+                      onDragEnd={() => {
+                        setDragFrom(null);
+                        setOver(null);
+                      }}
+                    >
+                      <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden>
+                        <circle cx="7" cy="5" r="1.2" />
+                        <circle cx="13" cy="5" r="1.2" />
+                        <circle cx="7" cy="10" r="1.2" />
+                        <circle cx="13" cy="10" r="1.2" />
+                        <circle cx="7" cy="15" r="1.2" />
+                        <circle cx="13" cy="15" r="1.2" />
+                      </svg>
+                    </button>
+                  </td>
                   <td className="p-1 align-top pt-2"><span className="grid size-9 place-items-center rounded-lg text-[#8a8a8a] shadow-[0_0_0_1px_rgba(0,0,0,.08)]" style={{ background: row.tone }}><Icon name="tag" size={14} strokeWidth={1.6} /></span></td>
                   <td className="px-2.5 py-3 align-top font-medium">{row.title}</td>
                   <td className="px-2.5 py-2 align-top" onClick={(event) => event.stopPropagation()}>

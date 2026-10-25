@@ -6,6 +6,7 @@ export type StorefrontLine = {
   variantId: string;
   quantity: number;
   bundle?: boolean;
+  bundleQty?: number;
 };
 
 export type StorefrontCustomer = {

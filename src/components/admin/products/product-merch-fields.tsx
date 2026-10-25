@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Icon } from "@/components/ui/icon";
 import { getStoreIdentity } from "@/data/live/store-identity";
 import { OLI_ARTICLES } from "@/data/oli-articles";
@@ -16,7 +16,7 @@ const area = "block min-h-[92px] max-h-[520px] w-full resize-y rounded-lg border
 const card = "rounded-xl border border-[#d9d9d9] bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,.06)]";
 const chip = "inline-flex h-8 items-center gap-1.5 rounded-full border border-[#d4d4d4] bg-white px-3 text-sm transition-colors hover:border-[#8a8a8a] hover:bg-[#fafafa]";
 
-type BundleDraft = { label: string; qty: string; price: string };
+type BundleDraft = { label: string; qty: string; price: string; image: string };
 
 const PANEL_PRESETS = ["תיאור", "הוראות שימוש", "רשימת INCI מלאה"];
 const FAQ_TOPICS: Array<{ id: ProductFaqTag; label: string }> = [
@@ -79,7 +79,7 @@ function nextBundle(bundles: BundleDraft[]): BundleDraft {
   const taken = new Set(bundles.map((bundle) => Number(bundle.qty)));
   let qty = 2;
   while (taken.has(qty) && qty < 99) qty += 1;
-  return { label: "", qty: String(qty), price: "" };
+  return { label: "", qty: String(qty), price: "", image: "" };
 }
 
 export function ProductMerchFields({
@@ -105,7 +105,7 @@ export function ProductMerchFields({
       <section className={`${card} flex flex-col gap-4`}>
         <div>
           <h2 className="m-0 text-[15px] font-semibold">באנדלים</h2>
-          <p className="m-0 mt-1 text-[13px] text-ink-secondary">כל באנדל מופיע בעמוד המוצר תחת «בחרי כמות», עם הכיתוב והמחיר שתקבעו.</p>
+          <p className="m-0 mt-1 text-[13px] text-ink-secondary">כל באנדל מופיע בעמוד המוצר תחת «בחרי כמות», עם הכיתוב, המחיר והתמונה שתקבעו.</p>
         </div>
         {bundles.length ? (
           <div className="flex flex-col gap-2.5">
@@ -116,7 +116,10 @@ export function ProductMerchFields({
                 unitPrice={unitPrice}
                 duplicate={bundles.some((item, other) => other !== index && item.qty.trim() !== "" && item.qty === bundle.qty)}
                 onChange={(partial) => updateBundle(index, partial)}
-                onRemove={() => onBundles(bundles.filter((_, item) => item !== index))}
+                onRemove={() => {
+                  releaseBundleImage(bundle.image);
+                  onBundles(bundles.filter((_, item) => item !== index));
+                }}
               />
             ))}
           </div>
@@ -249,30 +252,7 @@ export function ProductMerchFields({
           </Section>
 
           <Section title="רשימת רכיבים מלאה" hint="נפתחת בעמוד המוצר מתחת לרכיבי המפתח, לפי הסדר שעל האריזה. אפשר להדביק רשימה שלמה והיא תתחלק לרכיבים." status={names((page.inci ?? []).map((item) => item.he || item.inci))} filled={(page.inci ?? []).length > 0}>
-            <InciPaste items={page.inci ?? []} onChange={(inci) => onPage({ ...page, inci })} />
-            <ItemList
-              items={page.inci ?? []}
-              onChange={(inci) => onPage({ ...page, inci })}
-              max={60}
-              untitled="רכיב בלי שם"
-              empty="עדיין אין רשימת INCI."
-              summary={(item) => ({ title: item.inci || item.he, sub: [item.key ? "רכיב מפתח" : "", item.he || "לחצו להוספת שם בעברית"].filter(Boolean).join(" · ") })}
-              adds={[{ label: "הוספת רכיב", make: () => ({ inci: "", he: "" }) }]}
-              render={(item, update) => (
-                <>
-                  <Field label="שם INCI" hint="השם הבינלאומי, כפי שמופיע על האריזה">
-                    <input dir="ltr" value={item.inci} maxLength={240} onChange={(event) => update({ inci: event.target.value })} placeholder="Prunus Amygdalus Dulcis (Sweet Almond) Oil" className={`${field} text-end`} />
-                  </Field>
-                  <Field label="שם בעברית">
-                    <input value={item.he} maxLength={80} onChange={(event) => update({ he: event.target.value })} placeholder="שמן שקדים מתוקים" className={field} />
-                  </Field>
-                  <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
-                    <input type="checkbox" checked={item.key === true} onChange={(event) => update({ key: event.target.checked || undefined })} className="size-4 accent-[#303030]" />
-                    רכיב מפתח
-                  </label>
-                </>
-              )}
-            />
+            <InciEditor items={page.inci ?? []} onChange={(inci) => onPage({ ...page, inci })} />
           </Section>
 
           <Section title="לקוחות ממליצות" hint="ההמלצה הראשונה מוצגת כציטוט גדול. אפשר לשנות סדר עם החצים." status={page.reviews.length ? names(page.reviews.map((review) => review.name)) : EMPTY} filled={page.reviews.length > 0}>
@@ -383,7 +363,9 @@ function BundleCard({ bundle, unitPrice, duplicate, onChange, onRemove }: { bund
 
   return (
     <div className={`rounded-xl border bg-white p-3.5 transition-colors ${note.tone === "bad" ? "border-[#fdb5b0]" : "border-[#e3e3e3] hover:border-[#cfcfcf]"}`}>
-      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-3 min-[700px]:grid-cols-[minmax(0,1fr)_128px_148px_auto]">
+      <div className="flex items-start gap-3">
+        <BundleImage image={bundle.image} onChange={(image) => onChange({ image })} />
+        <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-3 min-[700px]:grid-cols-[minmax(0,1fr)_128px_148px_auto]">
         <div className="col-span-3 min-[700px]:col-span-1">
           <Field label="כיתוב" hint={`אם ריק יופיע «קנה ${validQty ? qty : 2}»`}>
             <input value={bundle.label} maxLength={80} onChange={(event) => onChange({ label: event.target.value })} placeholder={`לדוגמה: ${sample}`} className={field} />
@@ -406,11 +388,72 @@ function BundleCard({ bundle, unitPrice, duplicate, onChange, onRemove }: { bund
         <IconButton label="מחיקת באנדל" danger onClick={onRemove}>
           <Icon name="trash" size={16} />
         </IconButton>
+        </div>
       </div>
       <div className={`mt-3 flex items-center gap-2 border-t border-[#f0f0f0] pt-2.5 text-[13px] ${tones[note.tone]}`}>
         <span className={`size-1.5 shrink-0 rounded-full ${dots[note.tone]}`} aria-hidden />
         {note.text}
       </div>
+    </div>
+  );
+}
+
+const BUNDLE_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"];
+
+function releaseBundleImage(url: string) {
+  if (!url || (!url.startsWith("blob:") && !url.startsWith("data:image/"))) return;
+  releaseProductMedia(url);
+}
+
+function BundleImage({ image, onChange }: { image: string; onChange: (image: string) => void }) {
+  const [error, setError] = useState("");
+
+  function pick(file: File) {
+    if (!BUNDLE_IMAGE_TYPES.includes(file.type)) {
+      setError("אפשר jpg, png, webp, gif או avif");
+      return;
+    }
+    if (file.size > 12 * 1024 * 1024) {
+      setError("התמונה גדולה מ־12MB");
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    releaseBundleImage(image);
+    stageProductMedia(url, file);
+    setError("");
+    onChange(url);
+  }
+
+  function clear() {
+    releaseBundleImage(image);
+    setError("");
+    onChange("");
+  }
+
+  return (
+    <div className="flex w-[84px] shrink-0 flex-col gap-1.5">
+      <span className="text-[13px] font-semibold text-[#303030]">תמונה</span>
+      <label className="grid h-[72px] w-[84px] cursor-pointer place-items-center overflow-hidden rounded-xl border border-dashed border-[#d0d0d0] bg-[#f6f1ec] transition-colors hover:border-[#8a8a8a]">
+        {image ? <img src={image} alt="" className="size-full object-cover" /> : <Icon name="placeholder" size={18} className="text-[#8a8a8a]" />}
+        <input
+          type="file"
+          accept={BUNDLE_IMAGE_TYPES.join(",")}
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (file) pick(file);
+          }}
+        />
+      </label>
+      {image ? (
+        <button type="button" className="text-start text-xs text-[#8e1f0b]" onClick={clear}>
+          הסרת תמונה
+        </button>
+      ) : (
+        <span className="text-xs leading-4 text-ink-secondary">לא חובה</span>
+      )}
+      {error ? <p className="m-0 text-xs leading-4 text-[#8e1f0b]">{error}</p> : null}
     </div>
   );
 }
@@ -440,7 +483,47 @@ function Section({ title, hint, status, filled, children }: { title: string; hin
 
 const INCI_LIMIT = 60;
 
-function InciPaste({ items, onChange }: { items: ProductInci[]; onChange: (items: ProductInci[]) => void }) {
+function InciEditor({ items, onChange }: { items: ProductInci[]; onChange: (items: ProductInci[]) => void }) {
+  const listRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <InciPaste
+        items={items}
+        onChange={onChange}
+        onApplied={() => requestAnimationFrame(() => listRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }))}
+      />
+      <div ref={listRef} className="flex flex-col gap-2">
+        {items.length ? <p className="m-0 text-[13px] font-semibold text-[#303030]">{items.length === 1 ? "רכיב אחד. לחצו עליו כדי לתת לו שם בעברית, לערוך או למחוק." : `${items.length} רכיבים. לחצו על רכיב כדי לתת לו שם בעברית, לערוך או למחוק.`}</p> : null}
+        <ItemList
+          items={items}
+          onChange={onChange}
+          max={INCI_LIMIT}
+          untitled="רכיב בלי שם"
+          empty="עדיין אין רשימת INCI. הדביקו רשימה למעלה, או הוסיפו רכיב אחד."
+          summary={(item) => ({ title: item.inci || item.he, sub: [item.key ? "רכיב מפתח" : "", item.he || "לחצו להוספת שם בעברית"].filter(Boolean).join(" · ") })}
+          adds={[{ label: "הוספת רכיב", make: () => ({ inci: "", he: "" }) }]}
+          render={(item, update) => (
+            <>
+              <Field label="שם INCI" hint="השם הבינלאומי, כפי שמופיע על האריזה">
+                <input dir="ltr" value={item.inci} maxLength={240} onChange={(event) => update({ inci: event.target.value })} placeholder="Prunus Amygdalus Dulcis (Sweet Almond) Oil" className={`${field} text-end`} />
+              </Field>
+              <Field label="שם בעברית">
+                <input autoFocus value={item.he} maxLength={80} onChange={(event) => update({ he: event.target.value })} placeholder="שמן שקדים מתוקים" className={field} />
+              </Field>
+              <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
+                <input type="checkbox" checked={item.key === true} onChange={(event) => update({ key: event.target.checked || undefined })} className="size-4 accent-[#303030]" />
+                רכיב מפתח
+              </label>
+            </>
+          )}
+        />
+      </div>
+    </div>
+  );
+}
+
+function InciPaste({ items, onChange, onApplied }: { items: ProductInci[]; onChange: (items: ProductInci[]) => void; onApplied: () => void }) {
   const [text, setText] = useState("");
   const [message, setMessage] = useState<{ tone: "good" | "bad" | "muted"; text: string } | null>(null);
   const detected = parseInciPaste(text);
@@ -449,7 +532,8 @@ function InciPaste({ items, onChange }: { items: ProductInci[]; onChange: (items
   function apply(raw: string) {
     const result = takeInciPaste(items.map((item) => item.inci), raw, INCI_LIMIT - items.length);
     if (result.added.length) onChange([...items, ...result.added.map((inci) => ({ inci, he: "" }))]);
-    setText(result.added.length ? "" : raw);
+    setText(result.parsed ? "" : raw);
+    if (result.parsed) onApplied();
     const tone = result.added.length ? "good" : result.parsed && result.skipped && !result.overflow ? "muted" : "bad";
     setMessage({ tone, text: pasteNote(result) });
   }
@@ -507,7 +591,7 @@ function InciPaste({ items, onChange }: { items: ProductInci[]; onChange: (items
 function pasteNote(result: { parsed: number; added: string[]; skipped: number; overflow: number }) {
   if (!result.parsed) return "לא זוהו רכיבים. הפרידו ביניהם בפסיק, כמו ברשימה שעל האריזה.";
   if (!result.added.length && result.overflow && !result.skipped) return "הרשימה מלאה. אפשר עד 60 רכיבים.";
-  if (!result.added.length && result.skipped && !result.overflow) return result.skipped === 1 ? "הרכיב הזה כבר ברשימה." : "כל הרכיבים האלה כבר ברשימה.";
+  if (!result.added.length && result.skipped && !result.overflow) return result.skipped === 1 ? "הרכיב הזה כבר ברשימה למטה. לחצו עליו כדי לתת לו שם בעברית." : "כל הרכיבים האלה כבר מחולקים למטה. לחצו על רכיב כדי לתת לו שם בעברית.";
   if (!result.added.length) return "הרכיבים החדשים לא נכנסו כי הרשימה מלאה (60).";
   const added = result.added.length === 1 ? "נוסף רכיב אחד. לחצו עליו כדי לתת לו שם בעברית." : `נוספו ${result.added.length} רכיבים. לחצו על רכיב כדי לתת לו שם בעברית.`;
   const skipped = result.skipped ? (result.skipped === 1 ? " רכיב אחד כבר היה ברשימה." : ` ${result.skipped} כבר היו ברשימה.`) : "";
