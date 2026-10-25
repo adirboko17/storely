@@ -81,7 +81,7 @@ type Draft = {
   variantPrices: string[];
   variantQty: string[];
   media: string[];
-  bundles: { label: string; qty: string; price: string; image: string }[];
+  bundles: { label: string; qty: string; price: string; image: string; tag: string }[];
   page: ProductPage;
   badge: string;
   badgeHidden: boolean;
@@ -126,7 +126,7 @@ function fromProduct(product: Product | null): Draft {
     variantPrices: labels.map(() => (product ? product.price.toFixed(2) : "")),
     variantQty: labels.map((_, index) => String(quantities[index] ?? 0)),
     media: product?.media ? [...product.media] : [],
-    bundles: (product?.bundles ?? []).map((bundle) => ({ label: bundle.label, qty: String(bundle.qty), price: bundle.price.toFixed(2), image: bundle.image ?? "" })),
+    bundles: (product?.bundles ?? []).map((bundle) => ({ label: bundle.label, qty: String(bundle.qty), price: bundle.price.toFixed(2), image: bundle.image ?? "", tag: bundle.tag ?? "" })),
     badge: product?.badge ?? "",
     badgeHidden: product?.badgeHidden === true,
     headlineMode: product?.headline?.mode === "split" ? "split" : "single",
@@ -330,7 +330,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
       options: options.length ? options : undefined,
       quantities: labels.length ? quantities : undefined,
       description: draft.description,
-      bundles: parseBundles(draft.bundles.map((bundle) => ({ label: bundle.label, qty: Number(bundle.qty), price: Number(bundle.price), image: bundle.image }))),
+      bundles: parseBundles(draft.bundles.map((bundle) => ({ label: bundle.label, qty: Number(bundle.qty), price: Number(bundle.price), image: bundle.image, tag: bundle.tag }))),
       page: getStoreIdentity().ownerEmail.toLowerCase() === OLI_STORE_OWNER ? parsePage(draft.page) : product?.page,
       badge: draft.badge.trim().slice(0, 24),
       badgeHidden: draft.badgeHidden,

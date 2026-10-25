@@ -48,6 +48,7 @@ targeting.frequency הוא always, session, day או once. סגירה או של�
 targeting.device הוא all, desktop או mobile. desktop הוא רוחב מעל 760.
 design.layout הוא modal, bar או corner. design.blocks: heading, text, image, button, field, spacer. טקסט מוצג כטקסט, לא כ-HTML. תמונה וקישור רק ב-https, או נתיב שמתחיל ב-/ יחיד. mailto ו-tel מותרים לכפתור.
 אם יש field, זה טופס. השליחה רצה בשרת אל submit_store_popup_lead עם tracking_key, hostname, popup_id, fields ו-page_path. fields הוא אובייקט מחרוזות עם מפתחות באנגלית קטנה. אחרי הצלחה הציגו successTitle ו-successText.
+שאלון 5% נערך ב-CMS תחת שיווק / פופאפים, בכותרת שאלון. storefront_shop מחזיר quiz רק כשהשאלון פעיל, ואחרת quiz הוא null ונשאר השאלון הקבוע באתר. quiz כולל את טקסטי הפתיחה, התמונה, הטופס ומסך הסיום, ואת entry ו-questions. כל question הוא id, title ו-choices. כל choice הוא id, label, next ו-products. next הוא id של שאלה אחרת, או form כשנגמרות השאלות ונפתח טופס הפרטים. products הם מזהי המוצרים שמוצגים אחרי התשובה שהובילה לטופס. מתחילים ב-entry. טקסט מוצג כטקסט, לא כ-HTML. תמונה רק ב-https.
 אל תפתחו פופאפ כשתפריט, חיפוש, חשבון או סל פתוחים. סוגרים ברקע אם closeOnOverlay, ב-Escape ובכפתור. modal נועל גלילה. כבדו prefers-reduced-motion.
 
 קופון נוצר ב-CMS. בסל קוראים ל-quote_storefront עם lines, code, shipping_name, customer_email ו-gift_code. המחיר, ההנחה, המשלוח והמטבע מגיעים מהתשובה.

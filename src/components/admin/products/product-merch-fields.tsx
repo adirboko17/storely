@@ -16,7 +16,7 @@ const area = "block min-h-[92px] max-h-[520px] w-full resize-y rounded-lg border
 const card = "rounded-xl border border-[#d9d9d9] bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,.06)]";
 const chip = "inline-flex h-8 items-center gap-1.5 rounded-full border border-[#d4d4d4] bg-white px-3 text-sm transition-colors hover:border-[#8a8a8a] hover:bg-[#fafafa]";
 
-type BundleDraft = { label: string; qty: string; price: string; image: string };
+type BundleDraft = { label: string; qty: string; price: string; image: string; tag: string };
 
 const PANEL_PRESETS = ["תיאור", "הוראות שימוש", "רשימת INCI מלאה"];
 const FAQ_TOPICS: Array<{ id: ProductFaqTag; label: string }> = [
@@ -79,7 +79,7 @@ function nextBundle(bundles: BundleDraft[]): BundleDraft {
   const taken = new Set(bundles.map((bundle) => Number(bundle.qty)));
   let qty = 2;
   while (taken.has(qty) && qty < 99) qty += 1;
-  return { label: "", qty: String(qty), price: "", image: "" };
+  return { label: "", qty: String(qty), price: "", image: "", tag: "" };
 }
 
 export function ProductMerchFields({
@@ -105,7 +105,7 @@ export function ProductMerchFields({
       <section className={`${card} flex flex-col gap-4`}>
         <div>
           <h2 className="m-0 text-[15px] font-semibold">באנדלים</h2>
-          <p className="m-0 mt-1 text-[13px] text-ink-secondary">כל באנדל מופיע בעמוד המוצר תחת «בחרי כמות», עם הכיתוב, המחיר והתמונה שתקבעו.</p>
+          <p className="m-0 mt-1 text-[13px] text-ink-secondary">כל באנדל מופיע בעמוד המוצר תחת «בחרי כמות», עם הכיתוב, המחיר, התמונה והתגית שתקבעו. תגית אפשר לשים על באנדל אחד או על כולם.</p>
         </div>
         {bundles.length ? (
           <div className="flex flex-col gap-2.5">
@@ -360,6 +360,8 @@ function BundleCard({ bundle, unitPrice, duplicate, onChange, onRemove }: { bund
   const tones = { good: "text-[#0c5132]", warn: "text-[#8a6116]", bad: "text-[#8e1f0b]", muted: "text-ink-secondary" };
   const dots = { good: "bg-[#29845a]", warn: "bg-[#e8a92e]", bad: "bg-[#e51c00]", muted: "bg-[#c4c4c4]" };
   const step = (delta: number) => onChange({ qty: String(Math.min(99, Math.max(1, (validQty ? qty : 1) + delta))) });
+  const tag = bundle.tag.trim();
+  const suggested = tag === "הכי משתלם";
 
   return (
     <div className={`rounded-xl border bg-white p-3.5 transition-colors ${note.tone === "bad" ? "border-[#fdb5b0]" : "border-[#e3e3e3] hover:border-[#cfcfcf]"}`}>
@@ -390,6 +392,26 @@ function BundleCard({ bundle, unitPrice, duplicate, onChange, onRemove }: { bund
         </IconButton>
         </div>
       </div>
+      <label className="mt-3 block">
+        <span className="mb-1.5 flex items-center justify-between gap-3">
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className="text-[13px] font-semibold text-[#303030]">תגית</span>
+            <span className="truncate text-xs text-ink-secondary">לא חובה. מופיעה מעל הכרטיס</span>
+          </span>
+          {tag && !suggested ? <span className="inline-flex h-6 max-w-36 shrink-0 items-center truncate rounded-full bg-[#2a211f] px-2.5 text-[12px] font-semibold text-white">{tag}</span> : null}
+        </span>
+        <span className="flex h-9 items-center gap-1 rounded-lg border border-[#d0d0d0] bg-white pe-1 ps-3 transition-[border-color,box-shadow] hover:border-[#a8a8a8] focus-within:border-[#303030] focus-within:shadow-[0_0_0_3px_rgba(48,48,48,.1)]">
+          <input value={bundle.tag} maxLength={24} onChange={(event) => onChange({ tag: event.target.value })} placeholder="או כתבו תגית משלכם" aria-label="תגית הבאנדל" className="h-full min-w-0 flex-1 border-0 bg-transparent text-sm text-ink outline-none placeholder:text-[#9b9b9b]" />
+          <button
+            type="button"
+            aria-pressed={suggested}
+            className={`h-7 shrink-0 rounded-full px-2.5 text-[12px] font-semibold transition-colors ${suggested ? "bg-[#2a211f] text-white" : "bg-[#f2f2f2] text-[#303030] hover:bg-[#e7e7e7]"}`}
+            onClick={() => onChange({ tag: suggested ? "" : "הכי משתלם" })}
+          >
+            הכי משתלם
+          </button>
+        </span>
+      </label>
       <div className={`mt-3 flex items-center gap-2 border-t border-[#f0f0f0] pt-2.5 text-[13px] ${tones[note.tone]}`}>
         <span className={`size-1.5 shrink-0 rounded-full ${dots[note.tone]}`} aria-hidden />
         {note.text}

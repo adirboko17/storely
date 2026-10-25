@@ -43,7 +43,8 @@ export function parseBundles(value: unknown): ProductBundle[] {
     seen.add(qty);
     const label = text(row?.label).slice(0, 80) || `קנה ${qty}`;
     const image = bundleImage(row?.image);
-    bundles.push({ qty, price: Math.round(price * 100) / 100, label, ...(image ? { image } : {}) });
+    const tag = text(row?.tag).replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 24);
+    bundles.push({ qty, price: Math.round(price * 100) / 100, label, ...(image ? { image } : {}), ...(tag ? { tag } : {}) });
   }
   return bundles.sort((a, b) => a.qty - b.qty);
 }

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { darkButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { loadQuiz, quizStatusLabel, type StoreQuiz } from "@/lib/marketing/quiz";
 import { blankPopup, deletePopup, listPopupLeads, listPopups, pagesLabel, savePopup, statusLabel, triggerLabel, type PopupLead, type StorePopup } from "@/lib/marketing/popups";
 
 const statusTone: Record<StorePopup["status"], string> = {
@@ -16,11 +17,13 @@ export function PopupsScreen() {
   const router = useRouter();
   const { toast } = useAdmin();
   const [popups, setPopups] = useState<StorePopup[] | null>(null);
+  const [quiz, setQuiz] = useState<{ quiz: StoreQuiz; stored: boolean } | null>(null);
   const [leadPopup, setLeadPopup] = useState<StorePopup | null>(null);
 
   useEffect(() => {
     let alive = true;
     listPopups().then((rows) => { if (alive) setPopups(rows); }).catch((error: Error) => toast(error.message));
+    loadQuiz().then((result) => { if (alive) setQuiz(result); }).catch((error: Error) => toast(error.message));
     return () => { alive = false; };
   }, [toast]);
 
@@ -82,6 +85,16 @@ export function PopupsScreen() {
             </div>
           ))}
         </div>
+        <section className="flex flex-col gap-3">
+          <h2 className="m-0 text-[15px] font-bold">שאלון</h2>
+          <p className="m-0 text-sm text-[#4a4a4a]">השאלון של 5% הנחה בדף הבית. כאן עורכים כל שאלה, את התשובות שלה, ולאן כל תשובה מובילה.</p>
+          <button type="button" onClick={() => router.push("/admin/marketing/popups/quiz")} className="grid grid-cols-[minmax(0,1fr)_90px_120px_auto] items-center gap-2.5 rounded-[14px] bg-white px-4 py-3 text-start shadow-[0_0_0_1px_rgba(0,0,0,.08)] hover:bg-[#f7f7f7]">
+            <b className="truncate">שאלון 5% הנחה</b>
+            <span className={`w-fit rounded-full px-2 py-0.5 text-xs font-semibold ${quiz?.stored && quiz.quiz.status === "active" ? "bg-[#e3f1df] text-[#0c5132]" : "bg-[#f1f1f1] text-[#4a4a4a]"}`}>{quiz ? (quiz.stored ? quizStatusLabel(quiz.quiz.status) : "טיוטה") : "טוען"}</span>
+            <span className="text-sm text-[#4a4a4a]">{quiz ? `${quiz.quiz.document.questions.length} שאלות` : ""}</span>
+            <span className="h-7 rounded-lg bg-[#f1f1f1] px-2.5 text-[12px] font-semibold leading-7">עריכה</span>
+          </button>
+        </section>
       </div>
       {leadPopup ? <LeadsDialog popup={leadPopup} onClose={() => setLeadPopup(null)} /> : null}
     </div>

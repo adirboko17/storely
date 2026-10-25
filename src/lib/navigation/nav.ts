@@ -164,6 +164,7 @@ export function titleForPath(path: string) {
   if (/^\/admin\/content\/events\/[^/]+$/.test(path)) return "אירוע";
   if (/^\/admin\/marketing\/automations\/[^/]+$/.test(path)) return "אוטומציה";
   if (/^\/admin\/marketing\/campaigns\/[^/]+$/.test(path)) return "קמפיין";
+  if (path === "/admin/marketing/popups/quiz") return "שאלון";
   if (/^\/admin\/marketing\/popups\/[^/]+$/.test(path)) return "פופאפ";
   if (/^\/admin\/marketing\/emails\/[^/]+$/.test(path)) return "מייל";
   if (/^\/admin\/marketing\/sms\/[^/]+$/.test(path)) return "SMS";
