@@ -16,6 +16,9 @@ export type Post = {
   tags: string[];
   tone: string;
   image: string;
+  imageX: number;
+  imageY: number;
+  imageScale: number;
   video: string;
   seoTitle: string;
   seoDescription: string;

@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+@keyframes post-bubble {
+  from { opacity: 0; transform: translateY(8px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 :root {
   color-scheme: light;
   --shell: #1a1a1a;
@@ -84,6 +89,94 @@
 
 @media (prefers-reduced-motion: reduce) {
   .nav-flyout {
+    animation: none;
+  }
+}
+
+@keyframes connect-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes connect-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.045); }
+}
+
+@keyframes connect-halo {
+  0%, 100% { opacity: 0.45; transform: scale(0.94); }
+  50% { opacity: 0.9; transform: scale(1.06); }
+}
+
+@keyframes connect-orbit {
+  to { transform: rotate(360deg); }
+}
+
+.connecting-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #070a08;
+  background-image: radial-gradient(ellipse at center, rgba(62, 92, 74, 0.55) 0%, rgba(12, 16, 14, 0.2) 46%, #070a08 78%);
+  color: #fff;
+  animation: 280ms ease both connect-fade;
+}
+
+.connecting-mark {
+  position: relative;
+  display: grid;
+  width: 120px;
+  height: 120px;
+  place-items: center;
+}
+
+.connecting-halo {
+  position: absolute;
+  width: 96px;
+  height: 96px;
+  border-radius: 32px;
+  background: radial-gradient(circle, rgba(110, 231, 160, 0.55), rgba(22, 163, 74, 0.08) 68%, transparent 72%);
+  filter: blur(8px);
+  animation: 2.8s ease-in-out infinite connect-halo;
+}
+
+.connecting-orbit {
+  position: absolute;
+  inset: 8px;
+  border-radius: 999px;
+  background: conic-gradient(from 20deg, transparent 0 68%, rgba(255, 255, 255, 0.92) 86%, transparent 100%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1.5px));
+  animation: 3.8s linear infinite connect-orbit;
+  opacity: 0.75;
+}
+
+.connecting-logo {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 68px;
+  height: auto;
+  animation: 2.8s ease-in-out infinite connect-breathe;
+}
+
+.connecting-label {
+  margin: 22px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .connecting-screen,
+  .connecting-halo,
+  .connecting-orbit,
+  .connecting-logo {
     animation: none;
   }
 }

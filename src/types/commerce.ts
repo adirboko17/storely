@@ -7,6 +7,7 @@ export type ProductPanel = { title: string; body: string; align?: ProductPanelAl
 export type ProductStory = { handle: string; url: string };
 export type ProductStep = { title: string; body: string };
 export type ProductIngredient = { en: string; he: string; body: string };
+export type ProductInci = { inci: string; he: string; key?: boolean };
 export type ProductReview = { name: string; title: string; body: string; date: string; rating: number; verified: boolean };
 export type ProductFaqTag = "use" | "ing" | "post" | "buy";
 export type ProductFaq = { q: string; a: string; tag: ProductFaqTag };
@@ -20,6 +21,7 @@ export type ProductPage = {
   steps: ProductStep[];
   ingredientsIntro: string;
   ingredients: ProductIngredient[];
+  inci: ProductInci[];
   reviews: ProductReview[];
   faqs: ProductFaq[];
 };
@@ -27,7 +29,7 @@ export type ProductPage = {
 export const OLI_STORE_OWNER = "itsfrontale@gmail.com";
 
 export function emptyProductPage(): ProductPage {
-  return { highlights: [], panels: [], stories: [], steps: [], ingredientsIntro: "", ingredients: [], reviews: [], faqs: [] };
+  return { highlights: [], panels: [], stories: [], steps: [], ingredientsIntro: "", ingredients: [], inci: [], reviews: [], faqs: [] };
 }
 export type PayStatus = "paid" | "pending" | "partially_refunded" | "refunded";
 export type FulfillmentStatus = "unfulfilled" | "fulfilled" | "partial" | "onhold" | "progress";
@@ -61,6 +63,9 @@ export type Product = {
   badge?: string;
   badgeHidden?: boolean;
   headline?: ProductHeadline;
+  seoTitle?: string;
+  seoDescription?: string;
+  handle?: string;
   giftOpen?: boolean;
   giftAmounts?: number[];
 };

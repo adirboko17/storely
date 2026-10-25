@@ -6,6 +6,7 @@ import { windowForPreset, type DashboardWindow } from "@/components/admin/dashbo
 import { ExportDiscountsDialog } from "@/components/admin/discounts/export-discounts-dialog";
 import { ColumnsButton, darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { getCatalogVersion, subscribeCatalog } from "@/data/mock/catalog-session";
 import { Icon } from "@/components/ui/icon";
 import {
   KIND_LABEL,
@@ -32,9 +33,9 @@ const STATUS = {
   expired: { label: "פג תוקף", background: "#e3e3e3", color: "#616161" },
 };
 const TYPES: Array<{ key: DiscountKind; label: string; detail: string }> = [
-  { key: "product", label: "הנחה על מוצרים", detail: "אחוז או סכום על מוצרים, קטגוריות או תתי קטגוריות" },
+  { key: "product", label: "הנחה על מוצרים", detail: "אחוז או סכום על מוצרים נבחרים, קטגוריות או תתי קטגוריות" },
   { key: "order", label: "הנחה על ההזמנה", detail: "אחוז או סכום מכל ההזמנה" },
-  { key: "bxgy", label: "קנה X קבל Y", detail: "מוצר במתנה בקנייה של כמות" },
+  { key: "bxgy", label: "קנה X קבל Y", detail: "מוצר תמורת מוצר, כמות על אותו מוצר, או מתנה מקטגוריה" },
   { key: "ship", label: "משלוח חינם", detail: "ביטול דמי משלוח לפי תנאי" },
 ];
 
@@ -42,6 +43,7 @@ export function DiscountsListScreen() {
   const router = useRouter();
   const { toast } = useAdmin();
   useSyncExternalStore(subscribeDiscounts, getDiscountVersion, () => 0);
+  useSyncExternalStore(subscribeCatalog, getCatalogVersion, () => 0);
   const discounts = listDiscounts();
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("all");
   const [menu, setMenu] = useState(false);
@@ -116,7 +118,7 @@ export function DiscountsListScreen() {
                   <td className="px-2.5 whitespace-nowrap">{discount.method === "code" ? "קוד" : "אוטומטי"}</td>
                   <td className="px-2.5 whitespace-nowrap">{discount.eligibility === "all" ? "כל הלקוחות" : discount.segment}</td>
                   <td className="px-2.5 whitespace-nowrap">{KIND_LABEL[discount.type]}</td>
-                  <td className="px-2.5 text-[#616161]">{[discount.combProduct && "מוצר", discount.combOrder && "הזמנה", discount.combShip && "משלוח", discount.blockGift && "בלי כרטיס מתנה"].filter(Boolean).join(" · ") || "—"}</td>
+                  <td className="px-2.5 text-[#616161]">{[discount.combProduct && "מוצר", discount.combOrder && "הזמנה", discount.combShip && "משלוח", discount.type === "bxgy" && discount.combBundle && "באנדל", discount.blockGift && "בלי כרטיס מתנה"].filter(Boolean).join(" · ") || "—"}</td>
                   <td className="px-4 text-left">{discount.uses}</td>
                 </tr>
               );

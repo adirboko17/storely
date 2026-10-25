@@ -84,7 +84,10 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/admin/content/posts",
     match: "/admin/content",
     icon: "content",
-    children: [{ key: "blogs", label: "פוסטים בבלוג", href: "/admin/content/posts" }],
+    children: [
+      { key: "blogs", label: "פוסטים בבלוג", href: "/admin/content/posts" },
+      { key: "events", label: "אירועים", href: "/admin/content/events" },
+    ],
   },
   {
     key: "analytics",
@@ -134,6 +137,8 @@ const TITLES: Record<string, string> = {
   "/admin/discounts/new": "הנחה חדשה",
   "/admin/content/posts": "פוסטים בבלוג",
   "/admin/content/posts/new": "פוסט חדש",
+  "/admin/content/events": "אירועים",
+  "/admin/content/events/new": "אירוע חדש",
   "/admin/analytics": "ניתוח נתונים",
   "/admin/analytics/reports": "דוחות",
   "/admin/analytics/live": "צפייה חיה",
@@ -156,6 +161,7 @@ export function titleForPath(path: string) {
   if (/^\/admin\/customers\/[^/]+$/.test(path)) return "לקוח";
   if (/^\/admin\/discounts\/[^/]+$/.test(path)) return "הנחה";
   if (/^\/admin\/content\/posts\/[^/]+$/.test(path)) return "פוסט";
+  if (/^\/admin\/content\/events\/[^/]+$/.test(path)) return "אירוע";
   if (/^\/admin\/marketing\/automations\/[^/]+$/.test(path)) return "אוטומציה";
   if (/^\/admin\/marketing\/campaigns\/[^/]+$/.test(path)) return "קמפיין";
   if (/^\/admin\/marketing\/popups\/[^/]+$/.test(path)) return "פופאפ";

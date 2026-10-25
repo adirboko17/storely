@@ -5,6 +5,7 @@ type ShopCall = Pick<StorefrontEventInput, "supabaseUrl" | "publishableKey" | "t
 export type StorefrontLine = {
   variantId: string;
   quantity: number;
+  bundle?: boolean;
 };
 
 export type StorefrontCustomer = {

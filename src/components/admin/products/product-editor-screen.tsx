@@ -119,9 +119,9 @@ function fromProduct(product: Product | null): Draft {
     collections: selectedCategories(product),
     subcategories: product?.subcategories ? [...product.subcategories] : [],
     tags: product ? [...product.tags] : [],
-    seoTitle: product?.title ?? "",
-    seoDesc: product?.description?.slice(0, 155) ?? "",
-    handle: slugifyHandle(product?.title ?? ""),
+    seoTitle: product?.seoTitle || product?.title || "",
+    seoDesc: product?.seoDescription || product?.description?.slice(0, 155) || "",
+    handle: product?.handle || slugifyHandle(product?.title ?? ""),
     options,
     variantPrices: labels.map(() => (product ? product.price.toFixed(2) : "")),
     variantQty: labels.map((_, index) => String(quantities[index] ?? 0)),
@@ -139,6 +139,7 @@ function fromProduct(product: Product | null): Draft {
           steps: product.page.steps.map((item) => ({ ...item })),
           ingredientsIntro: product.page.ingredientsIntro,
           ingredients: product.page.ingredients.map((item) => ({ ...item })),
+          inci: (product.page.inci ?? []).map((item) => ({ ...item })),
           reviews: product.page.reviews.map((item) => ({ ...item })),
           faqs: (product.page.faqs ?? []).map((item) => ({ ...item })),
         }
@@ -334,6 +335,9 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
       badge: draft.badge.trim().slice(0, 24),
       badgeHidden: draft.badgeHidden,
       headline: { mode: draft.headlineMode, subtitle: draft.headlineSubtitle },
+      seoTitle: draft.seoTitle.trim().slice(0, 70),
+      seoDescription: draft.seoDesc.trim().slice(0, 160),
+      handle: slugifyHandle(draft.handle || draft.title),
       giftOpen: product?.giftOpen,
       giftAmounts: product?.giftAmounts,
     };
@@ -531,7 +535,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
               </div>
               <label className="block">
                 {splitTitle ? <span className="mb-1.5 block text-xs text-ink-secondary">השם בכרטיסי המוצר, בסל, בפירורי לחם ובקישור</span> : null}
-                <input aria-label={splitTitle ? "כותרת גדולה" : "כותרת"} value={draft.title} onChange={(event) => patch({ title: event.target.value, seoTitle: draft.seoTitle === saved.seoTitle || draft.seoTitle === draft.title ? event.target.value : draft.seoTitle, handle: slugifyHandle(event.target.value) })} placeholder="לדוגמה: אולילסטיק" className={field} style={{ borderColor: titleError ? "#e51c00" : "#c9c9c9", background: titleError ? "#fff4f4" : "#fff" }} />
+                <input aria-label={splitTitle ? "כותרת גדולה" : "כותרת"} value={draft.title} onChange={(event) => patch({ title: event.target.value, seoTitle: draft.seoTitle === saved.seoTitle || draft.seoTitle === draft.title ? event.target.value : draft.seoTitle, handle: draft.handle === slugifyHandle(draft.title) ? slugifyHandle(event.target.value) : draft.handle })} placeholder="לדוגמה: אולילסטיק" className={field} style={{ borderColor: titleError ? "#e51c00" : "#c9c9c9", background: titleError ? "#fff4f4" : "#fff" }} />
                 {titleError ? <div className="mt-1.5 text-[13px] text-[#8e1f0b]">יש להזין כותרת למוצר</div> : null}
               </label>
               {splitTitle ? (
@@ -857,7 +861,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
               <button type="button" aria-label="עריכה" className="grid size-7 place-items-center rounded-lg border-0 bg-transparent" onClick={() => setSeoEdit((open) => !open)}>✎</button>
             </div>
             <span>{getStoreIdentity().name}</span>
-            <span dir="ltr" className="text-[13px] text-[#4a4a4a]">{getStoreIdentity().hostname}/products/{draft.handle || "product"}</span>
+            <span dir="ltr" className="text-[13px] text-[#4a4a4a]">{getStoreIdentity().hostname}/product/{draft.handle || "product"}</span>
             <span className="mt-1 text-[22px] leading-[30px] text-[#1a4fd6]">{draft.seoTitle || draft.title || "כותרת המוצר"}</span>
             <span className="text-sm text-[#4a4a4a]">{draft.seoDesc || draft.description.slice(0, 155) || "תיאור המוצר יופיע כאן."}</span>
             <span dir="ltr" className="mt-1 text-sm text-[#4a4a4a]">{formatMoney(priceNumber)}</span>

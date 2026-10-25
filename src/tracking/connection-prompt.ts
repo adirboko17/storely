@@ -35,6 +35,11 @@ policies.items הוא מערך המסמכים: id, title, body כ-HTML, footer �
 אם policies.items חסר, התייחסו לשדות return, privacy, terms, shipping, contact, legal ו-purchase כ-HTML של מסמכים מובנים, עם קישור בפוטר ובדף התשלום.
 השדה currency ב-storefront_shop וב-quote_storefront הוא מטבע החנות: ILS, USD או EUR. הציגו את הסמל המתאים בכל מחיר בחנות ובסל.
 
+אירועים נערכים ב-CMS תחת תוכן / אירועים. האתר קורא ל-store_public_events עם target_store, כמו store_public_catalog, בלי tracking_key. הקריאה רצה בשרת עם המפתח הציבורי. התשובה היא מערך. אם החנות לא פעילה או שאין אירוע לפרסום, חוזר []. טיוטה לא חוזרת, וקישור זום לא חוזר אף פעם.
+כל אירוע: slug, title, short, body כמערך פסקאות בלי HTML, date בפורמט YYYY-MM-DD, from ו-to בפורמט HH:MM לפי שעון ישראל, online, address (null באירוע אונליין), price כמספר שלם (0 הוא חינם), status ו-image ככתובת https או null. status הוא open, full, ended או cancelled. המיון הוא date ואחר כך from. עמוד האירוע הוא /events/{slug}.
+הרשמה קוראת ל-register_store_event עם target_store, event_slug, full_name, phone, email, stage, due_date, pregnancy_week, baby_birth_date, terms_accepted ו-marketing_consent. stage הוא pregnant או gave_birth. בהריון שולחים due_date או pregnancy_week בין 4 ל-42, ובלי תאריך לידה של תינוק. אחרי לידה שולחים baby_birth_date, ובלי תאריך משוער ובלי שבוע. תאריך חסר נשלח כ-null, לא כמחרוזת ריקה. terms_accepted חייב להיות true.
+באירוע חינמי במצב open ההרשמה נסגרת מיד, וה-CMS שולח מייל אישור. באירוע בתשלום התשובה היא pending=true עם registrationId ו-price. גובים באותה סליקה של החנות. החשבונית נשארת אצל חברת הסליקה. רק אחרי שהתשלום הצליח השרת קורא ל-confirm_store_event_payment עם target_store ו-registration_id. אז נוצרת הזמנה ב-CMS והמייל יוצא מכתובת החנות. במייל של אירוע אונליין יש את קישור הזום, ובאירוע פרונטלי את הכתובת. תזכורת במייל יוצאת יום לפני ושעה לפני. אם לחנות יש SMS, אותן שתי תזכורות יוצאות גם ב-SMS.
+
 פופאפים נערכים ב-CMS תחת שיווק / פופאפים. storefront_shop מחזיר popups: רק פעילים שבתוך חלון startsAt ו-endsAt, עד 20, מהחדש לישן. כל פריט הוא id, design ו-targeting.
 הציגו פופאפ אחד בכל טעינת עמוד: הראשון שהעמוד, המכשיר והתדירות שלו מתקיימים.
 targeting.pages: all, home, product, catalog, checkout, content כ-boolean, ו-paths כקידומות שמתחילות ב-/. home הוא /, product הוא /product, catalog הוא /products או /olimini, checkout הוא /checkout, content הוא מאמר (כולל הנתיב בעברית, /articles ו-/journal) או /podcast. נתיב /articles/{slug} תופס גם את /journal/{slug} ואת כתובת המאמר בעברית. קידומת אחרת תופסת את הנתיב עצמו וכל מה שמתחתיו.
@@ -46,6 +51,8 @@ design.layout הוא modal, bar או corner. design.blocks: heading, text, image
 אל תפתחו פופאפ כשתפריט, חיפוש, חשבון או סל פתוחים. סוגרים ברקע אם closeOnOverlay, ב-Escape ובכפתור. modal נועל גלילה. כבדו prefers-reduced-motion.
 
 קופון נוצר ב-CMS. בסל קוראים ל-quote_storefront עם lines, code, shipping_name, customer_email ו-gift_code. המחיר, ההנחה, המשלוח והמטבע מגיעים מהתשובה.
+כל שורה ב-lines היא variantId ו-quantity. אם הלקוח בחר באנדל, מארז כמות של אותו מוצר, הוסיפו לשורה bundle: true. בלי זה הקופה לא יודעת שהקנייה היא באנדל, והשילוב "משתלבת עם באנדלים" לא יכול לחול.
+אם התשובה מכילה addGift=true, הוסיפו לעגלה את giftVariantId בכמות giftQuantity, ואז קראו שוב ל-quote_storefront לפני שמציגים את הסכום. בלי זה קוד של מוצר תמורת מוצר נראה פעיל, אבל המוצר במתנה לא נכנס לסל וההנחה נשארת 0. אחרי שהמתנה בעגלה, discount הוא מחיר המתנה. אם bundleBlocked=true, הקוד לא חל כי המוצר הנדרש נקנה בבאנדל וההנחה לא מסומנת כמשתלבת עם באנדלים.
 
 עגלה שננטשה נשמרת ב-save_storefront_checkout עם visitor_key, lines ופרטי הלקוח.
 

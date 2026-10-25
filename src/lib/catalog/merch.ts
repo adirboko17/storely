@@ -1,4 +1,4 @@
-import { emptyProductPage, type ProductBundle, type ProductFaq, type ProductFaqTag, type ProductHeadline, type ProductIngredient, type ProductPage, type ProductPanel, type ProductPanelLink, type ProductReview, type ProductStep, type ProductStory } from "@/types/commerce";
+import { emptyProductPage, type ProductBundle, type ProductFaq, type ProductFaqTag, type ProductHeadline, type ProductInci, type ProductIngredient, type ProductPage, type ProductPanel, type ProductPanelLink, type ProductReview, type ProductStep, type ProductStory } from "@/types/commerce";
 
 function record(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
@@ -17,6 +17,8 @@ export function parseProductMerch(value: unknown) {
     badge: text(badge?.label).slice(0, 24),
     badgeHidden: badge?.hidden === true,
     headline: parseHeadline(row?.headline),
+    seoTitle: text(record(row?.seo)?.title).replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 70),
+    seoDescription: text(record(row?.seo)?.description).replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 160),
   };
 }
 
@@ -74,7 +76,13 @@ export function parsePage(value: unknown): ProductPage {
     const body = text(item.body).slice(0, 500);
     return (en || he) && body ? [{ en, he, body } satisfies ProductIngredient] : [];
   });
-  page.reviews = list(row.reviews, 30).flatMap((item) => {
+  page.inci = list(row.inci, 60).flatMap((item) => {
+    const inci = text(item.inci).replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 240);
+    const he = text(item.he).replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 80);
+    if (!inci) return [];
+    return [{ inci, he, ...(item.key === true ? { key: true } : {}) } satisfies ProductInci];
+  });
+  page.reviews = list(row.reviews, 80).flatMap((item) => {
     const name = text(item.name).slice(0, 80);
     const body = text(item.body).slice(0, 1000);
     if (!name || !body) return [];

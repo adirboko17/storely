@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent, type ReactNode } from "react";
+import { ConnectingScreen } from "@/components/auth/connecting-screen";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 const field =
@@ -17,6 +18,7 @@ export function LoginScreen({ nextPath = "" }: { nextPath?: string }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [pending, setPending] = useState(false);
+  const [connecting, setConnecting] = useState(false);
 
   function continueWithEmail() {
     const value = email.trim();
@@ -38,6 +40,7 @@ export function LoginScreen({ nextPath = "" }: { nextPath?: string }) {
     }
     setPending(true);
     setError("");
+    let entered = false;
     try {
       const supabase = createSupabaseBrowserClient();
       const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
@@ -45,18 +48,18 @@ export function LoginScreen({ nextPath = "" }: { nextPath?: string }) {
         setError(authError.message.toLowerCase().includes("invalid") ? "האימייל או הסיסמה לא נכונים" : "לא הצלחנו להתחבר. נסו שוב");
         return;
       }
-      if (nextPath) {
-        router.push(nextPath);
-        router.refresh();
-        return;
-      }
-      const { data: allowed } = await supabase.rpc("has_platform_access");
-      router.push(allowed === true ? "/platform" : "/admin");
+      entered = true;
+      setConnecting(true);
+      const destination = nextPath || ((await supabase.rpc("has_platform_access")).data === true ? "/platform" : "/admin");
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      router.push(destination);
       router.refresh();
     } catch {
+      entered = false;
+      setConnecting(false);
       setError("לא הצלחנו להתחבר. נסו שוב");
     } finally {
-      setPending(false);
+      if (!entered) setPending(false);
     }
   }
 
@@ -74,6 +77,7 @@ export function LoginScreen({ nextPath = "" }: { nextPath?: string }) {
 
   return (
     <main className="relative flex min-h-dvh flex-col bg-[#070a08] text-[#1a1a1a]">
+      {connecting ? <ConnectingScreen /> : null}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(62,92,74,0.42)_0%,rgba(12,16,14,0.15)_46%,rgba(0,0,0,0.72)_100%)]"

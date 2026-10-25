@@ -25,7 +25,7 @@ export async function createSupabaseServerClient() {
             cookieStore.set(name, value, options);
           }
         } catch {
-          // A Server Component can read the session without writing cookies.
+          // Server Components cannot write cookies. src/proxy.ts persists refreshes.
         }
       },
     },

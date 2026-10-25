@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { darkButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
-import { Icon } from "@/components/ui/icon";
+import { CoverThumb } from "@/components/admin/content/image-crop";
 import { deletePost, getPostsVersion, listPosts, postCover, postHasOwnImage, subscribePosts } from "@/data/mock/content-session";
 import { getSettings, getSettingsVersion, subscribeSettings } from "@/data/mock/settings-session";
 
@@ -54,7 +54,7 @@ export function PostsScreen() {
         ) : (
           <>
             <div className="flex items-center gap-2 rounded-xl bg-white px-3 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
-              <Icon name="search" size={16} strokeWidth={1.8} className="text-ink-secondary" />
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="text-ink-secondary" aria-hidden><path d="M9 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM17 17l-3.5-3.5" /></svg>
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="חיפוש פוסט" className="h-10 min-w-0 flex-1 border-0 bg-transparent text-sm outline-none" />
             </div>
             <div className="overflow-hidden rounded-[14px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
@@ -66,7 +66,9 @@ export function PostsScreen() {
                     {post.video && !postHasOwnImage(post.image) ? (
                       <video src={post.video} muted className="h-10 w-14 shrink-0 rounded-lg bg-black object-cover" />
                     ) : postCover(post.image, logo) ? (
-                      <img src={postCover(post.image, logo)} alt="" className={"h-10 w-14 shrink-0 rounded-lg bg-[#f6f6f6] " + (postHasOwnImage(post.image) ? "object-cover" : "object-contain p-1")} />
+                      <span className="relative aspect-[4/3] h-10 shrink-0 overflow-hidden rounded-lg bg-[#f6f6f6]">
+                        {postHasOwnImage(post.image) ? <CoverThumb src={post.image} x={post.imageX ?? 50} y={post.imageY ?? 50} scale={post.imageScale ?? 1} /> : <img src={postCover(post.image, logo)} alt="" className="size-full object-contain p-1" />}
+                      </span>
                     ) : (
                       <span className="h-10 w-14 shrink-0 rounded-lg" style={{ background: post.tone || "#e3e3e3" }} />
                     )}
@@ -82,7 +84,7 @@ export function PostsScreen() {
                     </span>
                   ) : (
                     <button type="button" aria-label="מחיקת פוסט" className="grid size-8 shrink-0 place-items-center rounded-lg border-0 bg-transparent text-[#8e1f0b] hover:bg-[#f1f1f1]" onClick={() => setPending(post.id)}>
-                      <Icon name="trash" size={16} />
+                      <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M3.4 6.2h13.2M8 6.2V4.7c0-.5.4-.9.9-.9h2.2c.5 0 .9.4.9.9v1.5M5.2 6.2l.75 10.1c.04.6.55 1 1.15 1h5.8c.6 0 1.11-.4 1.15-1L14.8 6.2M8.7 9.1v5M11.3 9.1v5" /></svg>
                     </button>
                   )}
                 </div>

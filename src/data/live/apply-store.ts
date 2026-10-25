@@ -1,7 +1,7 @@
 import { listCatalogProducts, replaceCatalogProducts, type CollectionCondition, type CollectionDraft, type GiftCard } from "@/data/mock/catalog-session";
 import { giftAmountsFromTags, splitCollectionRules, splitProductTags } from "@/lib/catalog/subcategories";
 import { replacePosts, type Post } from "@/data/mock/content-session";
-import { blankDiscount, replaceDiscounts, type Discount, type DiscountKind } from "@/data/mock/discount-session";
+import { blankDiscount, replaceDiscounts, type BxgyMode, type Discount, type DiscountKind } from "@/data/mock/discount-session";
 import { absorbLegacyEmails, parseEmails, parseSms, replaceMarketing, type Flow, type IntegrationState } from "@/data/mock/marketing-session";
 import { replaceAbandoned, replaceLiveOrders, syncLiveOrders } from "@/data/mock/order-session";
 import { listPeople, replacePeople, type PersonProfile } from "@/data/mock/people-session";
@@ -44,6 +44,18 @@ function text(value: unknown) {
   return typeof value === "string" ? value : "";
 }
 
+function imageZoom(value: unknown) {
+  const parsed = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : 1;
+  if (!Number.isFinite(parsed) || parsed <= 0) return 1;
+  return Math.min(3, Math.round(parsed * 100) / 100);
+}
+
+function focusPercent(value: unknown) {
+  const parsed = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : 50;
+  if (!Number.isFinite(parsed)) return 50;
+  return Math.min(100, Math.max(0, Math.round(parsed)));
+}
+
 function amount(value: unknown) {
   const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : 0;
   return Number.isFinite(parsed) ? parsed : 0;
@@ -84,6 +96,9 @@ function mapProduct(value: unknown, index: number): Product {
     badge: merch.badge || undefined,
     badgeHidden: merch.badgeHidden || undefined,
     headline: merch.headline,
+    seoTitle: merch.seoTitle || undefined,
+    seoDescription: merch.seoDescription || undefined,
+    handle: text(item?.handle) || undefined,
     giftOpen: rawTags.includes("\u0001gift:open") || undefined,
     giftAmounts: giftAmountsFromTags(rawTags),
   };
@@ -107,6 +122,15 @@ function mapCustomer(value: unknown, index: number): Customer {
 
 function discountKind(value: unknown): DiscountKind {
   return value === "product" || value === "ship" || value === "bxgy" || value === "order" ? value : "order";
+}
+
+function bxgyMode(value: unknown, category: string): BxgyMode {
+  if (value === "pair" || value === "qty" || value === "cats") return value;
+  return category.trim() ? "cats" : "qty";
+}
+
+function idList(value: unknown) {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string" && entry.trim() !== "") : [];
 }
 
 function mapDiscount(value: unknown, index: number): Discount {
@@ -134,12 +158,17 @@ function mapDiscount(value: unknown, index: number): Discount {
     combProduct: item?.combProduct === true,
     combOrder: item?.combOrder === true,
     combShip: item?.combShip === true,
+    combBundle: item?.combBundle === true,
     blockGift: item?.blockGift === true,
-    applies: item?.applies === "colls" || item?.applies === "subs" ? item.applies : "all",
+    applies: item?.applies === "colls" || item?.applies === "subs" || item?.applies === "prods" ? item.applies : "all",
     collections,
+    bxMode: bxgyMode(item?.bxMode, text(item?.bxColl)),
     bxBuy: text(item?.bxBuy) || discount.bxBuy,
     bxGet: text(item?.bxGet) || discount.bxGet,
     bxColl: text(item?.bxColl),
+    bxGetColl: text(item?.bxGetColl),
+    bxBuyIds: idList(item?.bxBuyIds),
+    bxGetIds: idList(item?.bxGetIds),
   };
 }
 
@@ -403,6 +432,9 @@ function mapPosts(value: unknown): Post[] {
       tags,
       tone: text(item.tone) || "#e4e0d8",
       image: text(item.image),
+      imageX: focusPercent(item.imageX),
+      imageY: focusPercent(item.imageY),
+      imageScale: imageZoom(item.imageScale),
       video: text(item.video),
       seoTitle: text(item.seoTitle),
       seoDescription: text(item.seoDescription),

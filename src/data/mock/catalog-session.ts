@@ -63,6 +63,7 @@ function cloneProduct(product: Product): Product {
           steps: product.page.steps.map((item) => ({ ...item })),
           ingredientsIntro: product.page.ingredientsIntro,
           ingredients: product.page.ingredients.map((item) => ({ ...item })),
+          inci: (product.page.inci ?? []).map((item) => ({ ...item })),
           reviews: product.page.reviews.map((item) => ({ ...item })),
           faqs: (product.page.faqs ?? []).map((item) => ({ ...item })),
         }
@@ -320,11 +321,16 @@ async function persistProduct(product: Product, previousStories: ProductStory[] 
       page: nextPage,
       badge: { label: (product.badge ?? "").trim().slice(0, 24), hidden: product.badgeHidden === true },
       headline: product.headline ?? { mode: "single", subtitle: "" },
+      seo: {
+        title: (product.seoTitle ?? "").trim().slice(0, 70),
+        description: (product.seoDescription ?? "").trim().slice(0, 160),
+      },
+      ...(product.handle ? { handle: product.handle.trim().slice(0, 80) } : {}),
     },
   });
   if (merchError) {
     if (uploadedStories.uploaded.length > 0) await supabase.storage.from(mediaBucket).remove(uploadedStories.uploaded.map((item) => item.path));
-    throw new Error("שמירת הבאנדלים והתוכן לעמוד המוצר נכשלה");
+    throw new Error(merchError.message?.includes("הכתובת כבר בשימוש") ? "הכתובת כבר בשימוש" : "שמירת הבאנדלים והתוכן לעמוד המוצר נכשלה");
   }
   for (const item of uploadedStories.uploaded) {
     pendingMedia.delete(item.local);

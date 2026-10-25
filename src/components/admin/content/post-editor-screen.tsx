@@ -12,6 +12,7 @@ import { getSettings, getSettingsVersion, subscribeSettings } from "@/data/mock/
 import { slugifyHandle } from "@/lib/catalog/present";
 import { fitVideo, needsVideoFit, VideoFitError } from "@/lib/media/fit-video";
 import { formatMoney0 } from "@/lib/formatting/money";
+import { ImageCrop } from "@/components/admin/content/image-crop";
 import type { Product } from "@/types/commerce";
 
 const field = "h-[34px] w-full rounded-[10px] border border-[#c9c9c9] bg-white px-3 text-sm text-[#303030] outline-none placeholder:text-[#8a8a8a]";
@@ -40,9 +41,28 @@ function inlineHtml(text: string) {
   return html;
 }
 
+function isSiteHeading(line: string) {
+  const text = line.trim();
+  if (!text || text.length > 80 || text.endsWith(".") || text.endsWith("!")) return false;
+  if (text.endsWith("?")) return true;
+  return text.length <= 48 && !text.includes(":") && text.split(" ").length <= 8;
+}
+
 function bodyToHtml(body: string) {
   if (!body) return "";
-  return body.split("\n").map((line) => `<div>${inlineHtml(line) || "<br>"}</div>`).join("");
+  return body.split("\n").map((line) => {
+    const forced = line.startsWith("\\ ") ? line.slice(2) : null;
+    const marked = forced == null ? /^(#{1,3}) (.*)$/.exec(line) : null;
+    const text = forced ?? (marked ? marked[2] : line);
+    const html = inlineHtml(text) || "<br>";
+    if (forced != null) return `<p>${html}</p>`;
+    if (marked) {
+      const level = marked[1].length;
+      return `<h${level}>${html}</h${level}>`;
+    }
+    if (isSiteHeading(text)) return `<h2>${html}</h2>`;
+    return `<div>${html}</div>`;
+  }).join("");
 }
 
 function inlineText(node: Node): string {
@@ -58,6 +78,17 @@ function inlineText(node: Node): string {
     return /^https?:\/\//i.test(href) || href.startsWith("/") ? `[${inner}](${href})` : inner;
   }
   return inner;
+}
+
+function storedLine(node: HTMLElement) {
+  const text = inlineText(node);
+  const tag = node.tagName;
+  if (!text.trim()) return "";
+  if (tag === "H1") return `# ${text}`;
+  if (tag === "H2") return isSiteHeading(text) ? text : `## ${text}`;
+  if (tag === "H3") return `### ${text}`;
+  if (tag === "P" && isSiteHeading(text)) return `\\ ${text}`;
+  return text;
 }
 
 function htmlToBody(root: HTMLElement) {
@@ -78,7 +109,7 @@ function htmlToBody(root: HTMLElement) {
     }
     if (node instanceof HTMLElement && (node.tagName === "DIV" || node.tagName === "P" || /^H[1-3]$/.test(node.tagName))) {
       if (line) pushLine();
-      lines.push(inlineText(node));
+      lines.push(storedLine(node));
       continue;
     }
     if (node instanceof HTMLBRElement) {
@@ -109,6 +140,9 @@ function blank(id: number): Post {
     tags: [],
     tone: "",
     image: "",
+    imageX: 50,
+    imageY: 50,
+    imageScale: 1,
     video: "",
     seoTitle: "",
     seoDescription: "",
@@ -251,6 +285,9 @@ function isAuthorLine(line: string) {
 
 function hydrate(post: Post): Post {
   const next = { ...blank(post.id), ...post, tags: [...post.tags] };
+  if (!Number.isFinite(next.imageX)) next.imageX = 50;
+  if (!Number.isFinite(next.imageY)) next.imageY = 50;
+  if (!Number.isFinite(next.imageScale) || next.imageScale <= 0) next.imageScale = 1;
   if (next.author.trim() || next.updated.trim()) return next;
   const lines = next.body.split("\n");
   let cursor = 0;
@@ -298,10 +335,12 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
   const [tag, setTag] = useState("");
   const [seoOpen, setSeoOpen] = useState(false);
   const [block, setBlock] = useState("פסקה");
+  const [bubble, setBubble] = useState<{ top: number; left: number } | null>(null);
   const [align, setAlign] = useState<"start" | "center" | "end">("start");
   const [code, setCode] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
   const savedRange = useRef<Range | null>(null);
+  const savedBlock = useRef<HTMLElement | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLInputElement>(null);
   const history = useRef<string[]>([]);
@@ -342,12 +381,79 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
     if (bodyRef.current) bodyRef.current.innerHTML = bodyToHtml(body);
   }
 
+  function blockElement(from: Node | null) {
+    const root = bodyRef.current;
+    let node = from;
+    if (!root || !node || !root.contains(node) || node === root) return null;
+    while (node.parentNode && node.parentNode !== root) node = node.parentNode;
+    if (node instanceof HTMLElement) return node;
+    if (node.parentNode !== root) return null;
+    const wrap = document.createElement("div");
+    node.parentNode.insertBefore(wrap, node);
+    wrap.appendChild(node);
+    return wrap;
+  }
+
+  function blockLabel(node: HTMLElement | null) {
+    const tag = node?.tagName;
+    if (tag === "H1") return "כותרת 1";
+    if (tag === "H2") return "כותרת 2";
+    if (tag === "H3") return "כותרת 3";
+    return "פסקה";
+  }
+
   function rememberSelection() {
     const node = bodyRef.current;
     const selection = window.getSelection();
-    if (!node || !selection || selection.rangeCount === 0 || selection.isCollapsed) return;
-    if (!node.contains(selection.anchorNode) || !node.contains(selection.focusNode)) return;
+    if (!node || !selection || selection.rangeCount === 0 || !node.contains(selection.anchorNode)) {
+      setBubble(null);
+      return;
+    }
+    const block = blockElement(selection.anchorNode);
+    if (block) {
+      savedBlock.current = block;
+      setBlock(blockLabel(block));
+    }
+    if (selection.isCollapsed || !node.contains(selection.focusNode)) {
+      setBubble(null);
+      return;
+    }
     savedRange.current = selection.getRangeAt(0).cloneRange();
+    const rect = savedRange.current.getBoundingClientRect();
+    if (!rect.width && !rect.height) {
+      setBubble(null);
+      return;
+    }
+    const barWidth = 300;
+    const left = Math.min(Math.max(8, rect.left + rect.width / 2 - barWidth / 2), window.innerWidth - barWidth - 8);
+    const top = rect.top > 58 ? rect.top - 50 : rect.bottom + 8;
+    setBubble({ top, left });
+  }
+
+  function applyBlock(label: string) {
+    setBlock(label);
+    const root = bodyRef.current;
+    const selected = savedBlock.current && root?.contains(savedBlock.current) ? savedBlock.current : blockElement(window.getSelection()?.anchorNode ?? null);
+    const current = selected ?? (root?.childElementCount === 0 && root.childNodes.length ? blockElement(root.firstChild) : null);
+    if (!root || !current) {
+      toast("מקמו את הסמן בשורה שתרצו לשנות");
+      return;
+    }
+    const tag = label === "כותרת 1" ? "h1" : label === "כותרת 2" ? "h2" : label === "כותרת 3" ? "h3" : "p";
+    if (current.tagName.toLowerCase() !== tag) {
+      const next = document.createElement(tag);
+      next.innerHTML = current.innerHTML.trim() ? current.innerHTML : "<br>";
+      current.replaceWith(next);
+      savedBlock.current = next;
+      const range = document.createRange();
+      range.selectNodeContents(next);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      savedRange.current = range.cloneRange();
+    }
+    syncFromEditor();
+    requestAnimationFrame(() => rememberSelection());
   }
 
   function restoreSelection() {
@@ -400,10 +506,22 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
   const bodySource = useRef(draft.body);
   bodySource.current = draft.body;
 
+  const placeBubble = useRef(rememberSelection);
+  placeBubble.current = rememberSelection;
+
   useEffect(() => {
     const node = bodyRef.current;
     if (!node) return;
     node.innerHTML = bodyToHtml(bodySource.current);
+    const place = () => placeBubble.current();
+    node.addEventListener("scroll", place);
+    window.addEventListener("resize", place);
+    document.addEventListener("selectionchange", place);
+    return () => {
+      node.removeEventListener("scroll", place);
+      window.removeEventListener("resize", place);
+      document.removeEventListener("selectionchange", place);
+    };
   }, [postId]);
 
   function readImage(file: File | undefined) {
@@ -413,7 +531,7 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => patch({ image: String(reader.result || ""), tone: draft.tone || "#e7e2d9" });
+    reader.onload = () => patch({ image: String(reader.result || ""), imageX: 50, imageY: 50, imageScale: 1, tone: draft.tone || "#e7e2d9" });
     reader.readAsDataURL(file);
   }
 
@@ -532,17 +650,20 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
 
             <div>
               <span className="mb-1.5 block text-[13px] font-semibold">תמונה או סרטון</span>
-              <span className="mb-2 block text-[12px] text-[#616161]">אפשר להעלות תמונה, סרטון, או את שניהם. סרטון מעל 50MB יכווץ אוטומטית.</span>
+              <span className="mb-2 block text-[12px] text-[#616161]">התמונה נחתכת ביחס 4:3, אותו דבר בעמוד המאמר ובכרטיס. גררו כדי לבחור את החלק שיוצג. סרטון מעל 50MB יכווץ אוטומטית.</span>
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(event) => { readImage(event.target.files?.[0]); event.target.value = ""; }} />
               {postCover(draft.image, getSettings().logo) ? (
-                <div className="relative overflow-hidden rounded-xl border border-[#e3e3e3] bg-[#f6f6f6]">
-                  <img src={postCover(draft.image, getSettings().logo)} alt="" className={"h-[220px] w-full " + (postHasOwnImage(draft.image) ? "object-cover" : "object-contain p-8")} />
-                  <div className="absolute end-2 top-2 flex gap-2">
-                    <button type="button" className="h-7 rounded-lg border-0 bg-white px-2.5 text-[13px] font-semibold shadow-[0_0_0_1px_rgba(0,0,0,.08)]" onClick={() => fileRef.current?.click()}>החלפה</button>
-                    {postHasOwnImage(draft.image) ? <button type="button" className="h-7 rounded-lg border-0 bg-white px-2.5 text-[13px] font-semibold shadow-[0_0_0_1px_rgba(0,0,0,.08)]" onClick={() => patch({ image: "" })}>הסרה</button> : null}
+                postHasOwnImage(draft.image) ? (
+                  <ImageCrop src={draft.image} x={draft.imageX ?? 50} y={draft.imageY ?? 50} scale={draft.imageScale ?? 1} onChange={(next) => patch({ imageX: next.x, imageY: next.y, imageScale: next.scale })} onReplace={() => fileRef.current?.click()} onRemove={() => patch({ image: "", imageX: 50, imageY: 50, imageScale: 1 })} />
+                ) : (
+                  <div className="relative overflow-hidden rounded-xl border border-[#e3e3e3] bg-[#f6f6f6]">
+                    <img src={postCover(draft.image, getSettings().logo)} alt="" className="aspect-[4/3] w-full object-contain p-8" />
+                    <div className="absolute end-2 top-2 flex gap-2">
+                      <button type="button" className="h-7 rounded-lg border-0 bg-white px-2.5 text-[13px] font-semibold shadow-[0_0_0_1px_rgba(0,0,0,.08)]" onClick={() => fileRef.current?.click()}>החלפה</button>
+                    </div>
+                    <span className="absolute start-2 top-2 rounded-md bg-white px-2 py-1 text-[12px] font-semibold shadow-[0_0_0_1px_rgba(0,0,0,.08)]">לוגו החנות</span>
                   </div>
-                  {postHasOwnImage(draft.image) ? null : <span className="absolute start-2 top-2 rounded-md bg-white px-2 py-1 text-[12px] font-semibold shadow-[0_0_0_1px_rgba(0,0,0,.08)]">לוגו החנות</span>}
-                </div>
+                )
               ) : (
                 <button type="button" className="h-9 rounded-lg border border-dashed border-[#b5b5b5] bg-white px-3 text-sm" onClick={() => fileRef.current?.click()}>הוספת תמונה</button>
               )}
@@ -568,7 +689,7 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
                   <button type="button" aria-label="כתיבה בעזרת העוזר" className="grid size-7 place-items-center rounded-md border-0 bg-transparent text-[#5c2e91] hover:bg-[#f1f1f1]" onMouseDown={(event) => event.preventDefault()} onClick={() => writeBody(draft.body || "הכינו שולחן חג עם ספלים, קערות ומפיות מהסטודיו. כל פריט נעשה ביד ואפשר לשלב אותו עם כלי ההגשה הקיימים.", true)}>
                     <Sparkle />
                   </button>
-                  <select aria-label="סגנון פסקה" value={block} onChange={(event) => setBlock(event.target.value)} className="h-7 appearance-none rounded-md border-0 bg-transparent bg-[length:12px] bg-[position:left_4px_center] bg-no-repeat ps-2 pe-5 text-[13px] outline-none hover:bg-[#f1f1f1]" style={{ backgroundImage: chevron }}>
+                  <select aria-label="גודל השורה" value={block} onMouseDown={rememberSelection} onChange={(event) => applyBlock(event.target.value)} className="h-7 appearance-none rounded-md border-0 bg-transparent bg-[length:12px] bg-[position:left_4px_center] bg-no-repeat ps-2 pe-5 text-[13px] outline-none hover:bg-[#f1f1f1]" style={{ backgroundImage: chevron }}>
                     <option>פסקה</option>
                     <option>כותרת 1</option>
                     <option>כותרת 2</option>
@@ -619,11 +740,31 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
                   onInput={syncFromEditor}
                   onMouseUp={rememberSelection}
                   onKeyUp={rememberSelection}
-                  className="block min-h-[180px] w-full resize-y overflow-auto border-0 bg-white p-3 text-sm leading-6 outline-none [&_a]:text-[#1a4fd6] [&_a]:underline [&_b]:font-bold [&_em]:italic [&_i]:italic [&_strong]:font-bold [&_u]:underline"
+                  className="block min-h-[220px] w-full resize-y overflow-auto border-0 bg-white px-4 py-3 text-[17px] leading-[1.85] text-[#4A3633] outline-none [&_a]:text-[#1a4fd6] [&_a]:underline [&_b]:font-semibold [&_b]:text-[#3A2826] [&_em]:italic [&_h1]:mt-5 [&_h1]:mb-1 [&_h1]:text-[34px] [&_h1]:leading-[1.15] [&_h1]:font-medium [&_h1]:text-[#3A2826] [&_h2]:mt-5 [&_h2]:mb-1 [&_h2]:text-[26px] [&_h2]:leading-[1.25] [&_h2]:font-medium [&_h2]:text-[#3A2826] [&_h3]:mt-4 [&_h3]:mb-1 [&_h3]:text-[20px] [&_h3]:leading-[1.3] [&_h3]:font-medium [&_h3]:text-[#3A2826] [&_i]:italic [&_p]:m-0 [&_strong]:font-semibold [&_strong]:text-[#3A2826] [&_u]:underline"
                   style={{ textAlign: align, fontFamily: code ? "ui-monospace, SFMono-Regular, Menlo, monospace" : undefined }}
                 />
               </div>
-              <p className="m-0 mt-2 text-[12px] leading-5 text-[#616161]">סמנו טקסט ולחצו מודגש, נטוי או קו. הקישור נצבע בכחול עם קו תחתון, והסמן נשאר על אותו טקסט.</p>
+              <p className="m-0 mt-2 text-[12px] leading-5 text-[#616161]">סמנו טקסט ושורת העריכה תקפוץ מעליו. כותרת 1 הכי גדולה, כותרת 2 כמו באתר, כותרת 3 קטנה יותר.</p>
+              {bubble ? createPortal(
+                <div
+                  role="toolbar"
+                  aria-label="עריכה מהירה"
+                  onMouseDown={(event) => event.preventDefault()}
+                  className="fixed z-[70] flex items-center gap-0.5 rounded-2xl bg-white p-1 shadow-[0_12px_32px_rgba(0,0,0,.18),0_0_0_1px_rgba(0,0,0,.08)]"
+                  style={{ top: bubble.top, left: bubble.left, width: 300, animation: "post-bubble .22s cubic-bezier(.2,1.15,.3,1)" }}
+                >
+                  {(["פסקה", "כותרת 1", "כותרת 2", "כותרת 3"] as const).map((label) => (
+                    <button key={label} type="button" aria-label={label} onClick={() => applyBlock(label)} className={"h-8 flex-1 rounded-xl border-0 px-1 text-[12px] font-semibold " + (block === label ? "bg-[#1a1a1a] text-white" : "bg-transparent text-[#303030] hover:bg-[#f3f3f3]")}>
+                      {label === "פסקה" ? "פסקה" : label.replace("כותרת ", "")}
+                    </button>
+                  ))}
+                  <span className="mx-0.5 h-5 w-px bg-[#ebebeb]" />
+                  <button type="button" aria-label="מודגש" onClick={() => formatText("bold")} className="grid size-8 place-items-center rounded-xl border-0 bg-transparent text-[13px] font-bold text-[#303030] hover:bg-[#f3f3f3]">B</button>
+                  <button type="button" aria-label="נטוי" onClick={() => formatText("italic")} className="grid size-8 place-items-center rounded-xl border-0 bg-transparent text-[13px] text-[#303030] italic hover:bg-[#f3f3f3]">I</button>
+                  <button type="button" aria-label="קו תחתון" onClick={() => formatText("underline")} className="grid size-8 place-items-center rounded-xl border-0 bg-transparent text-[13px] text-[#303030] underline hover:bg-[#f3f3f3]">U</button>
+                </div>,
+                document.body,
+              ) : null}
             </div>
 
             <div className="border-t border-[#ebebeb] pt-4">

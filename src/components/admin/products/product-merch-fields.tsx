@@ -5,10 +5,11 @@ import { Icon } from "@/components/ui/icon";
 import { getStoreIdentity } from "@/data/live/store-identity";
 import { OLI_ARTICLES } from "@/data/oli-articles";
 import { isVideoMedia, listCatalogProducts, releaseProductMedia, stageProductMedia } from "@/data/mock/catalog-session";
+import { parseInciPaste, takeInciPaste } from "@/lib/catalog/inci";
 import { currencySymbol } from "@/lib/formatting/currency";
 import { formatMoney } from "@/lib/formatting/money";
 import { fitVideo, needsVideoFit, VideoFitError } from "@/lib/media/fit-video";
-import type { ProductFaqTag, ProductPage, ProductPanel, ProductPanelLink } from "@/types/commerce";
+import type { ProductFaqTag, ProductInci, ProductPage, ProductPanel, ProductPanelLink } from "@/types/commerce";
 
 const field = "h-9 w-full rounded-lg border border-[#d0d0d0] bg-white px-3 text-sm text-ink outline-none transition-[border-color,box-shadow] placeholder:text-[#9b9b9b] hover:border-[#a8a8a8] focus:border-[#303030] focus:shadow-[0_0_0_3px_rgba(48,48,48,.1)]";
 const area = "block min-h-[92px] max-h-[520px] w-full resize-y rounded-lg border border-[#d0d0d0] bg-white px-3 py-2 text-sm leading-6 text-ink outline-none transition-[border-color,box-shadow] [field-sizing:content] placeholder:text-[#9b9b9b] hover:border-[#a8a8a8] focus:border-[#303030] focus:shadow-[0_0_0_3px_rgba(48,48,48,.1)]";
@@ -247,6 +248,33 @@ export function ProductMerchFields({
             />
           </Section>
 
+          <Section title="רשימת רכיבים מלאה" hint="נפתחת בעמוד המוצר מתחת לרכיבי המפתח, לפי הסדר שעל האריזה. אפשר להדביק רשימה שלמה והיא תתחלק לרכיבים." status={names((page.inci ?? []).map((item) => item.he || item.inci))} filled={(page.inci ?? []).length > 0}>
+            <InciPaste items={page.inci ?? []} onChange={(inci) => onPage({ ...page, inci })} />
+            <ItemList
+              items={page.inci ?? []}
+              onChange={(inci) => onPage({ ...page, inci })}
+              max={60}
+              untitled="רכיב בלי שם"
+              empty="עדיין אין רשימת INCI."
+              summary={(item) => ({ title: item.inci || item.he, sub: [item.key ? "רכיב מפתח" : "", item.he || "לחצו להוספת שם בעברית"].filter(Boolean).join(" · ") })}
+              adds={[{ label: "הוספת רכיב", make: () => ({ inci: "", he: "" }) }]}
+              render={(item, update) => (
+                <>
+                  <Field label="שם INCI" hint="השם הבינלאומי, כפי שמופיע על האריזה">
+                    <input dir="ltr" value={item.inci} maxLength={240} onChange={(event) => update({ inci: event.target.value })} placeholder="Prunus Amygdalus Dulcis (Sweet Almond) Oil" className={`${field} text-end`} />
+                  </Field>
+                  <Field label="שם בעברית">
+                    <input value={item.he} maxLength={80} onChange={(event) => update({ he: event.target.value })} placeholder="שמן שקדים מתוקים" className={field} />
+                  </Field>
+                  <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
+                    <input type="checkbox" checked={item.key === true} onChange={(event) => update({ key: event.target.checked || undefined })} className="size-4 accent-[#303030]" />
+                    רכיב מפתח
+                  </label>
+                </>
+              )}
+            />
+          </Section>
+
           <Section title="לקוחות ממליצות" hint="ההמלצה הראשונה מוצגת כציטוט גדול. אפשר לשנות סדר עם החצים." status={page.reviews.length ? names(page.reviews.map((review) => review.name)) : EMPTY} filled={page.reviews.length > 0}>
             <ItemList
               items={page.reviews}
@@ -408,6 +436,83 @@ function Section({ title, hint, status, filled, children }: { title: string; hin
       ) : null}
     </div>
   );
+}
+
+const INCI_LIMIT = 60;
+
+function InciPaste({ items, onChange }: { items: ProductInci[]; onChange: (items: ProductInci[]) => void }) {
+  const [text, setText] = useState("");
+  const [message, setMessage] = useState<{ tone: "good" | "bad" | "muted"; text: string } | null>(null);
+  const detected = parseInciPaste(text);
+  const full = items.length >= INCI_LIMIT;
+
+  function apply(raw: string) {
+    const result = takeInciPaste(items.map((item) => item.inci), raw, INCI_LIMIT - items.length);
+    if (result.added.length) onChange([...items, ...result.added.map((inci) => ({ inci, he: "" }))]);
+    setText(result.added.length ? "" : raw);
+    const tone = result.added.length ? "good" : result.parsed && result.skipped && !result.overflow ? "muted" : "bad";
+    setMessage({ tone, text: pasteNote(result) });
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-dashed border-[#d4d4d4] bg-[#fafafa] p-3">
+      <label className="block">
+        <span className="mb-1.5 flex items-baseline gap-2">
+          <span className="text-[13px] font-semibold text-[#303030]">הדבקת רשימה</span>
+          <span className="text-xs text-ink-secondary">מופרדת בפסיקים, כמו על האריזה</span>
+        </span>
+        <textarea
+          dir="ltr"
+          value={text}
+          maxLength={20000}
+          rows={4}
+          disabled={full}
+          placeholder="Ingredients: Prunus Amygdalus Dulcis (Sweet Almond) Oil, Olea Europaea (Olive) Fruit Oil, …"
+          onChange={(event) => {
+            setText(event.target.value);
+            setMessage(null);
+          }}
+          onPaste={(event) => {
+            if (text.trim()) return;
+            const pasted = event.clipboardData.getData("text");
+            if (parseInciPaste(pasted).length < 2) return;
+            event.preventDefault();
+            apply(pasted);
+          }}
+          className={`${area} text-left`}
+        />
+      </label>
+      {detected.length ? (
+        <p className="m-0 truncate text-[13px] text-ink-secondary">
+          {detected.length === 1 ? "זוהה רכיב אחד" : `זוהו ${detected.length} רכיבים`}
+          {detected.length > 1 ? `: ${detected.slice(0, 2).join(" · ")}${detected.length > 2 ? "…" : ""}` : `: ${detected[0]}`}
+        </p>
+      ) : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" disabled={full || !detected.length} className="h-9 rounded-lg border-0 bg-[#1a1a1a] px-3 text-sm font-semibold text-white disabled:opacity-40" onClick={() => apply(text)}>
+          {detected.length > 1 ? `חלוקה ל־${detected.length} רכיבים` : detected.length === 1 ? "הוספת הרכיב" : "חלוקה לרכיבים"}
+        </button>
+        {text ? (
+          <button type="button" className="h-9 rounded-lg border border-[#d4d4d4] bg-white px-3 text-sm font-medium transition-colors hover:bg-[#f7f7f7]" onClick={() => { setText(""); setMessage(null); }}>
+            ניקוי
+          </button>
+        ) : null}
+      </div>
+      {full ? <p className="m-0 text-[13px] text-ink-secondary">הרשימה מלאה (60 רכיבים).</p> : null}
+      {message ? <p className={`m-0 text-[13px] leading-5 ${message.tone === "good" ? "text-[#0c5132]" : message.tone === "bad" ? "text-[#8e1f0b]" : "text-ink-secondary"}`}>{message.text}</p> : null}
+    </div>
+  );
+}
+
+function pasteNote(result: { parsed: number; added: string[]; skipped: number; overflow: number }) {
+  if (!result.parsed) return "לא זוהו רכיבים. הפרידו ביניהם בפסיק, כמו ברשימה שעל האריזה.";
+  if (!result.added.length && result.overflow && !result.skipped) return "הרשימה מלאה. אפשר עד 60 רכיבים.";
+  if (!result.added.length && result.skipped && !result.overflow) return result.skipped === 1 ? "הרכיב הזה כבר ברשימה." : "כל הרכיבים האלה כבר ברשימה.";
+  if (!result.added.length) return "הרכיבים החדשים לא נכנסו כי הרשימה מלאה (60).";
+  const added = result.added.length === 1 ? "נוסף רכיב אחד. לחצו עליו כדי לתת לו שם בעברית." : `נוספו ${result.added.length} רכיבים. לחצו על רכיב כדי לתת לו שם בעברית.`;
+  const skipped = result.skipped ? (result.skipped === 1 ? " רכיב אחד כבר היה ברשימה." : ` ${result.skipped} כבר היו ברשימה.`) : "";
+  const overflow = result.overflow ? ` הרשימה מוגבלת ל־60, ו־${result.overflow} לא נכנסו.` : "";
+  return `${added}${skipped}${overflow}`;
 }
 
 function ItemList<T>({
