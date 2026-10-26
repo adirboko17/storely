@@ -524,7 +524,7 @@ function InciEditor({ items, onChange }: { items: ProductInci[]; onChange: (item
           untitled="רכיב בלי שם"
           empty="עדיין אין רשימת INCI. הדביקו רשימה למעלה, או הוסיפו רכיב אחד."
           summary={(item) => ({ title: item.inci || item.he, sub: [item.key ? "רכיב מפתח" : "", item.he || "לחצו להוספת שם בעברית"].filter(Boolean).join(" · ") })}
-          adds={[{ label: "הוספת רכיב", make: () => ({ inci: "", he: "" }) }]}
+          adds={[{ label: "הוספת רכיב", make: (): ProductInci => ({ inci: "", he: "" }) }]}
           render={(item, update) => (
             <>
               <Field label="שם INCI" hint="השם הבינלאומי, כפי שמופיע על האריזה">
