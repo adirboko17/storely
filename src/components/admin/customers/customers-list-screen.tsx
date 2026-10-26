@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { IndexDock, darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
-import { useAdminSlice } from "@/components/admin/slice-pending";
+import { useAdminSlice, useCustomerCatalog } from "@/components/admin/slice-pending";
 import { Icon } from "@/components/ui/icon";
+import { CUSTOMER_PAGE_SIZE, focusCustomerPage, isCustomerPageReady } from "@/data/live/admin-slices";
 import { getStoreIdentity } from "@/data/live/store-identity";
-import { getPeopleVersion, listPeople, profileOf, subscribePeople } from "@/data/mock/people-session";
-import { customerOrderCount, getOrderSessionVersion, listResolvedOrders, subscribeOrderSession } from "@/data/mock/order-session";
+import { LOCAL_CUSTOMER_ID, getPeopleVersion, listPeople, profileOf, subscribePeople } from "@/data/mock/people-session";
+import { getOrderSessionVersion, listResolvedOrders, subscribeOrderSession } from "@/data/mock/order-session";
 import { formatMoney } from "@/lib/formatting/money";
+import type { Customer } from "@/types/commerce";
 
 const clearInput = { backgroundColor: "transparent", color: "#303030" } as const;
 
@@ -20,37 +22,105 @@ export function customerSpent(customerId: number, _orderCount: number) {
     .reduce((sum, order) => sum + order.total, 0);
 }
 
+function matchesCustomer(person: Customer, query: string, applied: string) {
+  const needle = query.trim();
+  if (needle && !`${person.name} ${person.email} ${person.city}`.includes(needle)) return false;
+  const profile = profileOf(person);
+  if (applied.includes("יותר מפעמיים") && person.orders <= 2) return false;
+  if (applied.includes("VIP") && customerSpent(person.id, person.orders) < 1500 && !profile.tags.includes("VIP")) return false;
+  if (applied.includes("דיוור") && !profile.subscribed) return false;
+  return true;
+}
+
+function pageReady(page: number, localCount: number, total: number) {
+  const start = page * CUSTOMER_PAGE_SIZE;
+  const end = Math.min(localCount + total, start + CUSTOMER_PAGE_SIZE);
+  if (end <= start) return true;
+  for (let index = start; index < end; index += 1) {
+    if (index < localCount) continue;
+    const serverPage = Math.floor((index - localCount) / CUSTOMER_PAGE_SIZE);
+    if (!isCustomerPageReady(serverPage)) return false;
+  }
+  return true;
+}
+
+function peopleOnPage(page: number, locals: Customer[], stored: Customer[]) {
+  const byId = new Map(stored.map((person) => [person.id, person]));
+  const start = page * CUSTOMER_PAGE_SIZE;
+  const rows: Customer[] = [];
+  for (let index = start; index < start + CUSTOMER_PAGE_SIZE; index += 1) {
+    if (index < locals.length) {
+      const person = locals[index];
+      if (person) rows.push(person);
+      continue;
+    }
+    const person = byId.get(index - locals.length);
+    if (person) rows.push(person);
+  }
+  return rows;
+}
+
 export function CustomersListScreen() {
   const router = useRouter();
   const { toast } = useAdmin();
-  useSyncExternalStore(subscribePeople, getPeopleVersion, () => 0);
-  useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
+  const peopleVersion = useSyncExternalStore(subscribePeople, getPeopleVersion, () => 0);
+  const orderVersion = useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
   const customersReady = useAdminSlice("customers");
-  const people = listPeople();
+  const catalog = useCustomerCatalog();
+  const people = useMemo(() => listPeople(), [peopleVersion]);
   const [query, setQuery] = useState("");
   const [segment, setSegment] = useState("");
   const [applied, setApplied] = useState("");
   const [selected, setSelected] = useState<number[]>([]);
+  const [page, setPage] = useState(0);
+  const filtering = query.trim() !== "" || applied !== "";
 
-  const rows = useMemo(() => {
-    return people
-      .map((person) => {
-        const profile = profileOf(person);
-        const orders = customerOrderCount(person.id);
-        const spent = customerSpent(person.id, orders);
-        return { person, profile, spent, orders };
-      })
-      .filter((row) => {
-        const needle = query.trim();
-        if (needle && !`${row.person.name} ${row.person.email} ${row.person.city}`.includes(needle)) return false;
-        if (applied.includes("יותר מפעמיים") && row.orders <= 2) return false;
-        if (applied.includes("VIP") && row.spent < 1500 && !row.profile.tags.includes("VIP")) return false;
-        if (applied.includes("דיוור") && !row.profile.subscribed) return false;
-        return true;
-      });
-  }, [people, query, applied]);
+  const locals = useMemo(() => people.filter((person) => person.id >= LOCAL_CUSTOMER_ID), [people]);
+  const stored = useMemo(() => people.filter((person) => person.id < LOCAL_CUSTOMER_ID), [people]);
+  const filtered = useMemo(
+    () => (filtering ? [...locals, ...stored].filter((person) => matchesCustomer(person, query, applied)) : []),
+    [filtering, locals, stored, query, applied, orderVersion],
+  );
 
-  const allSelected = rows.length > 0 && rows.every((row) => selected.includes(row.person.id));
+  useEffect(() => {
+    setPage(0);
+  }, [query, applied]);
+
+  const total = filtering ? filtered.length : locals.length + catalog.total;
+  const pageCount = Math.max(1, Math.ceil(total / CUSTOMER_PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const ready = filtering ? customersReady && (catalog.complete || filtered.length > 0) : customersReady && pageReady(safePage, locals.length, catalog.total);
+  const visible = ready
+    ? filtering
+      ? filtered.slice(safePage * CUSTOMER_PAGE_SIZE, safePage * CUSTOMER_PAGE_SIZE + CUSTOMER_PAGE_SIZE)
+      : peopleOnPage(safePage, locals, stored)
+    : [];
+
+  useEffect(() => {
+    if (filtering || !catalog.known) return;
+    const start = safePage * CUSTOMER_PAGE_SIZE;
+    const end = Math.min(locals.length + catalog.total, start + CUSTOMER_PAGE_SIZE);
+    const missing: number[] = [];
+    for (let index = start; index < end; index += 1) {
+      if (index < locals.length) continue;
+      const serverPage = Math.floor((index - locals.length) / CUSTOMER_PAGE_SIZE);
+      if (!isCustomerPageReady(serverPage) && !missing.includes(serverPage)) missing.push(serverPage);
+    }
+    for (let index = missing.length - 1; index >= 0; index -= 1) focusCustomerPage(missing[index] ?? 0);
+  }, [filtering, safePage, catalog.known, catalog.total, locals.length]);
+
+  const rows = visible.map((person) => ({
+    person,
+    profile: profileOf(person),
+    orders: person.orders,
+    spent: customerSpent(person.id, person.orders),
+  }));
+  const visibleIds = rows.map((row) => row.person.id);
+  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.includes(id));
+  const togglePage = () => setSelected(allSelected ? selected.filter((id) => !visibleIds.includes(id)) : [...new Set([...selected, ...visibleIds])]);
+  const from = total === 0 ? 0 : safePage * CUSTOMER_PAGE_SIZE + 1;
+  const to = Math.min(total, (safePage + 1) * CUSTOMER_PAGE_SIZE);
+  const loadingLabel = !customersReady || (filtering && !catalog.complete) ? "טוען לקוחות…" : "טוען עמוד…";
 
   return (
     <div className="flex min-h-full flex-col">
@@ -82,18 +152,19 @@ export function CustomersListScreen() {
           </>
         ) : (
           <>
-            <input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? [] : rows.map((row) => row.person.id))} className="size-4 accent-[#303030]" />
+            <input type="checkbox" checked={allSelected} onChange={togglePage} className="size-4 accent-[#303030]" />
             <span className="font-semibold">{selected.length} נבחרו</span>
             <button type="button" className="h-7 rounded-lg border-0 bg-white px-2.5 text-[13px] font-semibold shadow-[0_0_0_1px_#d4d4d4]" onClick={() => toast("התגיות נוספו ללקוחות שנבחרו")}>הוספת תגיות</button>
             <button type="button" className="h-7 rounded-lg border-0 bg-white px-2.5 text-[13px] font-semibold shadow-[0_0_0_1px_#d4d4d4]" onClick={() => { toast("הפלח נוצר מהבחירה"); router.push("/admin/customers/segments"); }}>יצירת פלח מהבחירה</button>
           </>
         )}
       </div>
+      {customersReady && !catalog.complete ? <p className="mx-3 mt-2 mb-0 text-[13px] text-[#616161]">ממשיך לטעון לקוחות…</p> : null}
       <div className="mx-3 mt-2 overflow-x-auto rounded-[10px]">
         <table className="w-full min-w-[900px] border-collapse text-sm">
           <thead>
             <tr className="text-[13px] text-[#4a4a4a]">
-              <th className="h-8 w-10 rounded-s-[10px] bg-[#f3f3f3] px-2.5"><input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? [] : rows.map((row) => row.person.id))} className="size-4 accent-[#303030]" /></th>
+              <th className="h-8 w-10 rounded-s-[10px] bg-[#f3f3f3] px-2.5"><input type="checkbox" checked={allSelected} onChange={togglePage} className="size-4 accent-[#303030]" /></th>
               <th className="w-[32%] bg-[#f3f3f3] px-2.5 text-start font-semibold">שם הלקוח</th>
               <th className="bg-[#f3f3f3] px-2.5 text-start font-semibold">דיוור בדוא״ל</th>
               <th className="bg-[#f3f3f3] px-2.5 text-start font-semibold underline decoration-dotted underline-offset-[3px]">מיקום</th>
@@ -120,12 +191,16 @@ export function CustomersListScreen() {
       </div>
       {rows.length === 0 ? (
         <div className="mx-3 flex flex-col items-center gap-2 rounded-b-xl bg-white px-4 py-12 text-center text-ink-secondary">
-          {customersReady ? "לא נמצאו לקוחות." : "טוען לקוחות…"}
-          {customersReady ? <button type="button" className={softButton} onClick={() => { setQuery(""); setApplied(""); setSegment(""); }}>ניקוי חיפוש</button> : null}
+          {ready ? "לא נמצאו לקוחות." : loadingLabel}
+          {ready && filtering ? <button type="button" className={softButton} onClick={() => { setQuery(""); setApplied(""); setSegment(""); }}>ניקוי חיפוש</button> : null}
         </div>
       ) : null}
       <div className="min-h-4 flex-1" />
-      <IndexDock pageLabel={rows.length ? `1-${rows.length}` : "0"} />
+      <IndexDock
+        pageLabel={customersReady && total > 0 ? `${from}-${to} / ${total}` : customersReady ? "0" : "…"}
+        onPrevious={safePage > 0 ? () => setPage(safePage - 1) : undefined}
+        onNext={safePage + 1 < pageCount ? () => setPage(safePage + 1) : undefined}
+      />
     </div>
   );
 }

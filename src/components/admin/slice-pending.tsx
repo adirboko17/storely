@@ -1,12 +1,19 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { getAdminSliceVersion, isAdminSliceReady, subscribeAdminSlices } from "@/data/live/admin-slices";
+import { getAdminSliceVersion, getCustomerCatalog, isAdminSliceReady, subscribeAdminSlices } from "@/data/live/admin-slices";
 import type { AdminSlice } from "@/data/live/apply-store";
 
 export function useAdminSlice(slice: AdminSlice) {
   const version = useSyncExternalStore(subscribeAdminSlices, getAdminSliceVersion, () => 0);
   return version > 0 && isAdminSliceReady(slice);
+}
+
+const emptyCatalog = { total: 0, pageSize: 50, complete: false, known: false };
+
+export function useCustomerCatalog() {
+  const version = useSyncExternalStore(subscribeAdminSlices, getAdminSliceVersion, () => 0);
+  return version > 0 ? getCustomerCatalog() : emptyCatalog;
 }
 
 export function SlicePending({ label }: { label: string }) {

@@ -4,7 +4,7 @@ import { replacePosts, type Post } from "@/data/mock/content-session";
 import { blankDiscount, replaceDiscounts, type BxgyMode, type Discount, type DiscountKind } from "@/data/mock/discount-session";
 import { absorbLegacyEmails, parseEmails, parseSms, replaceMarketing, type Flow, type IntegrationState } from "@/data/mock/marketing-session";
 import { replaceAbandoned, replaceLiveOrders, syncLiveOrders } from "@/data/mock/order-session";
-import { listPeople, replacePeople, type PersonProfile } from "@/data/mock/people-session";
+import { listPeople, mergePeople, replacePeople, type PersonProfile } from "@/data/mock/people-session";
 import { getSettings, normalizeBrandColors, normalizePolicies, replaceSettings, type ReturnRule, type ShipProfile } from "@/data/mock/settings-session";
 import { beginHydration, endHydration } from "@/data/live/write";
 import { setStoreCurrency } from "@/lib/formatting/currency";
@@ -606,6 +606,20 @@ function applyCatalog(snapshot: StoreSnapshot) {
 function applyCustomers(snapshot: StoreSnapshot) {
   const customers = Array.isArray(snapshot.customers) ? snapshot.customers.map(mapCustomer) : [];
   replacePeople(customers, Array.isArray(snapshot.customers) ? mapProfiles(customers, snapshot.customers) : {});
+}
+
+export function applyCustomerPage(values: unknown[], pageIndex: number, pageSize: number) {
+  const customers = values.map((value, index) => mapCustomer(value, pageIndex * pageSize + index));
+  beginHydration();
+  try {
+    mergePeople(customers, mapProfiles(customers, values));
+  } finally {
+    endHydration();
+  }
+}
+
+export function linkAdminOrders() {
+  publishMappedOrders();
 }
 
 function applyDesk(snapshot: StoreSnapshot) {

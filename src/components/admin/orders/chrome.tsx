@@ -31,17 +31,25 @@ function Chevron({ direction }: { direction: "up" | "down" | "left" | "right" })
   );
 }
 
-export function IndexDock({ pageLabel }: { pageLabel: string }) {
+export function IndexDock({
+  pageLabel,
+  onPrevious,
+  onNext,
+}: {
+  pageLabel: string;
+  onPrevious?: () => void;
+  onNext?: () => void;
+}) {
   return (
     <div className="sticky bottom-2.5 z-[5] flex px-3 pointer-events-none">
       <div className="pointer-events-auto flex h-10 items-center gap-1.5 rounded-xl bg-white px-1.5 shadow-[0_0_0_1px_rgba(0,0,0,.08),0_4px_14px_rgba(0,0,0,.1)]">
-        <button type="button" disabled aria-label="הקודם" className="grid size-7 place-items-center rounded-lg border-0 bg-transparent text-[#b5b5b5]">
+        <button type="button" aria-label="הקודם" disabled={!onPrevious} onClick={onPrevious} className="grid size-7 place-items-center rounded-lg border-0 bg-transparent text-ink enabled:hover:bg-[#f1f1f1] disabled:text-[#b5b5b5]">
           <Chevron direction="right" />
         </button>
         <span dir="ltr" className="px-1.5 text-[13px] text-ink">
           {pageLabel}
         </span>
-        <button type="button" disabled aria-label="הבא" className="grid size-7 place-items-center rounded-lg border-0 bg-transparent text-[#b5b5b5]">
+        <button type="button" aria-label="הבא" disabled={!onNext} onClick={onNext} className="grid size-7 place-items-center rounded-lg border-0 bg-transparent text-ink enabled:hover:bg-[#f1f1f1] disabled:text-[#b5b5b5]">
           <Chevron direction="left" />
         </button>
       </div>

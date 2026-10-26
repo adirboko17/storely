@@ -4,6 +4,8 @@ import { isHydrating, writeStore } from "@/data/live/write";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { Customer } from "@/types/commerce";
 
+export const LOCAL_CUSTOMER_ID = 1_000_000;
+
 export type PersonProfile = {
   subscribed: boolean;
   note: string;
@@ -55,6 +57,13 @@ export function replacePeople(people: Customer[], profiles: Record<number, Perso
   publish({ added: [], profiles });
 }
 
+export function mergePeople(people: Customer[], profiles: Record<number, PersonProfile>) {
+  const next = new Map(CUSTOMERS.map((person) => [person.id, person]));
+  people.forEach((person) => next.set(person.id, { ...person }));
+  CUSTOMERS.splice(0, CUSTOMERS.length, ...[...next.values()].sort((a, b) => a.id - b.id));
+  publish({ added: current.added, profiles: { ...current.profiles, ...profiles } });
+}
+
 function persistPerson(person: Customer, profile: PersonProfile) {
   if (!person.sourceId || isHydrating()) return;
   void writeStore("save_store_customer", {
@@ -98,7 +107,7 @@ export function patchProfile(id: number, patch: Partial<PersonProfile>) {
 }
 
 export function addPerson(input: Pick<Customer, "name" | "email" | "phone" | "city"> & Partial<Pick<Customer, "street" | "zip">>) {
-  const id = Math.max(0, ...listPeople().map((person) => person.id)) + 1;
+  const id = Math.max(LOCAL_CUSTOMER_ID, ...listPeople().map((person) => person.id)) + 1;
   const person: Customer = { id, name: input.name, email: input.email, phone: input.phone, street: input.street ?? "", city: input.city, zip: input.zip ?? "", orders: 0 };
   publish({ ...current, added: [person, ...current.added] });
   if (typeof window !== "undefined" && getStoreIdentity().storeId) {

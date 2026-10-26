@@ -6,7 +6,7 @@ import { useState, useSyncExternalStore } from "react";
 import { notFound } from "next/navigation";
 import { darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
-import { SlicePending, useAdminSlice } from "@/components/admin/slice-pending";
+import { SlicePending, useCustomerCatalog } from "@/components/admin/slice-pending";
 import { customerSpent } from "@/components/admin/customers/customers-list-screen";
 import { isVideoMedia } from "@/data/mock/catalog-session";
 import { getPeopleVersion, getPerson, listPeople, patchProfile, profileOf, subscribePeople } from "@/data/mock/people-session";
@@ -38,7 +38,7 @@ export function CustomerProfileScreen({ customerId }: { customerId: number }) {
   const { toast } = useAdmin();
   useSyncExternalStore(subscribePeople, getPeopleVersion, () => 0);
   useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
-  const customersReady = useAdminSlice("customers");
+  const catalog = useCustomerCatalog();
   const person = getPerson(customerId);
   const people = listPeople();
   const index = people.findIndex((item) => item.id === customerId);
@@ -48,7 +48,7 @@ export function CustomerProfileScreen({ customerId }: { customerId: number }) {
   const [noteDraft, setNoteDraft] = useState("");
   const [addressOpen, setAddressOpen] = useState(false);
   const [street, setStreet] = useState("");
-  if (!person && !customersReady) return <SlicePending label="טוען לקוח…" />;
+  if (!person && !catalog.complete) return <SlicePending label="טוען לקוח…" />;
   if (!person) notFound();
   const profile = profileOf(person);
   const orders = listResolvedOrders().filter((order) => order.customer.id === person.id);
