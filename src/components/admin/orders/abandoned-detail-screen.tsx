@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSyncExternalStore } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { SlicePending, useAdminSlice } from "@/components/admin/slice-pending";
 import { CopyIcon, softButton } from "@/components/admin/orders/chrome";
 import { Icon } from "@/components/ui/icon";
 import { abandonedSlug } from "@/data/mock/abandoned";
@@ -15,9 +16,11 @@ export function AbandonedDetailScreen({ checkoutId }: { checkoutId: string }) {
   const router = useRouter();
   const { toast, narrow } = useAdmin();
   useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
+  const checkoutsReady = useAdminSlice("checkouts");
   const checkouts = listLiveCheckouts();
   const index = Math.max(0, checkouts.findIndex((item) => item.id === checkoutId));
   const checkout = checkouts[index];
+  if ((!checkout || checkout.id !== checkoutId) && !checkoutsReady) return <SlicePending label="טוען עגלה…" />;
   if (!checkout || checkout.id !== checkoutId) return null;
 
   const previous = index > 0 ? checkouts[index - 1] : null;

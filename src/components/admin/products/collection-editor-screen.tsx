@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { notFound } from "next/navigation";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { SlicePending, useAdminSlice } from "@/components/admin/slice-pending";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
 import {
   getCatalogVersion,
@@ -102,6 +103,7 @@ export function CollectionEditorScreen({ collectionKey }: { collectionKey: strin
   const router = useRouter();
   const { toast } = useAdmin();
   useSyncExternalStore(subscribeCatalog, getCatalogVersion, () => 0);
+  const catalogReady = useAdminSlice("catalog");
   const products = listCatalogProducts();
   const known = collectionKey == null || COLLECTION_SEEDS.some((seed) => seed.title === collectionKey) || Boolean(getCollectionDraft(collectionKey)) || products.some((product) => product.category.trim() === collectionKey);
   const initial = useMemo(() => baseDraft(collectionKey, products), [collectionKey, products]);
@@ -138,6 +140,7 @@ export function CollectionEditorScreen({ collectionKey }: { collectionKey: strin
   }
 
   useUnsavedEditor(dirty, saving, save, () => { setDraft(saved); setError(false); });
+  if (collectionKey && !known && !catalogReady) return <SlicePending label="טוען קטגוריה…" />;
   if (collectionKey && !known) notFound();
 
   let items = draft.conditions.length ? products.filter((product) => draft.conditions.every((condition) => matches(product, condition))) : products.filter((product) => draft.ids.includes(product.id));

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { IndexDock, darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { useAdminSlice } from "@/components/admin/slice-pending";
 import { Icon } from "@/components/ui/icon";
 import { getStoreIdentity } from "@/data/live/store-identity";
 import { getPeopleVersion, listPeople, profileOf, subscribePeople } from "@/data/mock/people-session";
@@ -24,6 +25,7 @@ export function CustomersListScreen() {
   const { toast } = useAdmin();
   useSyncExternalStore(subscribePeople, getPeopleVersion, () => 0);
   useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
+  const customersReady = useAdminSlice("customers");
   const people = listPeople();
   const [query, setQuery] = useState("");
   const [segment, setSegment] = useState("");
@@ -118,8 +120,8 @@ export function CustomersListScreen() {
       </div>
       {rows.length === 0 ? (
         <div className="mx-3 flex flex-col items-center gap-2 rounded-b-xl bg-white px-4 py-12 text-center text-ink-secondary">
-          לא נמצאו לקוחות.
-          <button type="button" className={softButton} onClick={() => { setQuery(""); setApplied(""); setSegment(""); }}>ניקוי חיפוש</button>
+          {customersReady ? "לא נמצאו לקוחות." : "טוען לקוחות…"}
+          {customersReady ? <button type="button" className={softButton} onClick={() => { setQuery(""); setApplied(""); setSegment(""); }}>ניקוי חיפוש</button> : null}
         </div>
       ) : null}
       <div className="min-h-4 flex-1" />

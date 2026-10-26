@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { notFound } from "next/navigation";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { SlicePending, useAdminSlice } from "@/components/admin/slice-pending";
 import { assignProductSubcategory, deleteCategorySubcategory, getCatalogVersion, getCollectionDraft, listCatalogProducts, subscribeCatalog } from "@/data/mock/catalog-session";
 import { PRODUCT_STATUS } from "@/lib/catalog/present";
 import { formatMoney } from "@/lib/formatting/money";
@@ -13,6 +14,7 @@ export function SubcategoryScreen({ categoryKey, subcategory }: { categoryKey: s
   const router = useRouter();
   const { toast } = useAdmin();
   useSyncExternalStore(subscribeCatalog, getCatalogVersion, () => 0);
+  const catalogReady = useAdminSlice("catalog");
   const products = listCatalogProducts();
   const draft = getCollectionDraft(categoryKey);
   const known = (draft?.subcategories ?? []).includes(subcategory) || products.some((product) => (product.subcategories ?? []).includes(subcategory) && (product.category.trim() === categoryKey || product.collections.includes(categoryKey)));
@@ -34,6 +36,7 @@ export function SubcategoryScreen({ categoryKey, subcategory }: { categoryKey: s
       });
   }, [products, query, subcategory, categoryKey]);
 
+  if (!known && !removed && !removedRef.current && !catalogReady) return <SlicePending label="טוען קטגוריה…" />;
   if (!known && !removed && !removedRef.current) notFound();
 
   function removeSubcategory() {

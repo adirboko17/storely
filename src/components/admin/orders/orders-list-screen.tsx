@@ -8,6 +8,7 @@ import { DateRangePicker, windowForPreset, type DashboardWindow } from "@/compon
 import { ColumnsButton, IndexDock, SearchField, menuItem, menuPanel, softButton } from "@/components/admin/orders/chrome";
 import { ExportOrdersDialog } from "@/components/admin/orders/export-orders-dialog";
 import { Icon } from "@/components/ui/icon";
+import { useAdminSlice } from "@/components/admin/slice-pending";
 import { bulkFulfill, getOrderSessionVersion, listResolvedOrders, subscribeOrderSession } from "@/data/mock/order-session";
 import { formatMoney } from "@/lib/formatting/money";
 import {
@@ -31,6 +32,7 @@ export function OrdersListScreen() {
   const searchParams = useSearchParams();
   const { menu, toggleMenu, closeMenu, toast } = useAdmin();
   useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
+  const ordersReady = useAdminSlice("orders");
   const orders = listResolvedOrders();
   const urlTab = searchParams.get("tab");
   const [tabOverride, setTabOverride] = useState<{ url: string | null; tab: OrderTab } | null>(null);
@@ -58,6 +60,7 @@ export function OrdersListScreen() {
     timer.current = window.setTimeout(() => setLoading(false), 500);
   }
 
+  const busy = loading || !ordersReady;
   const rows = filterOrders(orders, tab, query, pay);
   const stats = orderStats(orders, range, today);
   const visibleIds = rows.map((order) => order.id);
@@ -275,7 +278,7 @@ export function OrdersListScreen() {
             </tr>
           </thead>
           <tbody>
-            {!loading
+            {!busy
               ? rows.map((order) => {
                   const row = orderRowPresentation(order);
                   const chosen = selected.includes(order.id);
@@ -382,7 +385,7 @@ export function OrdersListScreen() {
         </table>
       </div>
 
-      {!loading && rows.length === 0 ? (
+      {!busy && rows.length === 0 ? (
         <div className="mx-3 flex flex-col items-center gap-2 rounded-b-xl bg-white px-4 py-14 text-center">
           <div className="grid size-14 place-items-center rounded-full bg-[#f1f1f1] text-[#8a8a8a]">
             <Icon name="search" size={26} strokeWidth={1.5} />

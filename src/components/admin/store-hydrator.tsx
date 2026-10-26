@@ -1,23 +1,23 @@
 "use client";
 
 import { OrdersPoller } from "@/components/admin/orders-poller";
+import { StoreSliceLoader } from "@/components/admin/store-slice-loader";
 import { TrafficPoller } from "@/components/admin/traffic-poller";
-import { applyStoreSnapshot, type StoreSnapshot } from "@/data/live/apply-store";
+import { applyStoreShell, type StoreShell } from "@/data/live/apply-store";
 
 export function StoreHydrator({
-  storeId,
-  snapshot,
+  shell,
   children,
 }: {
-  storeId: string;
-  snapshot: StoreSnapshot;
+  shell: StoreShell;
   children: React.ReactNode;
 }) {
-  applyStoreSnapshot(storeId, snapshot);
+  applyStoreShell(shell);
   return (
     <>
-      <TrafficPoller storeId={storeId} />
-      <OrdersPoller storeId={storeId} />
+      <StoreSliceLoader storeId={shell.storeId} />
+      <TrafficPoller storeId={shell.storeId} />
+      <OrdersPoller storeId={shell.storeId} />
       {children}
     </>
   );

@@ -5,6 +5,7 @@ import { notFound, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { SlicePending, useAdminSlice } from "@/components/admin/slice-pending";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
 import { getCatalogVersion, isVideoMedia, listCatalogProducts, subscribeCatalog } from "@/data/mock/catalog-session";
 import { commitPostVideo, deletePost, getPost, getPostsVersion, nextPostId, postCover, postHasOwnImage, releasePostVideo, savePost, stagePostVideo, subscribePosts, type Post } from "@/data/mock/content-session";
@@ -320,6 +321,7 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
   const router = useRouter();
   const { toast } = useAdmin();
   useSyncExternalStore(subscribePosts, getPostsVersion, () => 0);
+  const contentReady = useAdminSlice("content");
   useSyncExternalStore(subscribeSettings, getSettingsVersion, () => 0);
   useSyncExternalStore(subscribeCatalog, getCatalogVersion, () => 0);
   const existing = postId == null ? null : getPost(postId);
@@ -590,6 +592,7 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
     setError(false);
     setSeoOpen(false);
   });
+  if (missing && !contentReady) return <SlicePending label="טוען פוסט…" />;
   if (missing) notFound();
 
   return (

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { SlicePending, useAdminSlice } from "@/components/admin/slice-pending";
 import { Icon } from "@/components/ui/icon";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
 import { FLOW_TRIGGERS, TRIGGER_WINDOWS, createEmail, createSms, deleteFlow, emailReady, getEmail, getFlow, getMarketingVersion, getSms, listEmails, listSms, lookbackPhrase, saveFlow, smsReady, subscribeMarketing, triggerTitle, type Flow, type FlowRule, type FlowStep } from "@/data/mock/marketing-session";
@@ -371,6 +372,7 @@ export function AutomationEditorScreen({ flowId }: { flowId: number }) {
   const router = useRouter();
   const { toast, narrow, navCollapsed } = useAdmin();
   useSyncExternalStore(subscribeMarketing, getMarketingVersion, () => 0);
+  const deskReady = useAdminSlice("desk");
   useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
   useSyncExternalStore(subscribePeople, getPeopleVersion, () => 0);
   const existing = getFlow(flowId);
@@ -411,6 +413,7 @@ export function AutomationEditorScreen({ flowId }: { flowId: number }) {
     }, 400);
   }
   useUnsavedEditor(dirty, saving, save, () => setDraft(saved));
+  if (missing && !leaving && !deskReady) return <SlicePending label="טוען אוטומציה…" />;
   if (missing && !leaving) notFound();
   const step = selected.kind === "step" ? getStep(draft.steps, selected.path) : null;
   const needsTrigger = draft.trigger === "" || draft.trigger === "בחרו טריגר";

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { SlicePending, useAdminSlice } from "@/components/admin/slice-pending";
 import { EmailHtmlPreview } from "@/components/admin/marketing/email-html-preview";
 import { EmailPreview, InboxPreview } from "@/components/admin/marketing/email-preview";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
@@ -40,6 +41,7 @@ const blockNames: Record<EmailBlock["type"], string> = {
 export function EmailEditorScreen({ emailId, fromFlow }: { emailId: string; fromFlow: string }) {
   const { toast } = useAdmin();
   useSyncExternalStore(subscribeMarketing, getMarketingVersion, () => 0);
+  const deskReady = useAdminSlice("desk");
   useSyncExternalStore(subscribeSettings, getSettingsVersion, () => 0);
   const existing = getEmail(emailId);
   const missing = !existing;
@@ -65,6 +67,7 @@ export function EmailEditorScreen({ emailId, fromFlow }: { emailId: string; from
     toast("המייל נשמר");
   }
   useUnsavedEditor(dirty, false, save, () => setDraft(saved));
+  if (missing && !deskReady) return <SlicePending label="טוען מייל…" />;
   if (missing) notFound();
   const block = draft.blocks.find((item) => item.id === selected) ?? null;
   const back = fromFlow ? `/admin/marketing/automations/${fromFlow}` : "/admin/marketing/emails";

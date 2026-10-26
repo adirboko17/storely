@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { SlicePending, useAdminSlice } from "@/components/admin/slice-pending";
 import { FulfillDialog } from "@/components/admin/orders/fulfill-dialog";
 import { RefundDialog } from "@/components/admin/orders/refund-dialog";
 import {
@@ -188,6 +189,7 @@ export function OrderDetailScreen({ orderId }: { orderId: number }) {
   const router = useRouter();
   const { toast, narrow } = useAdmin();
   useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
+  const ordersReady = useAdminSlice("orders");
   const order = resolveOrder(orderId);
   const orders = listResolvedOrders();
   const [comment, setComment] = useState("");
@@ -205,6 +207,7 @@ export function OrderDetailScreen({ orderId }: { orderId: number }) {
   const [fulfillMenu, setFulfillMenu] = useState(false);
   const [printMenu, setPrintMenu] = useState(false);
 
+  if (!order && !ordersReady) return <SlicePending label="טוען הזמנה…" />;
   if (!order) return null;
   const index = orders.findIndex((item) => item.id === order.id);
   const previous = index > 0 ? orders[index - 1] : null;

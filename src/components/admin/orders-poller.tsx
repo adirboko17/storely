@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { applyOrderRefresh, type StoreSnapshot } from "@/data/live/apply-store";
+import { reloadAdminSlice } from "@/data/live/admin-slices";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 export function OrdersPoller({ storeId }: { storeId: string }) {
@@ -19,9 +19,8 @@ export function OrdersPoller({ storeId }: { storeId: string }) {
         const changed = seen !== null && version !== seen;
         seen = version;
         if (!changed) return;
-        const { data } = await supabase.rpc("store_admin_snapshot", { target_store: storeId });
-        if (stopped || !data || typeof data !== "object" || Array.isArray(data)) return;
-        applyOrderRefresh(data as StoreSnapshot);
+        if (stopped) return;
+        await reloadAdminSlice(storeId, "orders");
       } finally {
         busy = false;
       }

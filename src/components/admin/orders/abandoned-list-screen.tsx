@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { useAdminSlice } from "@/components/admin/slice-pending";
 import { getStoreIdentity } from "@/data/live/store-identity";
 import { ColumnsButton, IndexDock, SearchField, darkButton, menuItem, menuPanel } from "@/components/admin/orders/chrome";
 import { Icon } from "@/components/ui/icon";
@@ -40,6 +41,7 @@ export function AbandonedListScreen() {
   const router = useRouter();
   const { menu, toggleMenu, closeMenu, toast } = useAdmin();
   useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
+  const checkoutsReady = useAdminSlice("checkouts");
   const checkouts = listLiveCheckouts();
   const [status, setStatus] = useState<StatusFilter>("open");
   const [query, setQuery] = useState("");
@@ -192,7 +194,7 @@ export function AbandonedListScreen() {
           </tbody>
         </table>
       </div>
-      {rows.length === 0 ? <div className="mx-3 rounded-b-xl bg-white px-4 py-12 text-center text-ink-secondary">אין עגלות נטושות בתצוגה הזו.</div> : null}
+      {rows.length === 0 ? <div className="mx-3 rounded-b-xl bg-white px-4 py-12 text-center text-ink-secondary">{checkoutsReady ? "אין עגלות נטושות בתצוגה הזו." : "טוען עגלות…"}</div> : null}
       <div className="min-h-4 flex-1" />
       <IndexDock pageLabel={rows.length ? `1-${rows.length}` : "0"} />
     </div>
