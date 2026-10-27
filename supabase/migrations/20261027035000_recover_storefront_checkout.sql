@@ -27,6 +27,7 @@ declare
   product_title text;
   cart_id uuid;
   image_url text;
+  detail text;
 begin
   found_store := private.resolve_storefront(tracking_key, hostname);
   if found_store is null then
@@ -127,10 +128,19 @@ begin
     order by media.position
     limit 1;
 
+    detail := '';
+    if title_text is not null and product_title is not null and title_text <> product_title then
+      if length(title_text) > length(product_title) and left(title_text, length(product_title)) = product_title then
+        detail := btrim(regexp_replace(substring(title_text from length(product_title) + 1), '^[[:space:]|:-]+', ''));
+      else
+        detail := title_text;
+      end if;
+    end if;
+
     lines := lines || jsonb_build_array(jsonb_build_object(
       'id', cart_id,
       'name', product_title,
-      'sub', '',
+      'sub', detail,
       'price', unit_price,
       'image', image_url,
       'qty', quantity
