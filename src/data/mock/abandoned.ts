@@ -149,6 +149,12 @@ export function abandonedSlug(id: string) {
   return id.replace(/^#/, "");
 }
 
+export function checkoutLabel(id: string) {
+  const hex = id.replace(/-/g, "");
+  if (/^[0-9a-f]{32}$/i.test(hex)) return `#${hex.slice(0, 12)}`;
+  return id.startsWith("#") ? id : `#${id}`;
+}
+
 export function findAbandoned(raw: string) {
   const key = raw.startsWith("#") ? raw : `#${raw}`;
   return ABANDONED.find((checkout) => checkout.id === raw || checkout.id === key || abandonedSlug(checkout.id) === raw) ?? null;

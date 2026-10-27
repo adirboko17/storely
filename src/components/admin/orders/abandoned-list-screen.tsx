@@ -14,10 +14,12 @@ import {
   subscribeOrderSession,
   type LiveCheckout,
 } from "@/data/mock/order-session";
-import { abandonedSlug } from "@/data/mock/abandoned";
+import { abandonedSlug, checkoutLabel } from "@/data/mock/abandoned";
 import { formatMoney } from "@/lib/formatting/money";
 
 type StatusFilter = "open" | "done" | "all";
+
+const PAGE_SIZE = 50;
 
 const STATUS_OPTIONS: Array<{ id: StatusFilter; label: string }> = [
   { id: "open", label: "לא הושלמו" },
@@ -45,15 +47,21 @@ export function AbandonedListScreen() {
   const checkouts = listLiveCheckouts();
   const [status, setStatus] = useState<StatusFilter>("open");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<string[]>([]);
   const rows = checkouts.filter((checkout) => {
     if (status === "open" && checkout.recovered) return false;
     if (status === "done" && !checkout.recovered) return false;
     const needle = query.trim();
-    if (needle && !checkout.name.includes(needle) && !checkout.id.includes(needle)) return false;
+    if (needle && !checkout.name.includes(needle) && !checkout.email.includes(needle) && !checkout.id.includes(needle) && !checkoutLabel(checkout.id).includes(needle)) return false;
     return true;
   });
-  const ids = rows.map((checkout) => checkout.id);
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const visible = rows.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
+  const from = rows.length ? safePage * PAGE_SIZE + 1 : 0;
+  const to = rows.length ? safePage * PAGE_SIZE + visible.length : 0;
+  const ids = visible.map((checkout) => checkout.id);
   const allSelected = ids.length > 0 && ids.every((id) => selected.includes(id));
   const statusLabel = STATUS_OPTIONS.find((item) => item.id === status)?.label ?? "לא הושלמו";
 
@@ -83,6 +91,7 @@ export function AbandonedListScreen() {
                   style={{ background: status === item.id ? "#f1f1f1" : "transparent" }}
                   onClick={() => {
                     setStatus(item.id);
+                    setPage(0);
                     setSelected([]);
                     closeMenu();
                   }}
@@ -107,7 +116,7 @@ export function AbandonedListScreen() {
                 <path d="M7 8l3-3 3 3M7 12l3 3 3-3" />
               </svg>
             </button>
-            <SearchField value={query} onChange={setQuery} />
+            <SearchField value={query} onChange={(value) => { setQuery(value); setPage(0); }} />
             <ColumnsButton onClick={() => toast("בחירת עמודות תתווסף בשלב הבא")} />
           </>
         ) : (
@@ -148,7 +157,7 @@ export function AbandonedListScreen() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((checkout) => {
+            {visible.map((checkout) => {
               const email = emailBadge(checkout);
               const recovery = recoveryBadge(checkout);
               const chosen = selected.includes(checkout.id);
@@ -156,7 +165,7 @@ export function AbandonedListScreen() {
                 <tr
                   key={checkout.id}
                   onClick={() => router.push(`/admin/orders/abandoned/${abandonedSlug(checkout.id)}`)}
-                  className="h-[33px] cursor-pointer border-b border-[#ebebeb] hover:bg-[#f7f7f7]"
+                  className="h-11 cursor-pointer border-b border-[#ebebeb] hover:bg-[#f7f7f7]"
                   style={{ background: chosen ? "#f1f1f1" : "#fff" }}
                 >
                   <td className="px-2.5" onClick={(event) => event.stopPropagation()}>
@@ -167,11 +176,11 @@ export function AbandonedListScreen() {
                       className="m-0 size-4 cursor-pointer accent-[#303030] align-middle"
                     />
                   </td>
-                  <td dir="ltr" className="px-2.5 text-right font-semibold whitespace-nowrap">
-                    {checkout.id}
+                  <td dir="ltr" className="px-2.5 text-right font-semibold whitespace-nowrap underline">
+                    {checkoutLabel(checkout.id)}
                   </td>
                   <td className="px-2.5 whitespace-nowrap">{checkout.date}</td>
-                  <td dir="auto" className="px-2.5 text-right whitespace-nowrap">
+                  <td dir="auto" className="px-2.5 text-right whitespace-nowrap underline">
                     {checkout.name}
                   </td>
                   <td className="px-2.5">
@@ -179,7 +188,7 @@ export function AbandonedListScreen() {
                       {email.label}
                     </span>
                   </td>
-                  <td className="px-2.5">ישראל</td>
+                  <td className="px-2.5">{checkout.city || "ישראל"}</td>
                   <td className="px-2.5">
                     <span className="inline-flex h-5 items-center rounded-md px-[7px] text-[13px] font-medium whitespace-nowrap" style={{ background: recovery.background, color: recovery.color }}>
                       {recovery.label}
@@ -196,7 +205,11 @@ export function AbandonedListScreen() {
       </div>
       {rows.length === 0 ? <div className="mx-3 rounded-b-xl bg-white px-4 py-12 text-center text-ink-secondary">{checkoutsReady ? "אין עגלות נטושות בתצוגה הזו." : "טוען עגלות…"}</div> : null}
       <div className="min-h-4 flex-1" />
-      <IndexDock pageLabel={rows.length ? `1-${rows.length}` : "0"} />
+      <IndexDock
+        pageLabel={rows.length ? `${from}-${to} / ${rows.length}` : "0"}
+        onPrevious={safePage > 0 ? () => setPage(safePage - 1) : undefined}
+        onNext={safePage + 1 < pageCount ? () => setPage(safePage + 1) : undefined}
+      />
     </div>
   );
 }

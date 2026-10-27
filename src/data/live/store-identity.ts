@@ -39,6 +39,14 @@ export function storefrontHref(hostname: string) {
   return `${local ? "http" : "https"}://${host}`;
 }
 
+const checkoutKey = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function checkoutRecoveryHref(hostname: string, checkoutId: string) {
+  const origin = storefrontHref(hostname);
+  if (!origin || !checkoutKey.test(checkoutId)) return "";
+  return `${origin}/checkout?recover=${checkoutId}`;
+}
+
 export function storeMark(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return `${parts[0]?.[0] ?? ""}${parts[1]?.[0] ?? ""}`;

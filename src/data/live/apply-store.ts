@@ -570,19 +570,29 @@ export type StoreShell = {
   currency: string;
 };
 
-let rawOrders: unknown[] | null = null;
+export const ORDER_PAGE_SIZE = 50;
+
+const orderPageRaw = new Map<number, unknown[]>();
+const orderPageIds = new Map<number, number[]>();
 
 function publishMappedOrders() {
-  if (!rawOrders) return;
+  if (orderPageRaw.size === 0) return;
   const productIndex = indexProducts(listCatalogProducts());
   const customerIndex = indexCustomers(listPeople());
   const orders: Order[] = [];
   const events: Record<number, TimelineEvent[]> = {};
-  rawOrders.forEach((entry) => {
-    const order = mapOrder(entry, productIndex, customerIndex);
-    if (!order) return;
-    orders.push(order);
-    events[order.id] = mapTimeline(entry);
+  const pages = [...orderPageRaw.keys()].sort((left, right) => left - right);
+  orderPageIds.clear();
+  pages.forEach((page) => {
+    const ids: number[] = [];
+    (orderPageRaw.get(page) ?? []).forEach((entry) => {
+      const order = mapOrder(entry, productIndex, customerIndex);
+      if (!order) return;
+      orders.push(order);
+      ids.push(order.id);
+      events[order.id] = mapTimeline(entry);
+    });
+    orderPageIds.set(page, ids);
   });
   beginHydration();
   try {
@@ -590,6 +600,16 @@ function publishMappedOrders() {
   } finally {
     endHydration();
   }
+}
+
+export function orderIdsForPage(page: number) {
+  return orderPageIds.get(page) ?? [];
+}
+
+export function applyOrderPage(values: unknown[], pageIndex: number, replace = false) {
+  if (replace) orderPageRaw.clear();
+  orderPageRaw.set(pageIndex, values);
+  publishMappedOrders();
 }
 
 function applyCatalog(snapshot: StoreSnapshot) {
@@ -632,7 +652,8 @@ function applyDesk(snapshot: StoreSnapshot) {
 }
 
 export function resetAdminData() {
-  rawOrders = null;
+  orderPageRaw.clear();
+  orderPageIds.clear();
   beginHydration();
   try {
     replaceCatalogProducts([]);
@@ -704,5 +725,9 @@ export function applyAdminSlice(slice: AdminSlice, snapshot: StoreSnapshot) {
 }
 
 function rememberOrders(value: unknown) {
-  rawOrders = Array.isArray(value) ? value : [];
+  const values = Array.isArray(value) ? value : [];
+  orderPageRaw.clear();
+  for (let index = 0; index < values.length; index += ORDER_PAGE_SIZE) {
+    orderPageRaw.set(index / ORDER_PAGE_SIZE, values.slice(index, index + ORDER_PAGE_SIZE));
+  }
 }

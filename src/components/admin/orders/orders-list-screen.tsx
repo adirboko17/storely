@@ -8,7 +8,9 @@ import { DateRangePicker, windowForPreset, type DashboardWindow } from "@/compon
 import { ColumnsButton, IndexDock, SearchField, menuItem, menuPanel, softButton } from "@/components/admin/orders/chrome";
 import { ExportOrdersDialog } from "@/components/admin/orders/export-orders-dialog";
 import { Icon } from "@/components/ui/icon";
-import { useAdminSlice } from "@/components/admin/slice-pending";
+import { useAdminSlice, useOrderCatalog } from "@/components/admin/slice-pending";
+import { ORDER_PAGE_SIZE, focusOrderPage, isOrderPageReady } from "@/data/live/admin-slices";
+import { orderIdsForPage } from "@/data/live/apply-store";
 import { bulkFulfill, getOrderSessionVersion, listResolvedOrders, subscribeOrderSession } from "@/data/mock/order-session";
 import { formatMoney } from "@/lib/formatting/money";
 import {
@@ -33,11 +35,13 @@ export function OrdersListScreen() {
   const { menu, toggleMenu, closeMenu, toast } = useAdmin();
   useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
   const ordersReady = useAdminSlice("orders");
+  const catalog = useOrderCatalog();
   const orders = listResolvedOrders();
   const urlTab = searchParams.get("tab");
   const [tabOverride, setTabOverride] = useState<{ url: string | null; tab: OrderTab } | null>(null);
   const tab = tabOverride && tabOverride.url === urlTab ? tabOverride.tab : parseOrderTab(urlTab);
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
   const [pay, setPay] = useState<PayFilter>(null);
   const [selected, setSelected] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
@@ -60,16 +64,37 @@ export function OrdersListScreen() {
     timer.current = window.setTimeout(() => setLoading(false), 500);
   }
 
-  const busy = loading || !ordersReady;
-  const rows = filterOrders(orders, tab, query, pay);
+  const filtering = query.trim() !== "" || pay != null || tab !== "all";
+  const filtered = filtering ? filterOrders(orders, tab, query, pay) : orders;
+  const total = filtering ? filtered.length : catalog.total;
+  const pageCount = Math.max(1, Math.ceil(total / ORDER_PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageLoaded = filtering ? ordersReady : isOrderPageReady(safePage);
+  const pageOrders = pageLoaded && !filtering
+    ? orderIdsForPage(safePage).flatMap((id) => {
+        const order = orders.find((item) => item.id === id);
+        return order ? [order] : [];
+      })
+    : [];
+  const visible = !pageLoaded ? [] : filtering ? filtered.slice(safePage * ORDER_PAGE_SIZE, safePage * ORDER_PAGE_SIZE + ORDER_PAGE_SIZE) : pageOrders;
+  const showSkeleton = loading || !pageLoaded;
   const stats = orderStats(orders, range, today);
-  const visibleIds = rows.map((order) => order.id);
+  const visibleIds = visible.map((order) => order.id);
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.includes(id));
   const viewLabel = ORDER_TABS.find((item) => item.id === tab)?.label ?? "הכל";
   const payLabel = PAY_FILTERS.find((item) => item.id === pay)?.label ?? "כל הסטטוסים";
 
+  useEffect(() => {
+    setPage(0);
+  }, [query, pay, tab]);
+
+  useEffect(() => {
+    if (filtering || !catalog.known || isOrderPageReady(safePage)) return;
+    focusOrderPage(safePage);
+  }, [filtering, catalog.known, catalog.total, safePage]);
+
   function toggleAll() {
-    setSelected(allSelected ? [] : visibleIds);
+    setSelected(allSelected ? selected.filter((id) => !visibleIds.includes(id)) : [...new Set([...selected, ...visibleIds])]);
   }
 
   function toggleOne(id: number) {
@@ -254,6 +279,7 @@ export function OrdersListScreen() {
         )}
       </div>
 
+      {ordersReady && !catalog.complete ? <p className="mx-3 mt-2 mb-0 text-[13px] text-[#616161]">ממשיך לטעון הזמנות…</p> : null}
       <div className="mx-3 mt-2 overflow-x-auto rounded-[10px]">
         <table className="w-full min-w-[1320px] border-collapse text-sm">
           <thead>
@@ -278,8 +304,8 @@ export function OrdersListScreen() {
             </tr>
           </thead>
           <tbody>
-            {!busy
-              ? rows.map((order) => {
+            {!showSkeleton
+              ? visible.map((order) => {
                   const row = orderRowPresentation(order);
                   const chosen = selected.includes(order.id);
                   return (
@@ -385,7 +411,7 @@ export function OrdersListScreen() {
         </table>
       </div>
 
-      {!busy && rows.length === 0 ? (
+      {!showSkeleton && visible.length === 0 && (!filtering || catalog.complete) ? (
         <div className="mx-3 flex flex-col items-center gap-2 rounded-b-xl bg-white px-4 py-14 text-center">
           <div className="grid size-14 place-items-center rounded-full bg-[#f1f1f1] text-[#8a8a8a]">
             <Icon name="search" size={26} strokeWidth={1.5} />
@@ -407,7 +433,11 @@ export function OrdersListScreen() {
       ) : null}
 
       <div className="min-h-4 flex-1" />
-      <IndexDock pageLabel={rows.length ? `1-${rows.length}` : "0"} />
+      <IndexDock
+        pageLabel={total > 0 ? `${safePage * ORDER_PAGE_SIZE + 1}-${Math.min(total, (safePage + 1) * ORDER_PAGE_SIZE)} / ${total}` : ordersReady ? "0" : "…"}
+        onPrevious={safePage > 0 ? () => setPage(safePage - 1) : undefined}
+        onNext={safePage + 1 < pageCount ? () => setPage(safePage + 1) : undefined}
+      />
       {exportOpen ? (
         <ExportOrdersDialog
           orders={orders}
