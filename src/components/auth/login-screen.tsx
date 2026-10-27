@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent, type ReactNode } from "react";
 import { ConnectingScreen } from "@/components/auth/connecting-screen";
@@ -228,9 +229,17 @@ export function LoginScreen({ nextPath = "" }: { nextPath?: string }) {
       </div>
 
       <footer className="relative z-10 px-6 pb-7 text-center">
-        <p className="m-0 text-[13px] leading-5 text-white/90">צריך עזרה?</p>
+        <p className="m-0 text-[13px] leading-5 text-white/90">
+          <Link href="/support" className="underline">
+            צריך עזרה?
+          </Link>
+        </p>
         <p className="mx-auto mt-2 max-w-[560px] text-[11px] leading-4 text-white/45">
-          המשך מהווה הסכמה לתנאי השימוש ולמדיניות הפרטיות של <bdi>Storely</bdi>.
+          המשך מהווה הסכמה לתנאי השימוש ול
+          <Link href="/privacy" className="underline">
+            מדיניות הפרטיות
+          </Link>{" "}
+          של <bdi>Storely</bdi>.
         </p>
       </footer>
     </main>
