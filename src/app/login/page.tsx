@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function LoginPage({ searchParams }: { searchParams: Promise<{ redirect?: string }> }) {
   return (
-    <Suspense fallback={<main className="min-h-dvh bg-[#070a08]" />}>
+    <Suspense fallback={<main className="min-h-dvh bg-[#070b14]" />}>
       <LoginRoute searchParams={searchParams} />
     </Suspense>
   );
