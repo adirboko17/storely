@@ -428,11 +428,11 @@ export function OrderDetailScreen({ orderId }: { orderId: number }) {
                 <span className="text-ink-secondary">{itemsLabel(order.quantity)}</span>
                 <span dir="ltr">{formatMoney(order.subtotal)}</span>
               </div>
-              {order.discount ? (
+              {order.discountAmount > 0 ? (
                 <div className="grid grid-cols-[120px_minmax(0,1fr)_auto] gap-2">
                   <span>הנחה</span>
-                  <span dir="ltr" className="text-right text-ink-secondary">
-                    {order.discount[0]} ({order.discount[1]}%)
+                  <span className="text-ink-secondary">
+                    {order.discount?.[0] ? (order.discount[1] > 0 ? `${order.discount[0]} (${order.discount[1]}%)` : order.discount[0]) : ""}
                   </span>
                   <span dir="ltr">{formatMoney(-order.discountAmount)}</span>
                 </div>

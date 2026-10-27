@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { DateRangePicker, windowForPreset, type DashboardWindow } from "@/components/admin/dashboard/date-range-picker";
-import { ColumnsButton, IndexDock, SearchField, menuItem, menuPanel, softButton } from "@/components/admin/orders/chrome";
+import { ColumnsButton, IndexDock, SearchField, darkButton, menuItem, menuPanel, softButton } from "@/components/admin/orders/chrome";
 import { ExportOrdersDialog } from "@/components/admin/orders/export-orders-dialog";
 import { Icon } from "@/components/ui/icon";
 import { useAdminSlice, useOrderCatalog } from "@/components/admin/slice-pending";
@@ -106,6 +107,9 @@ export function OrdersListScreen() {
       <div className="flex flex-wrap items-center gap-2 px-3.5 pt-2.5 pb-2">
         <Icon name="orders" size={18} className="text-ink" />
         <h1 className="m-0 flex-1 text-[15px] leading-5 font-bold">הזמנות</h1>
+        <Link href="/admin/orders/new" className={darkButton}>
+          יצירת הזמנה
+        </Link>
         <button type="button" className={softButton} onClick={() => setExportOpen(true)}>
           ייצוא
         </button>
