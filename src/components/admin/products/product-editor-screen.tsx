@@ -150,6 +150,14 @@ function fromProduct(product: Product | null): Draft {
 
 const mediaDragType = "application/x-storely-media";
 
+function linkedProductImage(value: string, hostname: string) {
+  const raw = value.trim();
+  if (/^https:\/\/\S+$/i.test(raw)) return raw;
+  const host = hostname.trim().replace(/^https?:\/\//i, "").split("/")[0] ?? "";
+  if (raw.startsWith("/") && !raw.startsWith("//") && !/\s/.test(raw) && host) return `https://${host}${raw}`;
+  return "";
+}
+
 function readImageFile(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -184,6 +192,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const [fileDrag, setFileDrag] = useState(false);
+  const [imageLink, setImageLink] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [optionQuery, setOptionQuery] = useState("");
   const [editing, setEditing] = useState<number | null>(null);
@@ -466,6 +475,22 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
     }
   }
 
+  function connectImageLink() {
+    const linked = linkedProductImage(imageLink, getStoreIdentity().hostname);
+    if (!linked) {
+      toast("הקישור צריך להיות כתובת https, או נתיב באתר כמו /slots/photo.webp");
+      return;
+    }
+    if (draft.media.includes(linked)) {
+      toast("התמונה כבר מחוברת למוצר");
+      return;
+    }
+    setDraft((current) => ({ ...current, media: [...current.media, linked] }));
+    setImageLink("");
+    setErrors([]);
+    toast("התמונה חובּרה. שמרו את המוצר כדי שהאתר יציג אותה");
+  }
+
   function moveMedia(from: number, to: number) {
     setDraft((current) => {
       if (from === to || from < 0 || to < 0 || from >= current.media.length || to >= current.media.length) return current;
@@ -658,6 +683,11 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
                 <button type="button" aria-label="הוספת מדיה" onClick={() => fileRef.current?.click()} className="grid size-[116px] place-items-center rounded-xl border-[1.5px] border-dashed border-[#c9c9c9] bg-[#fafafa] text-2xl text-[#616161]">+</button>
               </div>
               <div className="mt-1.5 text-[13px] text-ink-secondary">{draft.media.length > 1 ? "גררו תמונה או סרטון למקום הראשון כדי להפוך אותו לראשי." : "אפשר לבחור תמונות וסרטונים, או לגרור אותם לכאן."}</div>
+              <form className="mt-3 flex gap-2" onSubmit={(event) => { event.preventDefault(); connectImageLink(); }}>
+                <input dir="ltr" value={imageLink} onChange={(event) => setImageLink(event.target.value)} placeholder="https:// או /slots/photo.webp" aria-label="קישור לתמונה מהאתר" className={`${field} text-left`} />
+                <button type="submit" className="h-[34px] shrink-0 rounded-[10px] border-0 bg-[#303030] px-3 text-sm font-semibold text-white">חיבור</button>
+              </form>
+              <span className="mt-1.5 block text-[13px] text-ink-secondary">אפשר לחבר תמונה שכבר נמצאת באתר, לפי הכתובת שלה.</span>
             </div>
           </div>
 
