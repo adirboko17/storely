@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent, type ReactNode } from "react";
 import { ConnectingScreen } from "@/components/auth/connecting-screen";
@@ -76,11 +77,11 @@ export function LoginScreen({ nextPath = "" }: { nextPath?: string }) {
   }
 
   return (
-    <main className="relative flex min-h-dvh flex-col bg-[#070a08] text-[#1a1a1a]">
+    <main className="relative flex min-h-dvh flex-col bg-[#070b14] text-[#1a1a1a]">
       {connecting ? <ConnectingScreen /> : null}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(62,92,74,0.42)_0%,rgba(12,16,14,0.15)_46%,rgba(0,0,0,0.72)_100%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(72,156,255,0.5)_0%,rgba(18,48,120,0.28)_46%,rgba(0,0,0,0.72)_100%)]"
       />
 
       <div className="absolute top-7 right-7 z-10 flex items-center gap-2.5 text-white sm:top-8 sm:right-9">
@@ -228,9 +229,17 @@ export function LoginScreen({ nextPath = "" }: { nextPath?: string }) {
       </div>
 
       <footer className="relative z-10 px-6 pb-7 text-center">
-        <p className="m-0 text-[13px] leading-5 text-white/90">צריך עזרה?</p>
+        <p className="m-0 text-[13px] leading-5 text-white/90">
+          <Link href="/support" className="underline">
+            צריך עזרה?
+          </Link>
+        </p>
         <p className="mx-auto mt-2 max-w-[560px] text-[11px] leading-4 text-white/45">
-          המשך מהווה הסכמה לתנאי השימוש ולמדיניות הפרטיות של <bdi>Storely</bdi>.
+          המשך מהווה הסכמה לתנאי השימוש ול
+          <Link href="/privacy" className="underline">
+            מדיניות הפרטיות
+          </Link>{" "}
+          של <bdi>Storely</bdi>.
         </p>
       </footer>
     </main>

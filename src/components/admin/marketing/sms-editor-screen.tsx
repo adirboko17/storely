@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef, useState, useSyncExternalStore } from "react";
 import { notFound } from "next/navigation";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { SlicePending, useAdminSlice } from "@/components/admin/slice-pending";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
 import { Icon } from "@/components/ui/icon";
 import { EMAIL_LINKS, EMAIL_VARS, SMS_LIMIT, getMarketingVersion, getSms, saveSms, subscribeMarketing, type MarketingSms } from "@/data/mock/marketing-session";
@@ -11,6 +12,7 @@ import { EMAIL_LINKS, EMAIL_VARS, SMS_LIMIT, getMarketingVersion, getSms, saveSm
 export function SmsEditorScreen({ smsId, fromFlow }: { smsId: string; fromFlow: string }) {
   const { toast } = useAdmin();
   useSyncExternalStore(subscribeMarketing, getMarketingVersion, () => 0);
+  const deskReady = useAdminSlice("desk");
   const existing = getSms(smsId);
   const missing = !existing;
   const baseline = existing ?? { id: smsId, name: "", text: "" };
@@ -31,6 +33,7 @@ export function SmsEditorScreen({ smsId, fromFlow }: { smsId: string; fromFlow: 
     toast("ה-SMS נשמר");
   }
   useUnsavedEditor(dirty, false, save, () => setDraft(saved));
+  if (missing && !deskReady) return <SlicePending label="טוען הודעה…" />;
   if (missing) notFound();
   const back = fromFlow ? `/admin/marketing/automations/${fromFlow}` : "/admin/marketing/emails";
   const left = SMS_LIMIT - draft.text.length;

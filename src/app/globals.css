@@ -120,8 +120,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background-color: #070a08;
-  background-image: radial-gradient(ellipse at center, rgba(62, 92, 74, 0.55) 0%, rgba(12, 16, 14, 0.2) 46%, #070a08 78%);
+  background-color: #070b14;
+  background-image: radial-gradient(ellipse at center, rgba(72, 156, 255, 0.55) 0%, rgba(14, 32, 72, 0.22) 46%, #070b14 78%);
   color: #fff;
   animation: 280ms ease both connect-fade;
 }
@@ -139,7 +139,7 @@
   width: 96px;
   height: 96px;
   border-radius: 32px;
-  background: radial-gradient(circle, rgba(110, 231, 160, 0.55), rgba(22, 163, 74, 0.08) 68%, transparent 72%);
+  background: radial-gradient(circle, rgba(125, 190, 255, 0.55), rgba(37, 99, 235, 0.08) 68%, transparent 72%);
   filter: blur(8px);
   animation: 2.8s ease-in-out infinite connect-halo;
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { SlicePending, useAdminSlice, useOrderCatalog } from "@/components/admin/slice-pending";
 import { FulfillDialog } from "@/components/admin/orders/fulfill-dialog";
 import { RefundDialog } from "@/components/admin/orders/refund-dialog";
 import {
@@ -188,6 +189,8 @@ export function OrderDetailScreen({ orderId }: { orderId: number }) {
   const router = useRouter();
   const { toast, narrow } = useAdmin();
   useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
+  const ordersReady = useAdminSlice("orders");
+  const catalog = useOrderCatalog();
   const order = resolveOrder(orderId);
   const orders = listResolvedOrders();
   const [comment, setComment] = useState("");
@@ -205,6 +208,7 @@ export function OrderDetailScreen({ orderId }: { orderId: number }) {
   const [fulfillMenu, setFulfillMenu] = useState(false);
   const [printMenu, setPrintMenu] = useState(false);
 
+  if (!order && (!ordersReady || !catalog.complete)) return <SlicePending label="טוען הזמנה…" />;
   if (!order) return null;
   const index = orders.findIndex((item) => item.id === order.id);
   const previous = index > 0 ? orders[index - 1] : null;
@@ -424,11 +428,11 @@ export function OrderDetailScreen({ orderId }: { orderId: number }) {
                 <span className="text-ink-secondary">{itemsLabel(order.quantity)}</span>
                 <span dir="ltr">{formatMoney(order.subtotal)}</span>
               </div>
-              {order.discount ? (
+              {order.discountAmount > 0 ? (
                 <div className="grid grid-cols-[120px_minmax(0,1fr)_auto] gap-2">
                   <span>הנחה</span>
-                  <span dir="ltr" className="text-right text-ink-secondary">
-                    {order.discount[0]} ({order.discount[1]}%)
+                  <span className="text-ink-secondary">
+                    {order.discount?.[0] ? (order.discount[1] > 0 ? `${order.discount[0]} (${order.discount[1]}%)` : order.discount[0]) : ""}
                   </span>
                   <span dir="ltr">{formatMoney(-order.discountAmount)}</span>
                 </div>

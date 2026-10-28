@@ -7,7 +7,7 @@ import { AdminShell } from "@/components/admin/layout/admin-shell";
 import { StoreHydrator } from "@/components/admin/store-hydrator";
 import { PlatformReturnBar } from "@/components/platform/return-bar";
 import type { PlatformStore } from "@/components/platform/types";
-import type { StoreSnapshot } from "@/data/live/apply-store";
+import type { StoreShell } from "@/data/live/apply-store";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { parseStoreAccess, visibleAdminNavigation } from "@/platform/access";
 import { resolveAdminNavigation } from "@/platform/navigation";
@@ -71,30 +71,21 @@ async function AdminFrame({ children }: { children: React.ReactNode }) {
     knownEmail = user.email ?? "";
   }
 
-  const [{ data: snapshot }, { data: visitHost }, { data: brand }] = await Promise.all([
-    supabase.rpc("store_admin_snapshot", { target_store: storeId }),
+  const [{ data: visitHost }, { data: brand }] = await Promise.all([
     supabase.rpc("store_visit_host", { target_store: storeId }),
-    supabase.from("store_settings").select("logo_url, brand_colors, currency").eq("store_id", storeId).maybeSingle(),
+    supabase.from("store_settings").select("logo_url, brand_colors, currency, display_name").eq("store_id", storeId).maybeSingle(),
   ]);
-  const liveSnapshot: StoreSnapshot =
-    snapshot && typeof snapshot === "object" && !Array.isArray(snapshot) ? { ...(snapshot as StoreSnapshot) } : {};
-  if (!presentText(liveSnapshot.name, knownStore)) {
-    const { data: settings } = await supabase
-      .from("store_settings")
-      .select("display_name")
-      .eq("store_id", storeId)
-      .maybeSingle();
-    const settingsRow = settings as { display_name?: string } | null;
-    knownStore = settingsRow?.display_name ?? "";
-  }
-  liveSnapshot.name = presentText(liveSnapshot.name, knownStore);
-  liveSnapshot.ownerName = presentText(liveSnapshot.ownerName, knownName);
-  liveSnapshot.ownerEmail = presentText(liveSnapshot.ownerEmail, knownEmail);
-  liveSnapshot.hostname = presentText(visitHost, presentText(liveSnapshot.hostname, knownHost));
-  const brandRow = brand as { logo_url?: string; brand_colors?: unknown; currency?: string } | null;
-  liveSnapshot.logoUrl = presentText(brandRow?.logo_url, "");
-  liveSnapshot.brandColors = brandRow?.brand_colors;
-  liveSnapshot.currency = brandRow?.currency || "ILS";
+  const brandRow = brand as { logo_url?: string; brand_colors?: unknown; currency?: string; display_name?: string } | null;
+  const shell: StoreShell = {
+    storeId,
+    name: presentText(knownStore, brandRow?.display_name ?? ""),
+    hostname: presentText(visitHost, knownHost),
+    ownerName: knownName,
+    ownerEmail: knownEmail,
+    logoUrl: presentText(brandRow?.logo_url, ""),
+    brandColors: brandRow?.brand_colors,
+    currency: brandRow?.currency || "ILS",
+  };
   const { data: accessRow } = await supabase.rpc("current_store_access", { target_store: storeId });
   const access = parseStoreAccess(accessRow);
   const navItems = visibleAdminNavigation(resolveAdminNavigation(getAdminSession()), access);
@@ -103,7 +94,7 @@ async function AdminFrame({ children }: { children: React.ReactNode }) {
   const accountEmail = access.email || knownEmail;
 
   return (
-    <StoreHydrator storeId={storeId} snapshot={liveSnapshot}>
+    <StoreHydrator shell={shell}>
       <AdminProvider>
         <AdminShell navItems={navItems} access={access} accountName={accountName} accountEmail={accountEmail}>
           {enteredName ? <PlatformReturnBar name={enteredName} /> : null}

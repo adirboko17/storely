@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { notFound } from "next/navigation";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { SlicePending, useAdminSlice } from "@/components/admin/slice-pending";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
 import { ProductMerchFields } from "@/components/admin/products/product-merch-fields";
 import { TermPicker } from "@/components/admin/products/term-picker";
@@ -162,6 +163,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
   const router = useRouter();
   const { toast } = useAdmin();
   useSyncExternalStore(subscribeCatalog, getCatalogVersion, () => 0);
+  const catalogReady = useAdminSlice("catalog");
   const product = productId == null ? null : getCatalogProduct(productId);
   const missing = productId != null && !product;
   const baseline = useMemo(() => fromProduct(product), [product]);
@@ -356,6 +358,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
   }
 
   useUnsavedEditor(dirty, saving, save, discard);
+  if (missing && !catalogReady) return <SlicePending label="טוען מוצר…" />;
   if (missing) notFound();
 
   const priceNumber = Number(draft.price) || 0;

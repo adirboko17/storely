@@ -4,11 +4,11 @@ import { replacePosts, type Post } from "@/data/mock/content-session";
 import { blankDiscount, replaceDiscounts, type BxgyMode, type Discount, type DiscountKind } from "@/data/mock/discount-session";
 import { absorbLegacyEmails, parseEmails, parseSms, replaceMarketing, type Flow, type IntegrationState } from "@/data/mock/marketing-session";
 import { replaceAbandoned, replaceLiveOrders, syncLiveOrders } from "@/data/mock/order-session";
-import { listPeople, replacePeople, type PersonProfile } from "@/data/mock/people-session";
-import { normalizeBrandColors, normalizePolicies, replaceSettings, type ReturnRule, type ShipProfile } from "@/data/mock/settings-session";
+import { listPeople, mergePeople, replacePeople, type PersonProfile } from "@/data/mock/people-session";
+import { getSettings, normalizeBrandColors, normalizePolicies, replaceSettings, type ReturnRule, type ShipProfile } from "@/data/mock/settings-session";
 import { beginHydration, endHydration } from "@/data/live/write";
 import { setStoreCurrency } from "@/lib/formatting/currency";
-import { claimStore, setStoreIdentity } from "@/data/live/store-identity";
+import { claimStore, getStoreIdentity, setStoreIdentity } from "@/data/live/store-identity";
 import { enableLiveMetrics } from "@/lib/dashboard/chart";
 import type { TimelineEvent } from "@/lib/orders/present";
 import type { AbandonedCheckout } from "@/data/mock/abandoned";
@@ -188,20 +188,39 @@ function fulfillmentStatus(value: unknown): FulfillmentStatus {
   return value === "unfulfilled" || value === "fulfilled" || value === "partial" || value === "onhold" || value === "progress" ? value : "unfulfilled";
 }
 
+const timeFormat = new Intl.DateTimeFormat("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" });
+const dayFormat = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" });
+const labelFormat = new Intl.DateTimeFormat("he-IL", { day: "numeric", month: "short", timeZone: "Asia/Jerusalem" });
+
 function hebrewWhen(value: unknown) {
   const date = new Date(text(value));
   if (Number.isNaN(date.getTime())) return "";
-  const time = new Intl.DateTimeFormat("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" }).format(date);
-  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).format(date);
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).format(new Date());
-  const yesterday = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).format(new Date(Date.now() - 86400000));
+  const time = timeFormat.format(date);
+  const day = dayFormat.format(date);
+  const today = dayFormat.format(new Date());
+  const yesterday = dayFormat.format(new Date(Date.now() - 86400000));
   if (day === today) return `היום ב-${time}`;
   if (day === yesterday) return `אתמול ב-${time}`;
-  const label = new Intl.DateTimeFormat("he-IL", { day: "numeric", month: "short", timeZone: "Asia/Jerusalem" }).format(date);
-  return `${label} ב-${time}`;
+  return `${labelFormat.format(date)} ב-${time}`;
 }
 
-function mapOrder(value: unknown, products: Product[], customers: Customer[]): Order | null {
+function indexProducts(products: Product[]) {
+  const map = new Map<string, Product>();
+  products.forEach((product) => {
+    if (product.sourceId) map.set(product.sourceId, product);
+  });
+  return map;
+}
+
+function indexCustomers(customers: Customer[]) {
+  const map = new Map<string, Customer>();
+  customers.forEach((customer) => {
+    if (customer.sourceId) map.set(customer.sourceId, customer);
+  });
+  return map;
+}
+
+function mapOrder(value: unknown, products: Map<string, Product>, customers: Map<string, Customer>): Order | null {
   const item = row(value);
   const number = amount(item?.number);
   if (!number) return null;
@@ -211,7 +230,7 @@ function mapOrder(value: unknown, products: Product[], customers: Customer[]): O
   lines.forEach((line) => {
     const entry = row(line);
     const productId = text(entry?.productId);
-    const product = products.find((candidate) => candidate.sourceId === productId);
+    const product = productId ? products.get(productId) : undefined;
     const gift = Boolean(product?.giftOpen || product?.giftAmounts?.length);
     const localId = product?.id ?? -1 - items.length;
     items.push([localId, Math.max(1, amount(entry?.quantity))]);
@@ -223,7 +242,7 @@ function mapOrder(value: unknown, products: Product[], customers: Customer[]): O
       sku: gift ? "" : text(entry?.sku),
     });
   });
-  const customer = customers.find((person) => person.sourceId === text(item?.customerId));
+  const customer = customers.get(text(item?.customerId));
   const tags = Array.isArray(item?.tags) ? item.tags.filter((tag): tag is string => typeof tag === "string") : [];
   const code = text(item?.discountCode);
   return {
@@ -462,8 +481,8 @@ function mapGiftCards(value: unknown): GiftCard[] {
 }
 
 export function applyOrderRefresh(snapshot: StoreSnapshot) {
-  const products = listCatalogProducts();
-  const customers = listPeople();
+  const products = indexProducts(listCatalogProducts());
+  const customers = indexCustomers(listPeople());
   const orders = Array.isArray(snapshot.orders)
     ? snapshot.orders.flatMap((entry) => {
         const order = mapOrder(entry, products, customers);
@@ -493,8 +512,10 @@ export function applyStoreSnapshot(storeId: string, snapshot: StoreSnapshot) {
   const products = Array.isArray(snapshot.products) ? snapshot.products.map(mapProduct) : [];
   const customers = Array.isArray(snapshot.customers) ? snapshot.customers.map(mapCustomer) : [];
   const discounts = Array.isArray(snapshot.discounts) ? snapshot.discounts.map(mapDiscount) : [];
+  const productIndex = indexProducts(products);
+  const customerIndex = indexCustomers(customers);
   const orders = Array.isArray(snapshot.orders) ? snapshot.orders.flatMap((entry) => {
-    const order = mapOrder(entry, products, customers);
+    const order = mapOrder(entry, productIndex, customerIndex);
     return order ? [order] : [];
   }) : [];
   const events: Record<number, TimelineEvent[]> = {};
@@ -533,5 +554,180 @@ export function applyStoreSnapshot(storeId: string, snapshot: StoreSnapshot) {
     setStoreCurrency(snapshot.currency);
   } finally {
     endHydration();
+  }
+}
+
+export type AdminSlice = "catalog" | "customers" | "orders" | "discounts" | "checkouts" | "content" | "desk";
+
+export type StoreShell = {
+  storeId: string;
+  name: string;
+  hostname: string;
+  ownerName: string;
+  ownerEmail: string;
+  logoUrl: string;
+  brandColors: unknown;
+  currency: string;
+};
+
+export const ORDER_PAGE_SIZE = 50;
+
+const orderPageRaw = new Map<number, unknown[]>();
+const orderPageIds = new Map<number, number[]>();
+
+function publishMappedOrders() {
+  if (orderPageRaw.size === 0) return;
+  const productIndex = indexProducts(listCatalogProducts());
+  const customerIndex = indexCustomers(listPeople());
+  const orders: Order[] = [];
+  const events: Record<number, TimelineEvent[]> = {};
+  const pages = [...orderPageRaw.keys()].sort((left, right) => left - right);
+  orderPageIds.clear();
+  pages.forEach((page) => {
+    const ids: number[] = [];
+    (orderPageRaw.get(page) ?? []).forEach((entry) => {
+      const order = mapOrder(entry, productIndex, customerIndex);
+      if (!order) return;
+      orders.push(order);
+      ids.push(order.id);
+      events[order.id] = mapTimeline(entry);
+    });
+    orderPageIds.set(page, ids);
+  });
+  beginHydration();
+  try {
+    syncLiveOrders(orders, events);
+  } finally {
+    endHydration();
+  }
+}
+
+export function orderIdsForPage(page: number) {
+  return orderPageIds.get(page) ?? [];
+}
+
+export function applyOrderPage(values: unknown[], pageIndex: number, replace = false) {
+  if (replace) orderPageRaw.clear();
+  orderPageRaw.set(pageIndex, values);
+  publishMappedOrders();
+}
+
+function applyCatalog(snapshot: StoreSnapshot) {
+  const products = Array.isArray(snapshot.products) ? snapshot.products.map(mapProduct) : [];
+  const collectionState = mapCollections(snapshot.collections, products);
+  replaceCatalogProducts(products, {
+    giftCards: mapGiftCards(snapshot.giftCards),
+    collections: collectionState.collections,
+    hiddenCollections: collectionState.hidden,
+    extraCollections: collectionState.extra,
+  });
+}
+
+function applyCustomers(snapshot: StoreSnapshot) {
+  const customers = Array.isArray(snapshot.customers) ? snapshot.customers.map(mapCustomer) : [];
+  replacePeople(customers, Array.isArray(snapshot.customers) ? mapProfiles(customers, snapshot.customers) : {});
+}
+
+export function applyCustomerPage(values: unknown[], pageIndex: number, pageSize: number) {
+  const customers = values.map((value, index) => mapCustomer(value, pageIndex * pageSize + index));
+  beginHydration();
+  try {
+    mergePeople(customers, mapProfiles(customers, values));
+  } finally {
+    endHydration();
+  }
+}
+
+export function linkAdminOrders() {
+  publishMappedOrders();
+}
+
+function applyDesk(snapshot: StoreSnapshot) {
+  const current = getSettings();
+  replaceSettings({ policies: normalizePolicies(snapshot.policies), ...mapShipping(snapshot.shipping), logo: current.logo, colors: current.colors });
+  const marketing = row(snapshot.marketing);
+  const flows = Array.isArray(marketing?.flows) ? marketing.flows.filter((flow): flow is Flow => Boolean(row(flow)?.name)) : [];
+  const library = absorbLegacyEmails(flows, parseEmails(marketing?.emails), parseSms(marketing?.sms));
+  replaceMarketing({ connected: (row(marketing?.connected) ?? {}) as Record<string, IntegrationState>, flows: library.flows, emails: library.emails, sms: library.sms });
+}
+
+export function resetAdminData() {
+  orderPageRaw.clear();
+  orderPageIds.clear();
+  beginHydration();
+  try {
+    replaceCatalogProducts([]);
+    replacePeople([]);
+    replaceDiscounts([]);
+    syncLiveOrders([], {});
+    replaceAbandoned([]);
+    replacePosts([]);
+    replaceMarketing({ connected: {}, flows: [], emails: [], sms: [] });
+  } finally {
+    endHydration();
+  }
+}
+
+export function applyStoreShell(shell: StoreShell) {
+  const identity = getStoreIdentity();
+  if (identity.storeId !== shell.storeId || identity.name !== shell.name || identity.hostname !== shell.hostname || identity.ownerName !== shell.ownerName || identity.ownerEmail !== shell.ownerEmail) {
+    setStoreIdentity({
+      storeId: shell.storeId,
+      name: shell.name,
+      hostname: shell.hostname,
+      ownerName: shell.ownerName,
+      ownerEmail: shell.ownerEmail,
+    });
+  }
+  setStoreCurrency(shell.currency);
+  enableLiveMetrics();
+  const current = getSettings();
+  const logo = shell.logoUrl || current.logo;
+  const colors = shell.brandColors == null ? current.colors : normalizeBrandColors(shell.brandColors);
+  if (current.logo === logo && current.colors.every((color, index) => color === colors[index])) return;
+  beginHydration();
+  try {
+    replaceSettings({
+      policies: current.policies,
+      rules: current.rules,
+      profiles: current.profiles,
+      estimates: current.estimates,
+      localDelivery: current.localDelivery,
+      pickup: current.pickup,
+      contact: current.contact,
+      logo,
+      colors,
+    });
+  } finally {
+    endHydration();
+  }
+}
+
+export function applyAdminSlice(slice: AdminSlice, snapshot: StoreSnapshot) {
+  beginHydration();
+  try {
+    if (slice === "catalog") applyCatalog(snapshot);
+    else if (slice === "customers") applyCustomers(snapshot);
+    else if (slice === "discounts") replaceDiscounts(Array.isArray(snapshot.discounts) ? snapshot.discounts.map(mapDiscount) : []);
+    else if (slice === "checkouts") {
+      const checkouts = Array.isArray(snapshot.checkouts) ? snapshot.checkouts.flatMap((entry) => {
+        const checkout = mapCheckout(entry);
+        return checkout ? [checkout] : [];
+      }) : [];
+      replaceAbandoned(checkouts);
+    } else if (slice === "content") replacePosts(mapPosts(snapshot.posts));
+    else if (slice === "desk") applyDesk(snapshot);
+    else rememberOrders(snapshot.orders);
+  } finally {
+    endHydration();
+  }
+  if (slice === "orders" || slice === "catalog" || slice === "customers") publishMappedOrders();
+}
+
+function rememberOrders(value: unknown) {
+  const values = Array.isArray(value) ? value : [];
+  orderPageRaw.clear();
+  for (let index = 0; index < values.length; index += ORDER_PAGE_SIZE) {
+    orderPageRaw.set(index / ORDER_PAGE_SIZE, values.slice(index, index + ORDER_PAGE_SIZE));
   }
 }

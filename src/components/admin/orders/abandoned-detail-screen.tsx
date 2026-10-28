@@ -4,20 +4,54 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSyncExternalStore } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { SlicePending, useAdminSlice } from "@/components/admin/slice-pending";
 import { CopyIcon, softButton } from "@/components/admin/orders/chrome";
 import { Icon } from "@/components/ui/icon";
-import { abandonedSlug } from "@/data/mock/abandoned";
+import { abandonedSlug, checkoutLabel } from "@/data/mock/abandoned";
+import { checkoutRecoveryHref, getStoreIdentity, subscribeStoreIdentity } from "@/data/live/store-identity";
+import { getCatalogVersion, listCatalogProducts, subscribeCatalog } from "@/data/mock/catalog-session";
 import { getOrderSessionVersion, listLiveCheckouts, patchCheckout, subscribeOrderSession } from "@/data/mock/order-session";
 import { formatMoney } from "@/lib/formatting/money";
 import { itemsLabel } from "@/lib/orders/present";
+import type { Product } from "@/types/commerce";
+
+const whenFormat = new Intl.DateTimeFormat("he-IL", {
+  timeZone: "Asia/Jerusalem",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+function checkoutWhen(at: string | undefined, fallback: string) {
+  if (!at) return fallback;
+  const date = new Date(at);
+  if (Number.isNaN(date.getTime())) return fallback;
+  return whenFormat.format(date);
+}
+
+async function copyText(value: string) {
+  await navigator.clipboard.writeText(value);
+}
+
+function knownProduct(title: string): Product | null {
+  return listCatalogProducts()
+    .filter((product) => title === product.title || title.startsWith(`${product.title}-`) || title.startsWith(`${product.title} `) || title.startsWith(`${product.title}|`))
+    .sort((left, right) => right.title.length - left.title.length)[0] ?? null;
+}
 
 export function AbandonedDetailScreen({ checkoutId }: { checkoutId: string }) {
   const router = useRouter();
   const { toast, narrow } = useAdmin();
   useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
+  useSyncExternalStore(subscribeCatalog, getCatalogVersion, () => 0);
+  const hostname = useSyncExternalStore(subscribeStoreIdentity, () => getStoreIdentity().hostname, () => "");
+  const checkoutsReady = useAdminSlice("checkouts");
   const checkouts = listLiveCheckouts();
   const index = Math.max(0, checkouts.findIndex((item) => item.id === checkoutId));
   const checkout = checkouts[index];
+  if ((!checkout || checkout.id !== checkoutId) && !checkoutsReady) return <SlicePending label="טוען עגלה…" />;
   if (!checkout || checkout.id !== checkoutId) return null;
 
   const previous = index > 0 ? checkouts[index - 1] : null;
@@ -31,11 +65,10 @@ export function AbandonedDetailScreen({ checkoutId }: { checkoutId: string }) {
   const quantity = checkout.lines.reduce((sum, line) => sum + line.quantity, 0);
   const noteValue = checkout.noteDraft != null ? checkout.noteDraft : (checkout.note ?? "");
   const noteDirty = checkout.noteDraft != null && checkout.noteDraft !== (checkout.note ?? "");
-  const fullDate =
-    (checkout.day === "היום" ? "13 באוקטובר 2026" : checkout.day === "אתמול" ? "12 באוקטובר 2026" : "אוקטובר 2026") +
-    ", " +
-    (checkout.date.split(" ב-").pop() ?? checkout.date);
-  const link = `https://lavana.co.il/checkouts/${checkout.id.slice(1, 9)}/recover?key=9ce024fe1a`;
+  const fullDate = checkoutWhen(checkout.at, checkout.date);
+  const link = checkoutRecoveryHref(hostname, checkout.id);
+  const region = checkout.city || "ישראל";
+  const address = [checkout.name, checkout.street, [checkout.city, checkout.zip].filter(Boolean).join(" "), "ישראל", checkout.phone].filter(Boolean).join("\n");
 
   return (
     <div data-screen-label="Abandoned checkout detail" className="flex min-h-full flex-col">
@@ -89,7 +122,7 @@ export function AbandonedDetailScreen({ checkoutId }: { checkoutId: string }) {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h1 dir="ltr" className="m-0 text-2xl leading-[30px] font-bold">
-                {checkout.id}
+                {checkoutLabel(checkout.id)}
               </h1>
               <span className="inline-flex h-5 items-center rounded-md px-[7px] text-[13px] font-medium whitespace-nowrap" style={{ background: recovery.background, color: recovery.color }}>
                 {recovery.label}
@@ -98,7 +131,7 @@ export function AbandonedDetailScreen({ checkoutId }: { checkoutId: string }) {
                 {email.label}
               </span>
             </div>
-            <div className="mt-0.5 text-sm text-[#4a4a4a]">ישראל, {fullDate}</div>
+            <div className="mt-0.5 text-sm text-[#4a4a4a]">{region}, {fullDate}</div>
           </div>
 
           {!checkout.recovered ? (
@@ -110,23 +143,45 @@ export function AbandonedDetailScreen({ checkoutId }: { checkoutId: string }) {
                 </svg>
                 שלחו ללקוח את הקישור הזה כדי לשחזר את העגלה
               </div>
-              <div className="flex h-9 items-center gap-1.5 rounded-[10px] bg-white/55 py-0 pr-3 pl-1.5">
-                <span dir="ltr" className="min-w-0 flex-1 overflow-hidden text-left text-[13px] text-ellipsis whitespace-nowrap text-[#0b3b4b]">
-                  {link}
-                </span>
-                <button type="button" aria-label="העתקה" onClick={() => toast("הקישור הועתק")} className="grid size-[26px] place-items-center rounded-lg border-0 bg-transparent text-[#0b3b4b] hover:bg-black/[.06]">
-                  <CopyIcon />
-                </button>
-              </div>
+              {link ? (
+                <div className="flex h-9 items-center gap-1.5 rounded-[10px] bg-white/55 py-0 pr-3 pl-1.5">
+                  <span dir="ltr" className="min-w-0 flex-1 overflow-hidden text-left text-[13px] text-ellipsis whitespace-nowrap text-[#0b3b4b]">
+                    {link}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="העתקה"
+                    onClick={() => {
+                      copyText(link).then(() => toast("הקישור הועתק")).catch(() => toast("לא הצלחנו להעתיק"));
+                    }}
+                    className="grid size-[26px] place-items-center rounded-lg border-0 bg-transparent text-[#0b3b4b] hover:bg-black/[.06]"
+                  >
+                    <CopyIcon />
+                  </button>
+                </div>
+              ) : (
+                <span className="text-sm text-[#0b3b4b]">לחנות עדיין אין כתובת, אז אין קישור לשלוח.</span>
+              )}
               <button
                 type="button"
                 className="self-start h-[30px] rounded-[10px] border-0 bg-[#a8e4f5] px-3 text-sm font-semibold text-[#0b3b4b] hover:bg-[#93dbf0]"
                 onClick={() => {
+                  if (!link) {
+                    toast("לחנות עדיין אין כתובת");
+                    return;
+                  }
+                  if (!checkout.email) {
+                    toast("ללקוח הזה אין כתובת דוא״ל");
+                    return;
+                  }
+                  const subject = encodeURIComponent("העגלה שלך מחכה");
+                  const body = encodeURIComponent(`אפשר להמשיך את ההזמנה מכאן:\n${link}`);
+                  window.location.href = `mailto:${checkout.email}?subject=${subject}&body=${body}`;
                   patchCheckout(checkout.id, {
                     sent: true,
-                    log: [...(checkout.log ?? []), `דוא״ל שחזור נשלח אל ${checkout.email || checkout.phone} · עכשיו`],
+                    log: [...(checkout.log ?? []), `דוא״ל שחזור נפתח אל ${checkout.email} · עכשיו`],
                   });
-                  toast("דוא״ל השחזור נשלח");
+                  toast("נפתח מייל עם קישור העגלה");
                 }}
               >
                 {checkout.sent ? "שליחה חוזרת של דוא״ל שחזור" : "שליחת דוא״ל לשחזור העגלה"}
@@ -140,14 +195,25 @@ export function AbandonedDetailScreen({ checkoutId }: { checkoutId: string }) {
           </div>
           <section className="flex flex-col gap-3 rounded-[14px] bg-white p-4 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
             <div className="rounded-xl border border-[#ebebeb]">
-              {checkout.lines.map((line, lineIndex) => (
-                <div key={`${line.product.id}-${lineIndex}`} className="grid grid-cols-[40px_minmax(0,1fr)_100px_90px] items-start gap-3.5 border-b border-[#f1f1f1] p-3.5">
-                  <span className="size-10 rounded-lg shadow-[inset_0_0_0_1px_rgba(0,0,0,.08)]" style={{ background: line.product.tone }} />
+              {checkout.lines.map((line, lineIndex) => {
+                const product = knownProduct(line.product.title) ?? line.product;
+                const photo = product.media?.find((item) => item.startsWith("http"));
+                return (
+                <div key={`${line.product.title}-${lineIndex}`} className="grid grid-cols-[40px_minmax(0,1fr)_100px_90px] items-start gap-3.5 border-b border-[#f1f1f1] p-3.5">
+                  {photo ? (
+                    <img src={photo} alt="" className="size-10 rounded-lg object-cover shadow-[inset_0_0_0_1px_rgba(0,0,0,.08)]" />
+                  ) : (
+                    <span className="size-10 rounded-lg shadow-[inset_0_0_0_1px_rgba(0,0,0,.08)]" style={{ background: product.tone }} />
+                  )}
                   <div className="flex min-w-0 flex-col gap-1.5">
-                    <Link href={`/admin/products/${line.product.id}`} className="text-pretty text-ink underline">
-                      {line.product.title}
-                    </Link>
-                    <span className="inline-flex h-5 items-center self-start rounded-md bg-[#ebebeb] px-1.5 text-xs">{line.product.variant}</span>
+                    {product.id >= 0 ? (
+                      <Link href={`/admin/products/${product.id}`} className="text-pretty text-ink underline">
+                        {line.product.title}
+                      </Link>
+                    ) : (
+                      <span className="text-pretty text-ink">{line.product.title}</span>
+                    )}
+                    {line.product.variant ? <span className="inline-flex h-5 items-center self-start rounded-md bg-[#ebebeb] px-1.5 text-xs">{line.product.variant}</span> : null}
                   </div>
                   <span dir="ltr" className="text-right whitespace-nowrap">
                     {formatMoney(line.product.price)} × {line.quantity}
@@ -156,7 +222,8 @@ export function AbandonedDetailScreen({ checkoutId }: { checkoutId: string }) {
                     {formatMoney(line.product.price * line.quantity)}
                   </span>
                 </div>
-              ))}
+                );
+              })}
             </div>
             <div className="grid grid-cols-[110px_minmax(0,1fr)_auto] gap-x-3 gap-y-2.5 py-1">
               <span>סכום ביניים</span>
@@ -229,7 +296,7 @@ export function AbandonedDetailScreen({ checkoutId }: { checkoutId: string }) {
               <a href="#email" dir="ltr" className="storely-link flex-1 text-right" onClick={(event) => event.preventDefault()}>
                 {checkout.email || "—"}
               </a>
-              <button type="button" aria-label="העתקה" onClick={() => toast("כתובת הדוא״ל הועתקה")} className="grid size-6 place-items-center border-0 bg-transparent text-[#4a4a4a]">
+              <button type="button" aria-label="העתקה" onClick={() => { if (!checkout.email) return; copyText(checkout.email).then(() => toast("כתובת הדוא״ל הועתקה")).catch(() => toast("לא הצלחנו להעתיק")); }} className="grid size-6 place-items-center border-0 bg-transparent text-[#4a4a4a]">
                 <CopyIcon />
               </button>
             </div>
@@ -238,15 +305,17 @@ export function AbandonedDetailScreen({ checkoutId }: { checkoutId: string }) {
           <div className="flex flex-col gap-1">
             <div className="flex items-center">
               <span className="flex-1 text-[#4a4a4a]">כתובת למשלוח</span>
-              <button type="button" aria-label="העתקה" onClick={() => toast("הכתובת הועתקה")} className="grid size-6 place-items-center border-0 bg-transparent text-[#4a4a4a]">
+              <button type="button" aria-label="העתקה" onClick={() => { copyText(address).then(() => toast("הכתובת הועתקה")).catch(() => toast("לא הצלחנו להעתיק")); }} className="grid size-6 place-items-center border-0 bg-transparent text-[#4a4a4a]">
                 <CopyIcon />
               </button>
             </div>
             <span>{checkout.name}</span>
-            <span>{checkout.street}</span>
-            <span>
-              {checkout.city} <span dir="ltr">{checkout.zip}</span>
-            </span>
+            {checkout.street ? <span>{checkout.street}</span> : null}
+            {checkout.city || checkout.zip ? (
+              <span>
+                {checkout.city} <span dir="ltr">{checkout.zip}</span>
+              </span>
+            ) : null}
             <span>ישראל</span>
             <span dir="ltr" className="text-right">
               {checkout.phone}

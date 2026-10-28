@@ -1,6 +1,6 @@
 export function ConnectingScreen() {
   return (
-    <div className="connecting-screen" style={{ backgroundColor: "#070a08" }} role="status" aria-live="polite">
+    <div className="connecting-screen" style={{ backgroundColor: "#070b14" }} role="status" aria-live="polite">
       <div className="connecting-mark">
         <span className="connecting-halo" aria-hidden />
         <span className="connecting-orbit" aria-hidden />

@@ -5,6 +5,7 @@ import { notFound, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { SlicePending, useAdminSlice } from "@/components/admin/slice-pending";
 import { Icon } from "@/components/ui/icon";
 import { getCatalogVersion, isVideoMedia, listCatalogProducts, listCategorySubcategories, listExtraCollections, subscribeCatalog } from "@/data/mock/catalog-session";
 import {
@@ -238,6 +239,7 @@ export function DiscountEditorScreen({ discountId, kind }: { discountId: number 
   const router = useRouter();
   const { toast } = useAdmin();
   useSyncExternalStore(subscribeDiscounts, getDiscountVersion, () => 0);
+  const discountsReady = useAdminSlice("discounts");
   useSyncExternalStore(subscribeCatalog, getCatalogVersion, () => 0);
   const existing = discountId == null ? null : getDiscount(discountId);
   const missing = discountId != null && !existing;
@@ -403,6 +405,7 @@ export function DiscountEditorScreen({ discountId, kind }: { discountId: number 
   }
 
   useUnsavedEditor(dirty, saving, save, () => { setDraft(saved); setError(""); });
+  if (missing && !discountsReady) return <SlicePending label="טוען הנחה…" />;
   if (missing) notFound();
   const status = discountStatus(draft);
   const valueLabel = draft.type === "ship" ? "משלוח חינם" : draft.type === "bxgy" ? (draft.bxMode === "pair" ? "מוצר תמורת מוצר" : draft.bxMode === "cats" ? "קטגוריה תמורת קטגוריה" : `קנו ${draft.bxBuy || "0"} קבלו ${draft.bxGet || "0"}`) : draft.valueType === "pct" ? `${draft.value || "0"}%` : `${currencySymbol()}${draft.value || "0"}`;

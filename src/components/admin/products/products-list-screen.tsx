@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { ColumnsButton, IndexDock, darkButton, softButton } from "@/components/admin/orders/chrome";
 import { DateRangePicker, defaultDashboardWindow, type DashboardWindow } from "@/components/admin/dashboard/date-range-picker";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
+import { useAdminSlice } from "@/components/admin/slice-pending";
 import { Icon } from "@/components/ui/icon";
 import {
   deleteCatalogProducts,
@@ -90,6 +91,7 @@ export function ProductsListScreen() {
   const { toast } = useAdmin();
   useSyncExternalStore(subscribeCatalog, getCatalogVersion, () => 0);
   useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
+  const catalogReady = useAdminSlice("catalog");
   const products = listCatalogProducts();
   const [tab, setTab] = useState<ProductTab>("all");
   const [menu, setMenu] = useState(false);
@@ -235,7 +237,7 @@ export function ProductsListScreen() {
             </tr>
           </thead>
           <tbody>
-            {loading
+            {loading || !catalogReady
               ? Array.from({ length: 8 }, (_, index) => (
                   <tr key={index} className="h-[49px] border-b border-[#ebebeb] bg-white">
                     <td className="px-2.5"><span className="block size-4 rounded bg-[#ebebeb]" /></td>
@@ -276,7 +278,7 @@ export function ProductsListScreen() {
           </tbody>
         </table>
       </div>
-      {!loading && rows.length === 0 ? (
+      {catalogReady && !loading && rows.length === 0 ? (
         <div className="mx-3 flex flex-col items-center gap-2 rounded-b-xl bg-white px-4 py-12 text-center text-ink-secondary">
           לא נמצאו מוצרים.
           <button type="button" className={softButton} onClick={() => { setQuery(""); setTab("all"); }}>ניקוי חיפוש</button>
