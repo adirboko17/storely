@@ -2,7 +2,9 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import type { PlatformStore } from "@/components/platform/types";
 
 const STORE_COOKIE = "storely-platform-store";
@@ -18,6 +20,7 @@ const KNOWN_ERRORS = [
   "הדומיין כבר תפוס",
   "סוג דומיין לא תקין",
   "החנות לא נמצאה",
+  "לא הצלחנו למחוק את החנות",
   "מפתח Resend לא תקין",
   "כתובת השולח לא תקינה",
   "חסרה כתובת שולח",
@@ -129,6 +132,59 @@ export async function checkStoreEmail(storeId: string): Promise<{ ok: boolean; m
   if (!match) return { ok: false, message: "המפתח תקין, והדומיין של כתובת השולח לא מופיע ב-Resend" };
   if (match.status !== "verified") return { ok: false, message: "המפתח תקין, והדומיין עדיין לא מאומת ב-Resend" };
   return { ok: true, message: "המייל מחובר והדומיין מאומת" };
+}
+
+export async function deletePlatformStore(storeId: string): Promise<{ error: string } | void> {
+  if (!/^[0-9a-f-]{36}$/i.test(storeId)) return { error: "החנות לא נמצאה" };
+  const supabase = await requireOperator();
+  const { error } = await supabase.rpc("delete_platform_store", { target_store: storeId });
+  if (error) {
+    const message = error.message.includes("forbidden")
+      ? "אין הרשאה למחוק חנות"
+      : readableError(error.message, "לא הצלחנו למחוק את החנות");
+    return { error: message };
+  }
+  await removeStoreFiles(storeId);
+  const jar = await cookies();
+  if (jar.get(STORE_COOKIE)?.value === storeId) jar.delete(STORE_COOKIE);
+  redirect("/platform");
+}
+
+const MEDIA_BUCKETS = ["product-media", "email-media"];
+
+async function collectStoreFiles(supabase: SupabaseClient, bucket: string, prefix: string, paths: string[]) {
+  const pageSize = 100;
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await supabase.storage.from(bucket).list(prefix, {
+      limit: pageSize,
+      offset,
+      sortBy: { column: "name", order: "asc" },
+    });
+    if (error || !data?.length) return;
+    for (const item of data) {
+      const path = `${prefix}/${item.name}`;
+      if (item.id) paths.push(path);
+      else await collectStoreFiles(supabase, bucket, path, paths);
+    }
+    if (data.length < pageSize) return;
+    offset += pageSize;
+  }
+}
+
+async function removeStoreFiles(storeId: string) {
+  try {
+    const supabase = createSupabaseServiceClient();
+    for (const bucket of MEDIA_BUCKETS) {
+      const paths: string[] = [];
+      await collectStoreFiles(supabase, bucket, storeId, paths);
+      for (let index = 0; index < paths.length; index += 100) {
+        await supabase.storage.from(bucket).remove(paths.slice(index, index + 100));
+      }
+    }
+  } catch {
+    // The store row is already gone. A storage failure leaves files that no store points at.
+  }
 }
 
 export async function enterClientStore(formData: FormData) {

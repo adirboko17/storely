@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { enterClientStore, updatePlatformStore } from "@/app/platform/actions";
 import { darkButton, softButton } from "@/components/admin/orders/chrome";
+import { DeleteStoreButton } from "@/components/platform/delete-store-button";
 import { StoreMessagingCard } from "@/components/platform/store-messaging-card";
 import type { PlatformStore } from "@/components/platform/types";
 import type { StoreMessagingStatus } from "@/data/live/messaging";
@@ -193,7 +194,7 @@ export function StoreDetailScreen({
             )}
           </div>
           {owner ? (
-            <div className="flex flex-col gap-1 py-4">
+            <div className="flex flex-col gap-1 border-b border-[#ebebeb] py-4">
               <span className="text-[#4a4a4a]">פרטי קשר</span>
               <span className="font-medium">{owner.name}</span>
               <span dir="ltr" className="text-right text-[13px] text-ink-secondary">
@@ -201,6 +202,16 @@ export function StoreDetailScreen({
               </span>
             </div>
           ) : null}
+          <div className="flex flex-col gap-2 py-4">
+            <span className="font-semibold">מחיקת החנות</span>
+            <span className="text-[13px] text-ink-secondary">החנות והנתונים שלה יימחקו, כולל מוצרים, הזמנות ולקוחות.</span>
+            <DeleteStoreButton
+              storeId={store.id}
+              storeName={name}
+              label="מחיקת החנות"
+              className="h-[30px] self-start rounded-[10px] border-0 bg-white px-3 text-sm font-semibold text-[#8e1f0b] shadow-[0_0_0_1px_rgba(0,0,0,.1)]"
+            />
+          </div>
         </aside>
       </form>
       <div className="mx-auto w-full max-w-[1120px] px-4 pb-12 min-[1000px]:px-6">

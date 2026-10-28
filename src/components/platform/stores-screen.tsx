@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { darkButton } from "@/components/admin/orders/chrome";
+import { DeleteStoreButton } from "@/components/platform/delete-store-button";
 import { Icon } from "@/components/ui/icon";
 import type { PlatformStore } from "@/components/platform/types";
 
@@ -58,10 +59,14 @@ export function StoresScreen({ stores }: { stores: PlatformStore[] }) {
             const owner = ownerOf(store);
             const name = store.displayName || store.name;
             return (
-              <button
+              <div
                 key={store.id}
-                type="button"
+                role="link"
+                tabIndex={0}
                 onClick={() => router.push(`/platform/${store.id}`)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") router.push(`/platform/${store.id}`);
+                }}
                 className="rounded-xl bg-white p-3 text-start shadow-[0_0_0_1px_rgba(0,0,0,.08)]"
               >
                 <span className="flex items-start justify-between gap-3">
@@ -73,8 +78,11 @@ export function StoresScreen({ stores }: { stores: PlatformStore[] }) {
                   </span>
                   <Status status={store.status} />
                 </span>
-                {owner ? <span className="mt-2 block text-[13px] text-[#616161]">{owner.name}</span> : null}
-              </button>
+                <span className="mt-2 flex items-center justify-between gap-3">
+                  {owner ? <span className="block text-[13px] text-[#616161]">{owner.name}</span> : <span />}
+                  <DeleteStoreButton storeId={store.id} storeName={name} />
+                </span>
+              </div>
             );
           })
         )}
@@ -84,8 +92,8 @@ export function StoresScreen({ stores }: { stores: PlatformStore[] }) {
         <table className="w-full min-w-[760px] border-collapse text-sm">
           <thead>
             <tr className="h-[34px] text-[13px] text-[#4a4a4a]">
-              {["חנות", "דומיין", "בעלים", "סטטוס"].map((label) => (
-                <th key={label} className="bg-[#f3f3f3] px-3 text-start font-semibold first:rounded-s-[10px] last:rounded-e-[10px]">
+              {["חנות", "דומיין", "בעלים", "סטטוס", ""].map((label) => (
+                <th key={label || "actions"} className="bg-[#f3f3f3] px-3 text-start font-semibold first:rounded-s-[10px] last:rounded-e-[10px]">
                   {label}
                 </th>
               ))}
@@ -94,7 +102,7 @@ export function StoresScreen({ stores }: { stores: PlatformStore[] }) {
           <tbody>
             {rows.length === 0 ? (
               <tr className="h-16 bg-white">
-                <td colSpan={4} className="px-3 text-[#616161]">
+                <td colSpan={5} className="px-3 text-[#616161]">
                   אין חנויות שמתאימות לחיפוש.
                 </td>
               </tr>
@@ -125,6 +133,9 @@ export function StoresScreen({ stores }: { stores: PlatformStore[] }) {
                     </td>
                     <td className="px-3">
                       <Status status={store.status} />
+                    </td>
+                    <td className="px-3 text-end">
+                      <DeleteStoreButton storeId={store.id} storeName={store.displayName || store.name} />
                     </td>
                   </tr>
                 );
