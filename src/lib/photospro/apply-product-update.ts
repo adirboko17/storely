@@ -217,6 +217,28 @@ export async function applyPhotosProUpdate(config: PhotosProConfig, update: Phot
   };
 }
 
+const productIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function replacePhotosProProductImage(config: PhotosProConfig, productId: string, base64: string) {
+  if (!productIdPattern.test(productId)) throw new PhotosProError(400, "מזהה מוצר לא תקין");
+  const supabase = adminClient(config);
+  const { data: product, error } = await supabase
+    .from("products")
+    .select("id, title, price")
+    .eq("store_id", config.storeId)
+    .eq("id", productId)
+    .maybeSingle();
+  if (error || !product) throw new PhotosProError(error ? 500 : 404, "המוצר לא נמצא");
+  const price = Number(product.price);
+  const updated = await applyPhotosProUpdate(config, {
+    title: product.title,
+    price: Number.isFinite(price) ? price : 0,
+    currency: null,
+    images: [{ base64, position: 1, primary: true }],
+  });
+  return { ...updated, new_image_url: updated.image_url };
+}
+
 export async function createPhotosProProduct(config: PhotosProConfig, update: PhotosProUpdate) {
   const supabase = adminClient(config);
   if (update.currency) {
