@@ -17,20 +17,24 @@ export function StoreDetailScreen({
   messaging,
   supabaseUrl,
   publishableKey,
+  photosProKey,
+  photosProOrigin,
 }: {
   store: PlatformStore;
   messaging: StoreMessagingStatus;
   supabaseUrl: string;
   publishableKey: string;
+  photosProKey: string;
+  photosProOrigin: string;
 }) {
   const owner = store.members.find((member) => member.roleKey === "owner") ?? store.members[0];
   const name = store.displayName || store.name;
   const [state, action, pending] = useActionState(updatePlatformStore, null);
   const [status, setStatus] = useState(store.status === "disabled" ? "disabled" : "active");
-  const [copied, setCopied] = useState<"key" | "prompt" | null>(null);
+  const [copied, setCopied] = useState<"key" | "prompt" | "photos" | "photos-key" | null>(null);
   const active = status === "active";
 
-  async function copyText(value: string, kind: "key" | "prompt") {
+  async function copyText(value: string, kind: "key" | "prompt" | "photos" | "photos-key") {
     await navigator.clipboard.writeText(value);
     setCopied(kind);
     window.setTimeout(() => setCopied(null), 1500);
@@ -158,6 +162,36 @@ export function StoreDetailScreen({
               <span className="text-[13px] text-ink-secondary">מדביקים את החיבור בקורסור של האתר החדש. המפתח נשמר בשרת שלו.</span>
             </div>
           ) : null}
+          <div className="flex flex-col gap-2 border-b border-[#ebebeb] py-4">
+            <span className="font-semibold">חיבור PhotosPro</span>
+            {photosProKey ? (
+              <>
+                <span className="text-[13px] text-ink-secondary">
+                  המפתח קבוע לחנות הזו. ב-PhotosPro בוחרים Storely ומדביקים את הכתובת ואת המפתח.
+                </span>
+                {photosProOrigin ? (
+                  <div dir="ltr" className="truncate rounded-[10px] bg-[#f6f6f6] px-3 py-2 text-left text-[13px] text-ink">
+                    {photosProOrigin}
+                  </div>
+                ) : (
+                  <span className="text-[13px] text-ink-secondary">הכתובת היא כתובת ה-Storely עצמו, לא דומיין האתר של הלקוחה.</span>
+                )}
+                <div dir="ltr" className="truncate rounded-[10px] bg-[#f6f6f6] px-3 py-2 text-left text-[13px] text-ink">
+                  {photosProKey}
+                </div>
+                {photosProOrigin ? (
+                  <button type="button" onClick={() => void copyText(photosProOrigin, "photos")} className={`${softButton} self-start`}>
+                    {copied === "photos" ? "הועתק" : "העתקת כתובת"}
+                  </button>
+                ) : null}
+                <button type="button" onClick={() => void copyText(photosProKey, "photos-key")} className={`${softButton} self-start`}>
+                  {copied === "photos-key" ? "הועתק" : "העתקת מפתח PhotosPro"}
+                </button>
+              </>
+            ) : (
+              <span className="text-[13px] text-ink-secondary">המפתח יופיע כאן אחרי שמעדכנים את מסד הנתונים של Storely.</span>
+            )}
+          </div>
           {owner ? (
             <div className="flex flex-col gap-1 py-4">
               <span className="text-[#4a4a4a]">פרטי קשר</span>

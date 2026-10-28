@@ -3,7 +3,7 @@ import { authorizedPhotosPro, photosProResponse } from "@/lib/photospro/http";
 import { parsePhotosProBody } from "@/lib/photospro/payload";
 
 export async function PUT(request: Request) {
-  const auth = authorizedPhotosPro(request);
+  const auth = await authorizedPhotosPro(request);
   if ("response" in auth) return auth.response;
 
   const body = await request.json().catch(() => null);

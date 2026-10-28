@@ -55,6 +55,14 @@ async function storeCurrency(supabase: SupabaseClient, storeId: string) {
   return currency;
 }
 
+export async function photosProStoreName(config: PhotosProConfig) {
+  const supabase = adminClient(config);
+  const { data, error } = await supabase.from("store_settings").select("display_name").eq("store_id", config.storeId).maybeSingle();
+  if (error) return undefined;
+  const name = typeof data?.display_name === "string" ? data.display_name.trim() : "";
+  return name || undefined;
+}
+
 export async function listPhotosProProducts(config: PhotosProConfig) {
   const supabase = adminClient(config);
   const { data: products, error } = await supabase.from("products").select("id, title").eq("store_id", config.storeId).order("title");

@@ -25,19 +25,30 @@ async function StoreDetail({ params }: { params: Promise<{ storeId: string }> })
   if (!/^[0-9a-f-]{36}$/i.test(storeId)) notFound();
 
   const supabase = await createSupabaseServerClient();
-  const [{ data, error }, { data: messaging }] = await Promise.all([
+  const [{ data, error }, { data: messaging }, { data: photosProLink }] = await Promise.all([
     supabase.rpc("list_platform_overview"),
     supabase.rpc("store_messaging_status", { target_store: storeId }),
+    supabase.rpc("platform_photospro_link", { target_store: storeId }),
   ]);
   if (error || !Array.isArray(data)) redirect("/login");
   const store = (data as PlatformStore[]).find((item) => item.id === storeId);
   if (!store) notFound();
+  const photosProKey =
+    photosProLink && typeof photosProLink === "object" && "apiKey" in photosProLink
+      ? String((photosProLink as { apiKey?: unknown }).apiKey ?? "")
+      : "";
+  const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL?.replace(/\/$/, "") ?? "";
+  const photosProOrigin =
+    process.env.PHOTOSPRO_PUBLIC_ORIGIN?.replace(/\/$/, "") ||
+    (productionHost ? `https://${productionHost.replace(/^https?:\/\//, "")}` : "");
   return (
     <StoreDetailScreen
       store={store}
       messaging={messaging == null ? emptyMessaging() : parseMessaging(messaging)}
       supabaseUrl={process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}
       publishableKey={process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? ""}
+      photosProKey={photosProKey}
+      photosProOrigin={photosProOrigin}
     />
   );
 }
