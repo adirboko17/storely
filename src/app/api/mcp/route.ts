@@ -117,6 +117,19 @@ async function identify(request: Request): Promise<Actor | null> {
   }
 }
 
+function safeDetail(value: string) {
+  if (/password|secret|bearer|api[_ ]?key|authorization/i.test(value)) return "";
+  return value.replace(/\s+/g, " ").trim().slice(0, 300);
+}
+
+function failedAction(result: { error?: string; code?: string; matches?: unknown } | null) {
+  const message = result?.error === "unauthorized" ? "This key is no longer valid" : result?.error || "The action failed";
+  const detail = safeDetail(message) || "The action failed";
+  const code = result?.code || "INVALID_ARGUMENT";
+  const extra = result?.matches ? `\n${JSON.stringify(result.matches)}` : "";
+  return `${code}: ${detail}${extra}`;
+}
+
 async function callTool(actor: Actor, name: string, args: Record<string, unknown>) {
   if (!MCP_TOOLS.some((tool) => tool.name === name)) {
     return { content: [{ type: "text", text: "Unknown tool" }], isError: true };
@@ -128,16 +141,17 @@ async function callTool(actor: Actor, name: string, args: Record<string, unknown
         ? await supabase.rpc("mcp_invoke", { token_hash: actor.hash, tool_name: name, args })
         : await supabase.rpc("mcp_call", { tool_name: name, args });
     if (error) {
-      return { content: [{ type: "text", text: "The store could not complete that action" }], isError: true };
+      console.error("MCP tool failed", name, error.code, safeDetail(error.message));
+      const detail = safeDetail(error.message);
+      return { content: [{ type: "text", text: detail ? `DATABASE: ${detail}` : "The store could not complete that action" }], isError: true };
     }
-    const result = data as { ok?: boolean; error?: string; data?: unknown; matches?: unknown } | null;
+    const result = data as { ok?: boolean; error?: string; code?: string; data?: unknown; matches?: unknown } | null;
     if (!result || result.ok !== true) {
-      const text = result?.error === "unauthorized" ? "This key is no longer valid" : result?.error || "The action failed";
-      const extra = result?.matches ? `\n${JSON.stringify(result.matches)}` : "";
-      return { content: [{ type: "text", text: text + extra }], isError: true };
+      return { content: [{ type: "text", text: failedAction(result) }], isError: true };
     }
     return { content: [{ type: "text", text: JSON.stringify(result.data, null, 2) }], isError: false };
-  } catch {
+  } catch (error) {
+    console.error("MCP tool failed", name, error instanceof Error ? safeDetail(error.message) : "unknown");
     return { content: [{ type: "text", text: "The store could not complete that action" }], isError: true };
   }
 }

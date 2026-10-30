@@ -340,7 +340,7 @@ begin
     ) values (
       target_store, product_id, found_order, person, clean_body, stars, next_status
     )
-    on conflict (store_id, order_id, product_id) do update
+    on conflict on constraint product_reviews_store_id_order_id_product_id_key do update
     set customer_name = excluded.customer_name,
         body = excluded.body,
         rating = excluded.rating,
@@ -418,6 +418,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_variable
 declare
   denied jsonb;
   product_id uuid;
@@ -465,14 +466,14 @@ begin
   if tool_name = 'get_design_schema' then
     return jsonb_build_object('ok', true, 'data', jsonb_build_object(
       'direction', 'rtl',
-      'brandColors', 7,
+      'brandColorLimit', 24,
       'popupLayouts', jsonb_build_array('modal', 'bar', 'corner'),
       'popupTriggers', jsonb_build_array('immediate', 'delay', 'scroll', 'exit'),
       'popupFrequencies', jsonb_build_array('always', 'session', 'day', 'once'),
       'popupDevices', jsonb_build_array('all', 'desktop', 'mobile'),
       'popupBlocks', jsonb_build_array('heading', 'text', 'image', 'logo', 'button', 'field', 'spacer', 'row'),
       'fieldTypes', jsonb_build_array('text', 'email', 'tel', 'textarea'),
-      'note', 'אין ספריית תבניות נפרדת. עיצוב פופאפ נשמר על הפופאפ עצמו, וצבעי המותג נשמרים בשבעת הצבעים של החנות.'
+      'note', 'אין ספריית תבניות נפרדת. עיצוב פופאפ נשמר על הפופאפ עצמו, וצבעי המותג הם רשימה של צבע אחד עד 24.'
     ));
   end if;
 

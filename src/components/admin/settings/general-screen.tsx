@@ -8,7 +8,7 @@ import { getStoreIdentity, getStoreIdentityVersion, setStoreIdentity, subscribeS
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { darkButton, softButton } from "@/components/admin/orders/chrome";
 import { SettingsDialog } from "@/components/admin/settings/settings-dialog";
-import { brandPalette, getSettings, getSettingsVersion, saveStoreContact, setBrandColor, setStoreLogo, subscribeSettings, type StoreContact } from "@/data/mock/settings-session";
+import { addBrandColor, brandPalette, BRAND_COLOR_LIMIT, getSettings, getSettingsVersion, removeBrandColor, saveStoreContact, setBrandColor, setStoreLogo, subscribeSettings, type StoreContact } from "@/data/mock/settings-session";
 import { STORE_CURRENCIES, getStoreCurrency, isStoreCurrency, setStoreCurrency, type StoreCurrency } from "@/lib/formatting/currency";
 import { Card } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
@@ -261,15 +261,37 @@ export function GeneralSettingsScreen() {
       <section className="flex flex-col gap-2">
         <div>
           <h2 className="m-0 text-sm font-semibold text-ink">צבעי מותג</h2>
-          <p className="m-0 mt-0.5 text-[13px] text-ink-secondary">שבעה צבעים שנשמרים לחנות ומופיעים בכל בחירת צבע במיילים.</p>
+          <p className="m-0 mt-0.5 text-[13px] text-ink-secondary">נשמרים לחנות ומופיעים בכל בחירת צבע במיילים. לחיצה על עיגול עורכת אותו.</p>
         </div>
-        <Card className="flex flex-wrap gap-3 px-4 py-4">
+        <Card className="flex flex-wrap items-center gap-3 px-4 py-4">
           {colors.map((color, index) => (
-            <label key={index} className="relative grid size-9 cursor-pointer place-items-center rounded-full" style={{ background: color, boxShadow: "0 0 0 1px rgba(0,0,0,.16)" }}>
-              <span className="sr-only">צבע {index + 1}</span>
-              <input type="color" value={color} onChange={(event) => setBrandColor(index, event.target.value)} className="absolute inset-0 cursor-pointer opacity-0" />
-            </label>
+            <span key={index} className="relative">
+              <label className="relative grid size-9 cursor-pointer place-items-center rounded-full" style={{ background: color, boxShadow: "0 0 0 1px rgba(0,0,0,.16)" }}>
+                <span className="sr-only">עריכת צבע {index + 1}</span>
+                <input type="color" value={color} onChange={(event) => setBrandColor(index, event.target.value)} className="absolute inset-0 cursor-pointer opacity-0" />
+              </label>
+              {colors.length > 1 ? (
+                <button
+                  type="button"
+                  aria-label={`מחיקת צבע ${index + 1}`}
+                  onClick={() => removeBrandColor(index)}
+                  className="absolute -left-1.5 -top-1.5 grid size-4 place-items-center rounded-full border border-[#d0d0d0] bg-white text-[12px] leading-none text-ink"
+                >
+                  ×
+                </button>
+              ) : null}
+            </span>
           ))}
+          {colors.length < BRAND_COLOR_LIMIT ? (
+            <button
+              type="button"
+              aria-label="הוספת צבע"
+              onClick={() => addBrandColor()}
+              className="grid size-9 place-items-center rounded-full border border-dashed border-[#8a8a8a] bg-white text-[20px] leading-none text-ink"
+            >
+              +
+            </button>
+          ) : null}
         </Card>
       </section>
 

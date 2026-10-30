@@ -498,6 +498,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_variable
 declare
   collection_title text;
   collection_id uuid;
@@ -995,8 +996,8 @@ begin
 
   if tool_name = 'update_brand_colors' then
     colors := args->'colors';
-    if jsonb_typeof(colors) <> 'array' or jsonb_array_length(colors) <> 7 then
-      return jsonb_build_object('ok', false, 'error', 'צריך בדיוק 7 צבעים');
+    if jsonb_typeof(colors) <> 'array' or jsonb_array_length(colors) < 1 or jsonb_array_length(colors) > 24 then
+      return jsonb_build_object('ok', false, 'error', 'צריך בין צבע אחד ל-24 צבעים');
     end if;
     if exists (
       select 1

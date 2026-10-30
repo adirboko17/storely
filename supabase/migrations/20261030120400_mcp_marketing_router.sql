@@ -1,11 +1,39 @@
 -- Email and SMS drafts, then the router that keeps the older MCP tools working.
 
+create or replace function private.mcp_public_error(sql_state text, sql_message text)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  detail text := left(coalesce(sql_message, ''), 300);
+  code text;
+begin
+  if detail ~* '(password|secret|bearer|api[_ ]?key|authorization)' then
+    detail := 'הפעולה נכשלה';
+  end if;
+  code := case
+    when sql_state in ('22023', '22007', '22P02', '23514', '23502') then 'VALIDATION'
+    when sql_state = '42501' then 'PERMISSION'
+    when sql_state = 'P0002' then 'NOT_FOUND'
+    when sql_state = '23505' then 'CONFLICT'
+    when sql_state = '23503' then 'CONSTRAINT'
+    else 'DATABASE'
+  end;
+  return jsonb_build_object('ok', false, 'code', code, 'error', detail);
+end;
+$$;
+
+revoke all on function private.mcp_public_error(text, text) from public, anon, authenticated;
+
 create or replace function private.mcp_marketing(target_store uuid, tool_name text, args jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_variable
 declare
   denied jsonb;
   campaign_id uuid;
@@ -31,23 +59,23 @@ begin
     select coalesce(jsonb_agg(item.payload order by item.created_at desc), '[]'::jsonb)
     into listed
     from (
-      select campaign.created_at,
+      select campaign_row.created_at,
         jsonb_build_object(
-          'id', campaign.id,
-          'name', campaign.name,
-          'status', campaign.status,
-          'messageId', campaign.message_id,
-          'segmentId', campaign.segment_id,
-          'scheduledAt', campaign.scheduled_at,
+          'id', campaign_row.id,
+          'name', campaign_row.name,
+          'status', campaign_row.status,
+          'messageId', campaign_row.message_id,
+          'segmentId', campaign_row.segment_id,
+          'scheduledAt', campaign_row.scheduled_at,
           'channel', message.channel,
           'subject', message.subject
         ) as payload
-      from public.marketing_campaigns as campaign
+      from public.marketing_campaigns as campaign_row
       left join public.marketing_messages as message
-        on message.store_id = campaign.store_id
-       and message.id = campaign.message_id
-      where campaign.store_id = target_store
-      order by campaign.created_at desc
+        on message.store_id = campaign_row.store_id
+       and message.id = campaign_row.message_id
+      where campaign_row.store_id = target_store
+      order by campaign_row.created_at desc
       limit 50
     ) as item;
     return jsonb_build_object('ok', true, 'data', jsonb_build_object(
@@ -198,11 +226,11 @@ begin
       if campaign_id is null then
         return jsonb_build_object('ok', false, 'error', 'חסר מזהה קמפיין');
       end if;
-      select campaign.*
+      select campaign_row.*
       into campaign
-      from public.marketing_campaigns as campaign
-      where campaign.store_id = target_store
-        and campaign.id = campaign_id
+      from public.marketing_campaigns as campaign_row
+      where campaign_row.store_id = target_store
+        and campaign_row.id = campaign_id
       for update;
       if campaign.id is null then
         return jsonb_build_object('ok', false, 'error', 'הקמפיין לא נמצא');
@@ -285,15 +313,15 @@ begin
         campaign_id, target_store, next_name, next_status, 'marketing', 'mock', message_id, segment_id, scheduled_at
       );
     else
-      update public.marketing_campaigns as campaign
+      update public.marketing_campaigns as campaign_row
       set name = next_name,
           status = next_status,
           message_id = message_id,
           segment_id = segment_id,
           scheduled_at = scheduled_at,
           updated_at = now()
-      where campaign.store_id = target_store
-        and campaign.id = campaign_id;
+      where campaign_row.store_id = target_store
+        and campaign_row.id = campaign_id;
     end if;
 
     return jsonb_build_object('ok', true, 'data', jsonb_build_object(
@@ -375,10 +403,8 @@ begin
     return jsonb_build_object('ok', false, 'error', 'כלי לא מוכר');
   exception
     when others then
-      if sqlstate in ('22023', '42501', 'P0001', 'P0002', '22007', '22P02', '23505', '23514') then
-        return jsonb_build_object('ok', false, 'error', sqlerrm);
-      end if;
-      raise;
+      raise warning 'mcp % failed [%] %', tool_name, sqlstate, sqlerrm;
+      return private.mcp_public_error(sqlstate, sqlerrm);
   end;
 end;
 $$;

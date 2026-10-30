@@ -86,14 +86,19 @@ type State = {
   colors: string[];
 };
 
-export const DEFAULT_BRAND_COLORS = ["#1a1a1a", "#303030", "#ffffff", "#8e1f0b", "#0c5132", "#005bd3", "#5b3fc4"];
+export const DEFAULT_BRAND_COLORS = ["#1a1a1a"];
+export const BRAND_COLOR_LIMIT = 24;
+const EXTRA_BRAND_COLORS = ["#005bd3", "#0c5132", "#8e1f0b", "#5b3fc4", "#ffffff", "#f3b6c4"];
 
 export function normalizeBrandColors(value: unknown) {
   const saved = Array.isArray(value) ? value : [];
-  return DEFAULT_BRAND_COLORS.map((fallback, index) => {
-    const color = saved[index];
-    return typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color) ? color.toLowerCase() : fallback;
-  });
+  const colors: string[] = [];
+  for (const item of saved) {
+    if (typeof item !== "string" || !/^#[0-9a-fA-F]{6}$/.test(item)) continue;
+    colors.push(item.toLowerCase());
+    if (colors.length >= BRAND_COLOR_LIMIT) break;
+  }
+  return colors.length ? colors : [...DEFAULT_BRAND_COLORS];
 }
 
 export function defaultPolicyList(): Array<StorePolicy & { kind: PolicyKind }> {
@@ -385,15 +390,32 @@ export function brandPalette() {
   return normalizeBrandColors(current.colors);
 }
 
+function persistBrandColors(colors: string[]) {
+  current = { ...current, colors, version: current.version + 1 };
+  listeners.forEach((listener) => listener());
+  if (isHydrating()) return;
+  void writeStore("save_store_brand_colors", { colors });
+}
+
 export function setBrandColor(index: number, color: string) {
   if (!/^#[0-9a-fA-F]{6}$/.test(color)) return;
   const colors = brandPalette();
   if (index < 0 || index >= colors.length) return;
   colors[index] = color.toLowerCase();
-  current = { ...current, colors, version: current.version + 1 };
-  listeners.forEach((listener) => listener());
-  if (isHydrating()) return;
-  void writeStore("save_store_brand_colors", { colors });
+  persistBrandColors(colors);
+}
+
+export function addBrandColor() {
+  const colors = brandPalette();
+  if (colors.length >= BRAND_COLOR_LIMIT) return;
+  const next = EXTRA_BRAND_COLORS.find((color) => !colors.includes(color)) ?? "#005bd3";
+  persistBrandColors([...colors, next]);
+}
+
+export function removeBrandColor(index: number) {
+  const colors = brandPalette();
+  if (colors.length <= 1 || index < 0 || index >= colors.length) return;
+  persistBrandColors(colors.filter((_, item) => item !== index));
 }
 
 export function setStoreLogo(logo: string) {

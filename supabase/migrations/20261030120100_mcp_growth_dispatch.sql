@@ -196,8 +196,8 @@ declare
   next_targeting jsonb;
   design_raw jsonb := '{}'::jsonb;
   targeting_raw jsonb := '{}'::jsonb;
-  starts_at timestamptz;
-  ends_at timestamptz;
+  next_starts timestamptz;
+  next_ends timestamptz;
 begin
   denied := private.mcp_denied(target_store, 'marketing.read');
   if denied is not null then
@@ -209,11 +209,11 @@ begin
     if popup_id is null then
       return jsonb_build_object('ok', false, 'error', 'חסר מזהה פופאפ');
     end if;
-    select row.*
+    select popup_row.*
     into popup
-    from public.store_popups as row
-    where row.store_id = target_store
-      and row.id = popup_id
+    from public.store_popups as popup_row
+    where popup_row.store_id = target_store
+      and popup_row.id = popup_id
     for update;
     if popup.id is null then
       return jsonb_build_object('ok', false, 'error', 'הפופאפ לא נמצא');
@@ -222,8 +222,8 @@ begin
     next_status := coalesce(nullif(args->>'status', ''), popup.status);
     design_raw := case when jsonb_typeof(args->'design') = 'object' then args->'design' else '{}'::jsonb end;
     targeting_raw := case when jsonb_typeof(args->'targeting') = 'object' then args->'targeting' else '{}'::jsonb end;
-    starts_at := case when args ? 'startsAt' then private.mcp_popup_time(args->>'startsAt') else popup.starts_at end;
-    ends_at := case when args ? 'endsAt' then private.mcp_popup_time(args->>'endsAt') else popup.ends_at end;
+    next_starts := case when args ? 'startsAt' then private.mcp_popup_time(args->>'startsAt') else popup.starts_at end;
+    next_ends := case when args ? 'endsAt' then private.mcp_popup_time(args->>'endsAt') else popup.ends_at end;
   else
     next_name := left(btrim(coalesce(args->>'name', '')), 80);
     if next_name = '' then
@@ -232,8 +232,8 @@ begin
     next_status := coalesce(nullif(args->>'status', ''), 'draft');
     design_raw := case when jsonb_typeof(args->'design') = 'object' then args->'design' else '{}'::jsonb end;
     targeting_raw := case when jsonb_typeof(args->'targeting') = 'object' then args->'targeting' else '{}'::jsonb end;
-    starts_at := private.mcp_popup_time(args->>'startsAt');
-    ends_at := private.mcp_popup_time(args->>'endsAt');
+    next_starts := private.mcp_popup_time(args->>'startsAt');
+    next_ends := private.mcp_popup_time(args->>'endsAt');
   end if;
 
   if next_status not in ('draft', 'active', 'paused') then
@@ -244,6 +244,12 @@ begin
   if args ? 'background' then design_raw := design_raw || jsonb_build_object('background', args->'background'); end if;
   if args ? 'submitLabel' then design_raw := design_raw || jsonb_build_object('submitLabel', args->'submitLabel'); end if;
   if args ? 'blocks' then design_raw := design_raw || jsonb_build_object('blocks', args->'blocks'); end if;
+  if args ? 'radius' then design_raw := design_raw || jsonb_build_object('radius', args->'radius'); end if;
+  if args ? 'padding' then design_raw := design_raw || jsonb_build_object('padding', args->'padding'); end if;
+  if args ? 'gap' then design_raw := design_raw || jsonb_build_object('gap', args->'gap'); end if;
+  if args ? 'submitBackground' then design_raw := design_raw || jsonb_build_object('submitBackground', args->'submitBackground'); end if;
+  if args ? 'submitColor' then design_raw := design_raw || jsonb_build_object('submitColor', args->'submitColor'); end if;
+  if jsonb_typeof(args->'mobile') = 'object' then design_raw := design_raw || jsonb_build_object('mobile', args->'mobile'); end if;
   if args ? 'trigger' then targeting_raw := targeting_raw || jsonb_build_object('trigger', args->'trigger'); end if;
   if args ? 'delaySeconds' then targeting_raw := targeting_raw || jsonb_build_object('delaySeconds', args->'delaySeconds'); end if;
   if args ? 'scrollPercent' then targeting_raw := targeting_raw || jsonb_build_object('scrollPercent', args->'scrollPercent'); end if;
@@ -255,25 +261,26 @@ begin
 
   next_design := private.mcp_popup_design(design_raw, case when tool_name = 'update_popup' then popup.design else '{}'::jsonb end);
   next_targeting := private.mcp_popup_targeting(targeting_raw, case when tool_name = 'update_popup' then popup.targeting else '{}'::jsonb end);
-  if starts_at is not null and ends_at is not null and ends_at <= starts_at then
-    return jsonb_build_object('ok', false, 'error', 'מועד הסיום צריך להיות אחרי ההתחלה');
+  if next_starts is not null and next_ends is not null and next_ends <= next_starts then
+    return jsonb_build_object('ok', false, 'code', 'VALIDATION', 'error', 'מועד הסיום צריך להיות אחרי ההתחלה');
   end if;
+  next_design := private.mcp_stamp_popup_logo(target_store, next_design);
 
   if tool_name = 'update_popup' then
-    update public.store_popups as row
+    update public.store_popups as popup_row
     set name = next_name,
         status = next_status,
         design = next_design,
         targeting = next_targeting,
-        starts_at = starts_at,
-        ends_at = ends_at,
+        starts_at = next_starts,
+        ends_at = next_ends,
         updated_at = now()
-    where row.store_id = target_store
-      and row.id = popup.id
-    returning row.id into popup_id;
+    where popup_row.store_id = target_store
+      and popup_row.id = popup.id
+    returning popup_row.id into popup_id;
   else
     insert into public.store_popups (store_id, name, status, design, targeting, starts_at, ends_at)
-    values (target_store, next_name, next_status, next_design, next_targeting, starts_at, ends_at)
+    values (target_store, next_name, next_status, next_design, next_targeting, next_starts, next_ends)
     returning id into popup_id;
   end if;
 

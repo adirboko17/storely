@@ -684,7 +684,7 @@ export function applyStoreShell(shell: StoreShell) {
   const current = getSettings();
   const logo = shell.logoUrl || current.logo;
   const colors = shell.brandColors == null ? current.colors : normalizeBrandColors(shell.brandColors);
-  if (current.logo === logo && current.colors.every((color, index) => color === colors[index])) return;
+  if (current.logo === logo && current.colors.length === colors.length && current.colors.every((color, index) => color === colors[index])) return;
   beginHydration();
   try {
     replaceSettings({

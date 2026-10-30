@@ -11,8 +11,8 @@ begin
   if not private.can_manage_store(target_store) then
     raise exception 'forbidden' using errcode = '42501';
   end if;
-  if jsonb_typeof(colors) <> 'array' or jsonb_array_length(colors) <> 7 then
-    raise exception 'צריך בדיוק 7 צבעים' using errcode = '22023';
+  if jsonb_typeof(colors) <> 'array' or jsonb_array_length(colors) < 1 or jsonb_array_length(colors) > 24 then
+    raise exception 'צריך בין צבע אחד ל-24 צבעים' using errcode = '22023';
   end if;
   if exists (
     select 1

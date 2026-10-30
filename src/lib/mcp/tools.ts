@@ -383,7 +383,7 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: "get_storefront",
-    description: "The store name, logo URL, and the seven brand colors.",
+    description: "The store name, logo URL, and the saved brand colors.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
@@ -398,10 +398,10 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: "update_brand_colors",
-    description: "Replace the seven brand colors. Read get_storefront first and send all seven hex colors.",
+    description: "Replace the brand colors. Send 1 to 24 hex colors, for example #1a1a1a. Read get_storefront first.",
     inputSchema: {
       type: "object",
-      properties: { colors: { type: "array", items: { type: "string" }, minItems: 7, maxItems: 7 } },
+      properties: { colors: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 24 } },
       required: ["colors"],
       additionalProperties: false,
     },
@@ -418,7 +418,7 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: "create_popup",
-    description: "Create a popup. Status defaults to draft. Triggers are immediate, delay, scroll, or exit. There is no wheel, click, or add-to-cart trigger. Blocks are heading, text, image, logo, button, field, spacer, or row. New popups include an email field unless blocks are sent.",
+    description: "Create a popup. Status defaults to draft. Triggers are immediate, delay, scroll, or exit. There is no wheel, click, or add-to-cart trigger. Blocks are heading, text, image, logo, button, field, spacer, or row. An empty logo block uses the store logo. Mobile radius, padding, and gap use -1 to keep the desktop value. There is no font family, consent checkbox, or coupon-after-signup field. New popups include an email field unless blocks are sent.",
     inputSchema: {
       type: "object",
       properties: {
@@ -430,7 +430,13 @@ export const MCP_TOOLS: McpTool[] = [
         layout: { type: "string", enum: ["modal", "bar", "corner"] },
         width: { type: "number" },
         background: { type: "string" },
+        radius: { type: "number" },
+        padding: { type: "number" },
+        gap: { type: "number" },
         submitLabel: { type: "string" },
+        submitBackground: { type: "string" },
+        submitColor: { type: "string" },
+        mobile: { type: "object" },
         trigger: { type: "string", enum: ["immediate", "delay", "scroll", "exit"] },
         delaySeconds: { type: "number" },
         scrollPercent: { type: "number" },
@@ -446,7 +452,7 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: "update_popup",
-    description: "Change a popup. Omitted fields stay as they are. Send blocks only when replacing the content. Read the popup first.",
+    description: "Change a popup. Omitted fields stay as they are. Send blocks only when replacing the content. Mobile, colors, spacing, and the submit button are the same fields the storefront renders. Read the popup first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -459,7 +465,13 @@ export const MCP_TOOLS: McpTool[] = [
         layout: { type: "string", enum: ["modal", "bar", "corner"] },
         width: { type: "number" },
         background: { type: "string" },
+        radius: { type: "number" },
+        padding: { type: "number" },
+        gap: { type: "number" },
         submitLabel: { type: "string" },
+        submitBackground: { type: "string" },
+        submitColor: { type: "string" },
+        mobile: { type: "object" },
         trigger: { type: "string", enum: ["immediate", "delay", "scroll", "exit"] },
         delaySeconds: { type: "number" },
         scrollPercent: { type: "number" },
@@ -505,7 +517,7 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: "get_design_schema",
-    description: "The popup blocks, triggers, and brand-color slots this store can save. There is no separate template library.",
+    description: "The popup blocks and triggers this store can save, and that brand colors are a list of 1 to 24 hex colors. There is no separate template library.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {

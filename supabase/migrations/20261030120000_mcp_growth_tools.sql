@@ -11,10 +11,10 @@ set search_path = ''
 as $$
 begin
   if target_store is null or not private.can_manage_store(target_store) then
-    return jsonb_build_object('ok', false, 'error', 'המשתמש כבר לא יכול לנהל את החנות');
+    return jsonb_build_object('ok', false, 'code', 'PERMISSION', 'error', 'המשתמש כבר לא יכול לנהל את החנות');
   end if;
   if not private.mcp_allowed(target_store, permission_key) then
-    return jsonb_build_object('ok', false, 'error', 'אין הרשאה לפעולה הזו בחנות');
+    return jsonb_build_object('ok', false, 'code', 'PERMISSION', 'error', 'אין הרשאה לפעולה הזו בחנות');
   end if;
   return null;
 end;
@@ -60,6 +60,13 @@ declare
   field_name text;
   href text;
   src text;
+  columns jsonb := '[]'::jsonb;
+  column_item jsonb;
+  column_blocks jsonb;
+  child jsonb;
+  built_child jsonb;
+  column_index integer := 0;
+  child_index integer := 0;
 begin
   if jsonb_typeof(item) is distinct from 'object' then
     return null;
@@ -68,16 +75,47 @@ begin
     block_id := gen_random_uuid()::text;
   end if;
   if kind = 'row' then
-    if jsonb_typeof(item->'columns') = 'array' and octet_length(item::text) <= 20000 then
-      return item || jsonb_build_object('id', block_id, 'type', 'row', 'span', 'full');
+    if jsonb_typeof(item->'columns') <> 'array' then
+      return null;
     end if;
-    return null;
+    for column_item in select value from jsonb_array_elements(item->'columns') loop
+      exit when column_index >= 4;
+      if jsonb_typeof(column_item) is distinct from 'object' then
+        continue;
+      end if;
+      column_blocks := '[]'::jsonb;
+      child_index := 0;
+      if jsonb_typeof(column_item->'blocks') = 'array' then
+        for child in select value from jsonb_array_elements(column_item->'blocks') loop
+          exit when child_index >= 8;
+          if coalesce(child->>'type', '') = 'row' then
+            continue;
+          end if;
+          built_child := private.mcp_popup_block(child);
+          if built_child is null then
+            continue;
+          end if;
+          column_blocks := column_blocks || jsonb_build_array(built_child);
+          child_index := child_index + 1;
+        end loop;
+      end if;
+      columns := columns || jsonb_build_array(jsonb_build_object(
+        'id', coalesce(nullif(left(btrim(coalesce(column_item->>'id', '')), 80), ''), gen_random_uuid()::text),
+        'width', private.mcp_clamp(private.mcp_num(column_item, 'width'), 15, 100, 50),
+        'blocks', column_blocks
+      ));
+      column_index := column_index + 1;
+    end loop;
+    if jsonb_array_length(columns) = 0 then
+      return null;
+    end if;
+    return jsonb_build_object('id', block_id, 'type', 'row', 'span', 'full', 'columns', columns);
   end if;
   if kind = 'heading' then
     return jsonb_build_object(
       'id', block_id,
       'type', 'heading',
-      'text', left(replace(coalesce(item->>'text', ''), chr(0), ''), 160),
+      'text', left(coalesce(item->>'text', ''), 160),
       'color', private.mcp_hex(item->>'color', '#1a1a1a'),
       'size', private.mcp_clamp(private.mcp_num(item, 'size'), 16, 48, 28),
       'align', case when item->>'align' in ('center', 'left') then item->>'align' else 'right' end,
@@ -89,7 +127,7 @@ begin
     return jsonb_build_object(
       'id', block_id,
       'type', 'text',
-      'text', left(replace(coalesce(item->>'text', ''), chr(0), ''), 800),
+      'text', left(coalesce(item->>'text', ''), 800),
       'color', private.mcp_hex(item->>'color', '#4a4a4a'),
       'size', private.mcp_clamp(private.mcp_num(item, 'size'), 12, 24, 15),
       'align', case when item->>'align' in ('center', 'left') then item->>'align' else 'right' end,
@@ -103,7 +141,7 @@ begin
     end if;
     return jsonb_build_object(
       'id', block_id, 'type', 'image', 'src', src,
-      'alt', left(replace(coalesce(item->>'alt', ''), chr(0), ''), 120),
+      'alt', left(coalesce(item->>'alt', ''), 120),
       'radius', private.mcp_clamp(private.mcp_num(item, 'radius'), 0, 40, 12),
       'width', private.mcp_clamp(private.mcp_num(item, 'width'), 30, 100, 100),
       'span', case when item->>'span' = 'half' then 'half' else 'full' end
@@ -133,7 +171,7 @@ begin
     return jsonb_build_object(
       'id', block_id,
       'type', 'button',
-      'label', coalesce(nullif(left(replace(coalesce(item->>'label', ''), chr(0), ''), 40), ''), 'לחצו כאן'),
+      'label', coalesce(nullif(left(coalesce(item->>'label', ''), 40), ''), 'לחצו כאן'),
       'href', href,
       'background', private.mcp_hex(item->>'background', '#1a1a1a'),
       'color', private.mcp_hex(item->>'color', '#ffffff'),
@@ -151,9 +189,9 @@ begin
       'id', block_id,
       'type', 'field',
       'fieldType', field_type,
-      'label', left(replace(coalesce(item->>'label', ''), chr(0), ''), 60),
+      'label', left(coalesce(item->>'label', ''), 60),
       'name', field_name,
-      'placeholder', left(replace(coalesce(item->>'placeholder', ''), chr(0), ''), 80),
+      'placeholder', left(coalesce(item->>'placeholder', ''), 80),
       'required', case when item->'required' = 'false'::jsonb then false else true end,
       'span', case when item->>'span' = 'half' then 'half' else 'full' end
     );
@@ -266,7 +304,7 @@ begin
     result := result || jsonb_build_object('closePlace', case when raw->>'closePlace' in ('top-right', 'bottom-left', 'bottom-right') then raw->>'closePlace' else 'top-left' end);
   end if;
   if raw ? 'submitLabel' then
-    result := result || jsonb_build_object('submitLabel', coalesce(nullif(left(replace(coalesce(raw->>'submitLabel', ''), chr(0), ''), 40), ''), 'שלחו לי'));
+    result := result || jsonb_build_object('submitLabel', coalesce(nullif(left(coalesce(raw->>'submitLabel', ''), 40), ''), 'שלחו לי'));
   end if;
   if raw ? 'submitBackground' then
     result := result || jsonb_build_object('submitBackground', private.mcp_hex(raw->>'submitBackground', '#1a1a1a'));
@@ -275,10 +313,10 @@ begin
     result := result || jsonb_build_object('submitColor', private.mcp_hex(raw->>'submitColor', '#ffffff'));
   end if;
   if raw ? 'successTitle' then
-    result := result || jsonb_build_object('successTitle', coalesce(nullif(left(replace(coalesce(raw->>'successTitle', ''), chr(0), ''), 80), ''), 'קיבלנו'));
+    result := result || jsonb_build_object('successTitle', coalesce(nullif(left(coalesce(raw->>'successTitle', ''), 80), ''), 'קיבלנו'));
   end if;
   if raw ? 'successText' then
-    result := result || jsonb_build_object('successText', coalesce(nullif(left(replace(coalesce(raw->>'successText', ''), chr(0), ''), 240), ''), 'תודה, נחזור אלייך.'));
+    result := result || jsonb_build_object('successText', coalesce(nullif(left(coalesce(raw->>'successText', ''), 240), ''), 'תודה, נחזור אלייך.'));
   end if;
   if jsonb_typeof(raw->'mobile') = 'object' then
     mobile := coalesce(result->'mobile', '{}'::jsonb);
@@ -293,6 +331,15 @@ begin
     end if;
     if raw->'mobile' ? 'columns' then
       mobile := mobile || jsonb_build_object('columns', case when raw->'mobile'->>'columns' = 'same' then 'same' else 'stack' end);
+    end if;
+    if raw->'mobile' ? 'radius' then
+      mobile := mobile || jsonb_build_object('radius', private.mcp_clamp(private.mcp_num(raw->'mobile', 'radius'), -1, 40, -1));
+    end if;
+    if raw->'mobile' ? 'padding' then
+      mobile := mobile || jsonb_build_object('padding', private.mcp_clamp(private.mcp_num(raw->'mobile', 'padding'), -1, 64, -1));
+    end if;
+    if raw->'mobile' ? 'gap' then
+      mobile := mobile || jsonb_build_object('gap', private.mcp_clamp(private.mcp_num(raw->'mobile', 'gap'), -1, 40, -1));
     end if;
     result := result || jsonb_build_object('mobile', mobile);
   end if;
@@ -448,3 +495,56 @@ end;
 $$;
 
 revoke all on function private.mcp_popup_time(text) from public, anon, authenticated;
+
+create or replace function private.mcp_stamp_popup_logo(target_store uuid, design jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  logo text;
+  blocks jsonb := '[]'::jsonb;
+  item jsonb;
+  columns jsonb;
+  column_item jsonb;
+  children jsonb;
+  child jsonb;
+begin
+  select settings.logo_url
+  into logo
+  from public.store_settings as settings
+  where settings.store_id = target_store;
+  if logo is null or logo !~* '^https://[^[:space:]]+$' then
+    return design;
+  end if;
+  if jsonb_typeof(design->'blocks') <> 'array' then
+    return design;
+  end if;
+  for item in select value from jsonb_array_elements(design->'blocks') loop
+    if item->>'type' = 'logo' and coalesce(item->>'src', '') = '' then
+      item := item || jsonb_build_object('src', left(logo, 500));
+    elsif item->>'type' = 'row' and jsonb_typeof(item->'columns') = 'array' then
+      columns := '[]'::jsonb;
+      for column_item in select value from jsonb_array_elements(item->'columns') loop
+        children := '[]'::jsonb;
+        if jsonb_typeof(column_item->'blocks') = 'array' then
+          for child in select value from jsonb_array_elements(column_item->'blocks') loop
+            if child->>'type' = 'logo' and coalesce(child->>'src', '') = '' then
+              child := child || jsonb_build_object('src', left(logo, 500));
+            end if;
+            children := children || jsonb_build_array(child);
+          end loop;
+        end if;
+        columns := columns || jsonb_build_array(column_item || jsonb_build_object('blocks', children));
+      end loop;
+      item := item || jsonb_build_object('columns', columns);
+    end if;
+    blocks := blocks || jsonb_build_array(item);
+  end loop;
+  return design || jsonb_build_object('blocks', blocks);
+end;
+$$;
+
+revoke all on function private.mcp_stamp_popup_logo(uuid, jsonb) from public, anon, authenticated;
