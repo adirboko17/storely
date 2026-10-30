@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { io } from "next/cache";
 import { notFound } from "next/navigation";
 import { PopupPreviewFrame } from "@/components/marketing/popup-preview-frame";
 import { readPopupPreview } from "@/lib/mcp/popup-preview-token";
@@ -9,13 +11,28 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function PopupPreviewPage({
+export default function PopupPreviewPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ token?: string; device?: string; state?: string }>;
 }) {
+  return (
+    <Suspense fallback={<main className="min-h-dvh bg-[#e7e1db]" />}>
+      <PopupPreview params={params} searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function PopupPreview({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ token?: string; device?: string; state?: string }>;
+}) {
+  await io();
   const { id } = await params;
   const query = await searchParams;
   const secret = process.env.SUPABASE_SECRET_KEY ?? "";
