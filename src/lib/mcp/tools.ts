@@ -418,7 +418,7 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: "create_popup",
-    description: "Create a popup. Status defaults to draft. Triggers are immediate, delay, scroll, or exit. There is no wheel, click, or add-to-cart trigger. Blocks are heading, text, image, logo, button, field, spacer, or row. An empty logo block uses the store logo. Mobile radius, padding, and gap use -1 to keep the desktop value. There is no font family, consent checkbox, or coupon-after-signup field. New popups include an email field unless blocks are sent.",
+    description: "Create a popup. Status defaults to draft. Triggers are immediate, delay, scroll, or exit. There is no wheel, click, or add-to-cart trigger. Blocks are heading, text, image, logo, button, field, spacer, or row. An image block uses assetId from upload_design_asset, or an https URL already stored for this store. An empty logo block uses the store logo. Mobile radius, padding, and gap use -1 to keep the desktop value. There is no font family, consent checkbox, or coupon-after-signup field. New popups include an email field unless blocks are sent.",
     inputSchema: {
       type: "object",
       properties: {
@@ -452,7 +452,7 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: "update_popup",
-    description: "Change a popup. Omitted fields stay as they are. Send blocks only when replacing the content. Mobile, colors, spacing, and the submit button are the same fields the storefront renders. Read the popup first.",
+    description: "Change a popup. Omitted fields stay as they are. Send blocks only when replacing the content. An image block uses assetId from upload_design_asset, or an https URL already stored for this store. Mobile, colors, spacing, and the submit button are the same fields the storefront renders. Read the popup first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -878,6 +878,59 @@ export const MCP_TOOLS: McpTool[] = [
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
+    name: "get_product_image",
+    description: "Return one real product image as image content, plus productId, title, public URL, pixel size, and file size. imageIndex starts at 0. size is thumbnail, medium, or original. The aspect ratio stays as stored. JPEG, PNG, and WebP only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        productId: { type: "string" },
+        imageIndex: { type: "integer" },
+        size: { type: "string", enum: ["thumbnail", "medium", "original"] },
+      },
+      required: ["productId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_product_images",
+    description: "Return the real images of up to 5 products. imageIndex selects one frame per product and defaults to the first image. Use medium unless the merchant asked for the original. A product that fails is reported on its own and does not cancel the others.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        productIds: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 5 },
+        imageIndex: { type: "integer" },
+        size: { type: "string", enum: ["thumbnail", "medium", "original"] },
+      },
+      required: ["productIds"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_brand_assets",
+    description: "Return the brand name, the logo currently shown on the storefront as image content, its original URL, and the saved brand colors. This store keeps one logo. Separate light, dark, and favicon files are not stored.",
+    inputSchema: {
+      type: "object",
+      properties: { size: { type: "string", enum: ["thumbnail", "medium", "original"] } },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "upload_design_asset",
+    description: "Upload a JPEG, PNG, or WebP into this store's media and return assetId, publicUrl, width, height, and mimeType. Send contentBase64 or a sourceUrl that is already a public file in this store. Arbitrary URLs are rejected. category is popup, banner, product, or general. The file is not published and does not replace a catalog photo.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        contentBase64: { type: "string" },
+        sourceUrl: { type: "string" },
+        fileName: { type: "string" },
+        mimeType: { type: "string", enum: ["image/jpeg", "image/png", "image/webp"] },
+        category: { type: "string", enum: ["popup", "banner", "product", "general"] },
+      },
+      required: ["fileName", "mimeType", "category"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "list_media",
     description: "Product images already saved. This does not upload, crop, or resize files.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
@@ -1083,4 +1136,7 @@ export const MCP_INSTRUCTIONS = [
   "Ask before deleting, deactivating a discount, refunding, or marking an order paid. Those calls fail unless confirm is true.",
   "Order lines take a catalog product id and a quantity. Do not send a custom price.",
   "Prices are numbers in the store currency, without a currency symbol.",
+  "get_product_image and get_product_images return the store's real JPEG, PNG, or WebP bytes. get_brand_assets returns the logo and colors currently saved for the storefront.",
+  "upload_design_asset stores a new image and returns assetId plus publicUrl. Put that assetId on a popup image block. It does not publish the popup.",
+  "Do not send an arbitrary image URL. sourceUrl is accepted only when it is already a public file in this store's media.",
 ].join(" ");

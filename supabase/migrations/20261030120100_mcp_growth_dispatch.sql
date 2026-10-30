@@ -243,13 +243,16 @@ begin
   if args ? 'width' then design_raw := design_raw || jsonb_build_object('width', args->'width'); end if;
   if args ? 'background' then design_raw := design_raw || jsonb_build_object('background', args->'background'); end if;
   if args ? 'submitLabel' then design_raw := design_raw || jsonb_build_object('submitLabel', args->'submitLabel'); end if;
-  if args ? 'blocks' then design_raw := design_raw || jsonb_build_object('blocks', args->'blocks'); end if;
+  if args ? 'blocks' then design_raw := design_raw || jsonb_build_object('blocks', private.mcp_bind_popup_blocks(target_store, args->'blocks')); end if;
   if args ? 'radius' then design_raw := design_raw || jsonb_build_object('radius', args->'radius'); end if;
   if args ? 'padding' then design_raw := design_raw || jsonb_build_object('padding', args->'padding'); end if;
   if args ? 'gap' then design_raw := design_raw || jsonb_build_object('gap', args->'gap'); end if;
   if args ? 'submitBackground' then design_raw := design_raw || jsonb_build_object('submitBackground', args->'submitBackground'); end if;
   if args ? 'submitColor' then design_raw := design_raw || jsonb_build_object('submitColor', args->'submitColor'); end if;
   if jsonb_typeof(args->'mobile') = 'object' then design_raw := design_raw || jsonb_build_object('mobile', args->'mobile'); end if;
+  if jsonb_typeof(design_raw->'blocks') = 'array' and not (args ? 'blocks') then
+    design_raw := design_raw || jsonb_build_object('blocks', private.mcp_bind_popup_blocks(target_store, design_raw->'blocks'));
+  end if;
   if args ? 'trigger' then targeting_raw := targeting_raw || jsonb_build_object('trigger', args->'trigger'); end if;
   if args ? 'delaySeconds' then targeting_raw := targeting_raw || jsonb_build_object('delaySeconds', args->'delaySeconds'); end if;
   if args ? 'scrollPercent' then targeting_raw := targeting_raw || jsonb_build_object('scrollPercent', args->'scrollPercent'); end if;

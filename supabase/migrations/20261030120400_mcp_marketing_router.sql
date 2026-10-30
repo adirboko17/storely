@@ -431,6 +431,12 @@ set search_path = ''
 as $$
 begin
   if tool_name in (
+    'get_product_image', 'get_product_images', 'get_brand_assets',
+    'reserve_design_upload', 'discard_design_upload'
+  ) then
+    return private.mcp_media(target_store, tool_name, args);
+  end if;
+  if tool_name in (
     'list_popups', 'get_popup', 'create_popup', 'update_popup', 'publish_popup', 'preview_popup',
     'get_popup_analytics', 'duplicate_popup', 'delete_popup',
     'create_discount', 'update_discount', 'deactivate_discount', 'list_promotions', 'create_promotion', 'update_promotion',

@@ -34,7 +34,7 @@ declare
     'list_pages','create_page','update_page','update_seo','get_seo_audit',
     'get_checkout_settings','update_checkout_settings','update_cart_rules','list_abandoned_carts','get_abandoned_cart',
     'list_shipping_methods','upsert_shipping_method','get_inventory','adjust_inventory','bulk_update_inventory','list_shipments',
-    'list_media','import_media','delete_media','list_campaigns','create_campaign','update_campaign','list_message_templates','create_message_template',
+    'list_media','get_product_image','get_product_images','get_brand_assets','upload_design_asset','import_media','delete_media','list_campaigns','create_campaign','update_campaign','list_message_templates','create_message_template',
     'list_automations','upsert_automation','create_segment','send_test_message','get_campaign_analytics',
     'get_sales_analytics','get_product_analytics','get_customer_analytics','get_conversion_funnel','export_report',
     'get_store_settings','update_store_settings','list_admin_roles','get_audit_log'
