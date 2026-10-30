@@ -144,7 +144,7 @@ export function CollectionEditorScreen({ collectionKey }: { collectionKey: strin
   if (collectionKey && !known) notFound();
 
   let items = draft.conditions.length ? products.filter((product) => draft.conditions.every((condition) => matches(product, condition))) : products.filter((product) => draft.ids.includes(product.id));
-  if (draft.excludeOutOfStock) items = items.filter((product) => product.stock > 0);
+  if (draft.excludeOutOfStock) items = items.filter((product) => product.trackInventory === false || product.stock > 0);
   if (sort === "az") items = [...items].sort((a, b) => a.title.localeCompare(b.title, "he"));
   if (sort === "pu") items = [...items].sort((a, b) => a.price - b.price);
   if (sort === "pd") items = [...items].sort((a, b) => b.price - a.price);

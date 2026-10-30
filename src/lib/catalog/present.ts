@@ -36,8 +36,9 @@ export function productInSeed(product: Product, title: string) {
 
 export function inventoryLabel(product: Product) {
   const variations = product.option?.values.length ?? 0;
-  const stock = product.stock === 0 ? "אזל מהמלאי" : `${product.stock} במלאי`;
   const extra = variations > 1 ? ` · ${variations} וריאציות` : "";
+  if (product.trackInventory === false) return { text: `לא במעקב${extra}`, color: "#303030" };
+  const stock = product.stock === 0 ? "אזל מהמלאי" : `${product.stock} במלאי`;
   const color = product.stock === 0 ? "#8e1f0b" : product.stock < 5 ? "#8a6116" : "#303030";
   return { text: `${stock}${extra}`, color };
 }

@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import { publicOrigin, supabaseAuthUrl, wwwAuthenticate } from "@/lib/mcp/resource";
 import { MCP_INSTRUCTIONS, MCP_TOOLS } from "@/lib/mcp/tools";
 import { negotiatedProtocol, parseRpcMessage, rpcError, rpcResult, toolCallParams } from "@/lib/mcp/protocol";
-import { cleanFileName, decodeBase64Image, decodeImage, extensionFor, mediaContent, ownStorageObject } from "@/lib/mcp/images";
+import { compositeContent, parseCompositeRequest, renderComposite, sourceKeys, type ProductSource } from "@/lib/mcp/composite";
+import { cleanFileName, decodeBase64Image, decodeImage, extensionFor, imageMime, mediaContent, ownStorageObject } from "@/lib/mcp/images";
 import { createSupabaseAuthClient, createSupabaseServiceClient, createSupabaseUserClient } from "@/lib/supabase/service";
 
 const cors = {
@@ -141,6 +142,7 @@ async function callTool(actor: Actor, name: string, args: Record<string, unknown
   }
   try {
     if (name === "upload_design_asset") return await uploadDesignAsset(actor, args);
+    if (name === "create_product_composite") return await createProductComposite(actor, args);
     const result = await invoke(actor, name, args);
     if (!result.ok) return result.body;
     if (IMAGE_TOOLS.has(name) && result.data?.deliver === "images") {
@@ -249,6 +251,99 @@ async function uploadDesignAsset(actor: Actor, args: Record<string, unknown>) {
     }],
     isError: false,
   };
+}
+
+const MAX_SOURCE = 15 * 1024 * 1024;
+
+async function createProductComposite(actor: Actor, args: Record<string, unknown>) {
+  const parsed = parseCompositeRequest(args);
+  if (!parsed.ok) return { content: [{ type: "text" as const, text: `VALIDATION: ${parsed.error}` }], isError: true };
+  const sources: ProductSource[] = [];
+  for (const wanted of sourceKeys(parsed.spec)) {
+    const found = await invoke(actor, "get_product_image", { productId: wanted.productId, imageIndex: wanted.imageIndex, size: "original" });
+    if (!found.ok) return found.body;
+    const file = catalogFile(found.data);
+    if (!file || file.productId !== wanted.productId) {
+      return { content: [{ type: "text" as const, text: "PERMISSION: הקובץ לא שייך לחנות הזו" }], isError: true };
+    }
+    const bytes = await downloadOriginal(file.bucket, file.path, file.storeId);
+    if (!bytes) return { content: [{ type: "text" as const, text: "NOT_FOUND: התמונה המקורית לא נמצאה" }], isError: true };
+    if (bytes.byteLength > MAX_SOURCE) {
+      return { content: [{ type: "text" as const, text: "VALIDATION: תמונת המקור גדולה מדי להרכבה" }], isError: true };
+    }
+    sources.push({ productId: wanted.productId, imageIndex: wanted.imageIndex, title: file.title, bytes });
+  }
+  const rendered = await renderComposite(parsed.spec, sources);
+  if (!rendered.ok) return { content: [{ type: "text" as const, text: `VALIDATION: ${rendered.error}` }], isError: true };
+  if (!parsed.spec.save) return compositeContent(rendered.result, null);
+  const image = rendered.result.image;
+  const mimeType = imageMime(image.bytes);
+  if (mimeType !== image.mimeType) {
+    return { content: [{ type: "text" as const, text: "VALIDATION: קובץ התוצאה אינו PNG או WebP תקין" }], isError: true };
+  }
+  const stored = await storeDesignBytes(actor, image.bytes, mimeType, image.width, image.height, "product-composite");
+  if (!stored.ok) return stored.body;
+  return compositeContent(rendered.result, stored.asset);
+}
+
+function catalogFile(data: Record<string, unknown>) {
+  const storeId = typeof data.storeId === "string" ? data.storeId : "";
+  const files = Array.isArray(data.files) ? data.files : [];
+  const file = files[0];
+  if (!file || typeof file !== "object") return null;
+  const row = file as Record<string, unknown>;
+  const path = typeof row.path === "string" ? row.path : "";
+  const productId = typeof row.productId === "string" ? row.productId : "";
+  const title = typeof row.title === "string" ? row.title : "";
+  if (row.bucket !== "product-media" || !storeId || !productId || !path.startsWith(`${storeId}/`) || path.includes("..") || path.includes("\\")) return null;
+  return { storeId, bucket: "product-media" as const, path, productId, title };
+}
+
+async function downloadOriginal(bucket: "product-media", path: string, storeId: string) {
+  if (!path.startsWith(`${storeId}/`) || path.includes("..")) return null;
+  const { data, error } = await createSupabaseServiceClient().storage.from(bucket).download(path);
+  if (error || !data) return null;
+  const bytes = Buffer.from(await data.arrayBuffer());
+  return bytes.byteLength > 0 ? bytes : null;
+}
+
+async function storeDesignBytes(actor: Actor, bytes: Buffer, mimeType: "image/jpeg" | "image/png" | "image/webp", width: number, height: number, fileName: string) {
+  const reserved = await invoke(actor, "reserve_design_upload", { fileName, mimeType, category: "popup" });
+  if (!reserved.ok) return { ok: false as const, body: reserved.body };
+  const storeId = typeof reserved.data.storeId === "string" ? reserved.data.storeId : "";
+  const assetId = typeof reserved.data.assetId === "string" ? reserved.data.assetId : "";
+  if (!storeId || !assetId) return { ok: false as const, body: { content: [{ type: "text" as const, text: "DATABASE: שמירת הקובץ נכשלה" }], isError: true } };
+  const stored = await invoke(actor, "reserve_design_upload", {
+    assetId,
+    fileName,
+    mimeType,
+    category: "popup",
+    width,
+    height,
+    byteSize: bytes.byteLength,
+    extension: extensionFor(mimeType),
+  });
+  if (!stored.ok) {
+    await invoke(actor, "discard_design_upload", { assetId });
+    return { ok: false as const, body: stored.body };
+  }
+  const finalPath = typeof stored.data.path === "string" ? stored.data.path : "";
+  if (stored.data.bucket !== "email-media" || !finalPath.startsWith(`${storeId}/`) || finalPath.includes("..")) {
+    await invoke(actor, "discard_design_upload", { assetId });
+    return { ok: false as const, body: { content: [{ type: "text" as const, text: "DATABASE: שמירת הקובץ נכשלה" }], isError: true } };
+  }
+  const { error } = await createSupabaseServiceClient().storage.from("email-media").upload(finalPath, bytes, {
+    contentType: mimeType,
+    upsert: false,
+    cacheControl: "31536000",
+  });
+  if (error) {
+    console.error("MCP composite upload failed", safeDetail(error.message));
+    await invoke(actor, "discard_design_upload", { assetId });
+    return { ok: false as const, body: { content: [{ type: "text" as const, text: "DATABASE: העלאת הקובץ נכשלה" }], isError: true } };
+  }
+  const publicUrl = typeof stored.data.publicUrl === "string" ? stored.data.publicUrl : "";
+  return { ok: true as const, asset: { assetId, publicUrl, width, height, mimeType } };
 }
 
 async function readOwnObject(storeId: string, sourceUrl: string, supabaseUrl: string) {

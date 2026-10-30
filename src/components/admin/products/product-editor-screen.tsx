@@ -69,7 +69,7 @@ type Draft = {
   barcode: string;
   qty: string;
   tax: boolean;
-  continueSelling: boolean;
+  trackInventory: boolean;
   status: ProductStatus;
   vendor: string;
   collections: string[];
@@ -114,7 +114,7 @@ function fromProduct(product: Product | null): Draft {
     barcode: product?.barcode ?? "",
     qty: String(product?.stock ?? 0),
     tax: true,
-    continueSelling: false,
+    trackInventory: product?.trackInventory !== false,
     status: product?.status ?? "draft",
     vendor: product?.vendor || getStoreIdentity().name,
     collections: selectedCategories(product),
@@ -329,6 +329,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
       sku: draft.sku.trim(),
       barcode: draft.barcode.trim() || undefined,
       stock: quantities.reduce((sum, value) => sum + value, 0),
+      trackInventory: draft.trackInventory,
       status: draft.status,
       category: draft.collections[0] ?? "",
       vendor: draft.vendor,
@@ -756,12 +757,21 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
               </div>
               <div className={`${card} flex flex-col gap-3`}>
                 <h2 className="m-0 text-[15px] font-semibold">מלאי</h2>
-                <div className="grid gap-3 min-[700px]:grid-cols-3">
+                <div className={`grid gap-3 ${draft.trackInventory ? "min-[700px]:grid-cols-3" : "min-[700px]:grid-cols-2"}`}>
                   <label><span className="mb-1.5 block text-sm font-semibold">מק״ט (SKU)</span><input dir="ltr" value={draft.sku} onChange={(event) => patch({ sku: event.target.value })} className={`${field} text-end`} /></label>
                   <label><span className="mb-1.5 block text-sm font-semibold">ברקוד</span><input dir="ltr" value={draft.barcode} onChange={(event) => patch({ barcode: event.target.value })} className={`${field} text-end`} /></label>
-                  <label><span className="mb-1.5 block text-sm font-semibold">כמות במחסן הראשי</span><input dir="ltr" type="number" value={draft.qty} onChange={(event) => patch({ qty: event.target.value })} className={`${field} text-end`} /></label>
+                  {draft.trackInventory ? (
+                    <label><span className="mb-1.5 block text-sm font-semibold">כמות במחסן הראשי</span><input dir="ltr" type="number" min={0} value={draft.qty} onChange={(event) => patch({ qty: event.target.value })} className={`${field} text-end`} /></label>
+                  ) : null}
                 </div>
-                <label className="flex items-center gap-2"><input type="checkbox" checked={draft.continueSelling} onChange={(event) => patch({ continueSelling: event.target.checked })} className="size-4 accent-[#303030]" />המשך מכירה גם כשהמלאי אוזל</label>
+                <button type="button" aria-pressed={!draft.trackInventory} className="h-9 self-start rounded-full border px-3 text-sm font-semibold" style={{ borderColor: draft.trackInventory ? "#c9c9c9" : "#303030", background: draft.trackInventory ? "#fff" : "#303030", color: draft.trackInventory ? "#303030" : "#fff" }} onClick={() => patch({ trackInventory: !draft.trackInventory })}>
+                  {draft.trackInventory ? "לא מנהלים מלאי למוצר הזה" : "לא מנהלים מלאי · ללא הגבלה"}
+                </button>
+                <p className="m-0 text-[13px] text-ink-secondary">
+                  {draft.trackInventory
+                    ? "כשהכמות מגיעה ל-0, באתר יופיע «אזל מהמלאי» ולא ניתן לרכוש את המוצר."
+                    : "המוצר נשאר זמין לרכישה, בלי הגבלת כמות."}
+                </p>
               </div>
             </>
           ) : null}
@@ -770,6 +780,18 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
             <style>{`@keyframes variant-pop { from { opacity: 0; transform: translateY(8px) scale(.97) } to { opacity: 1; transform: none } } @keyframes variant-panel { from { opacity: 0; transform: translateY(10px) scale(.985) } to { opacity: 1; transform: none } } @media (prefers-reduced-motion: reduce) { @keyframes variant-pop { from, to { opacity: 1; transform: none } } @keyframes variant-panel { from, to { opacity: 1; transform: none } } }`}</style>
             <div className="px-5 pt-4">
               <h2 className="m-0 text-[15px] font-semibold">וריאציות</h2>
+              {hasVariants ? (
+                <div className="mt-3 flex flex-col gap-2">
+                  <button type="button" aria-pressed={!draft.trackInventory} className="h-9 self-start rounded-full border px-3 text-sm font-semibold" style={{ borderColor: draft.trackInventory ? "#c9c9c9" : "#303030", background: draft.trackInventory ? "#fff" : "#303030", color: draft.trackInventory ? "#303030" : "#fff" }} onClick={() => patch({ trackInventory: !draft.trackInventory })}>
+                    {draft.trackInventory ? "לא מנהלים מלאי למוצר הזה" : "לא מנהלים מלאי · ללא הגבלה"}
+                  </button>
+                  <p className="m-0 text-[13px] text-ink-secondary">
+                    {draft.trackInventory
+                      ? "כשהכמות מגיעה ל-0, באתר יופיע «אזל מהמלאי» ולא ניתן לרכוש את המוצר."
+                      : "המוצר נשאר זמין לרכישה, בלי הגבלת כמות."}
+                  </p>
+                </div>
+              ) : null}
             </div>
             <div className="flex flex-col gap-3 p-4">
               {draft.options.map((option, index) => (
@@ -860,7 +882,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
                       <tr className="h-[34px] text-[13px] text-[#4a4a4a]">
                         <th className="bg-[#f3f3f3] px-2 text-start font-semibold">וריאציה</th>
                         <th className="w-[200px] bg-[#f3f3f3] px-2 text-start font-semibold">מחיר</th>
-                        <th className="w-[110px] bg-[#f3f3f3] px-2 text-start font-semibold">זמין</th>
+                        <th className="w-[110px] bg-[#f3f3f3] px-2 text-start font-semibold">{draft.trackInventory ? "זמין" : "מלאי"}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -868,13 +890,13 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
                         <tr key={value} className="h-[72px] border-b border-[#ebebeb]">
                           <td className="px-2 font-medium">{value}</td>
                           <td className="px-2"><input dir="ltr" value={draft.variantPrices[index] ?? ""} onChange={(event) => updateVariantRow(index, { price: event.target.value })} className={field} /></td>
-                          <td className="px-2"><input dir="ltr" type="number" value={draft.variantQty[index] ?? "0"} onChange={(event) => updateVariantRow(index, { qty: event.target.value })} className={`${field} text-end`} /></td>
+                          <td className="px-2">{draft.trackInventory ? <input dir="ltr" type="number" min={0} value={draft.variantQty[index] ?? "0"} onChange={(event) => updateVariantRow(index, { qty: event.target.value })} className={`${field} text-end`} /> : <span className="text-ink-secondary">ללא הגבלה</span>}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                <div className="px-5 py-3 text-sm">סך המלאי: {draft.variantQty.reduce((sum, value) => sum + (Number(value) || 0), 0)}</div>
+                <div className="px-5 py-3 text-sm">{draft.trackInventory ? `סך המלאי: ${draft.variantQty.reduce((sum, value) => sum + (Number(value) || 0), 0)}` : "לא מנהלים מלאי. הווריאציות נשארות זמינות לרכישה."}</div>
               </>
             ) : null}
           </div>

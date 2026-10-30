@@ -207,7 +207,7 @@ export function CreateOrderScreen() {
           price: product.price,
           qty: 1,
           image: product.media?.find((url) => url.startsWith("http")),
-          stock: product.stock,
+          stock: product.trackInventory === false ? undefined : product.stock,
         },
       ];
     });
@@ -391,7 +391,7 @@ export function CreateOrderScreen() {
                       {product.media?.[0] ? <img src={product.media[0]} alt="" className="size-8 rounded-md object-cover" /> : <span className="size-8 rounded-md bg-[#f1f1f1]" />}
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm">{product.title}</span>
-                        <span className="block text-xs text-ink-secondary">{product.status === "draft" ? "טיוטה · " : ""}במלאי {product.stock}</span>
+                        <span className="block text-xs text-ink-secondary">{product.status === "draft" ? "טיוטה · " : ""}{product.trackInventory === false ? "ללא מעקב מלאי" : product.stock === 0 ? "אזל מהמלאי" : `במלאי ${product.stock}`}</span>
                       </span>
                       <span dir="ltr" className="text-sm">{formatMoney(product.price)}</span>
                     </button>

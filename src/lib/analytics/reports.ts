@@ -528,7 +528,7 @@ export function buildReport(id: string, window: ReportWindow, today: Date, input
 
   if (id === "inventory-value") {
     const points = input.products
-      .filter((product) => product.status !== "archived")
+      .filter((product) => product.status !== "archived" && product.trackInventory !== false)
       .map((product) => ({
         label: productLabel(product.title, product.variant),
         current: Math.max(0, product.stock) * (product.cost > 0 ? product.cost : product.price),
@@ -541,7 +541,7 @@ export function buildReport(id: string, window: ReportWindow, today: Date, input
 
   if (id === "out-of-stock") {
     const points = input.products
-      .filter((product) => product.status === "active" && product.stock <= 0)
+      .filter((product) => product.status === "active" && product.trackInventory !== false && product.stock <= 0)
       .map((product) => ({ label: productLabel(product.title, product.variant), current: 1, previous: 0 }));
     return finish(definition, window, length, points, "מוצרים פעילים שהמלאי שלהם אזל.");
   }

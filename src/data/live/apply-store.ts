@@ -82,6 +82,7 @@ function mapProduct(value: unknown, index: number): Product {
     sku: text(item?.sku),
     barcode: text(item?.barcode) || undefined,
     stock: amount(item?.stock),
+    trackInventory: item?.trackInventory !== false,
     status: productStatus(item?.status),
     category: text(item?.category),
     vendor: text(item?.vendor),

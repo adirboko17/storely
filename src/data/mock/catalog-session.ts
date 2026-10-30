@@ -351,6 +351,7 @@ async function persistProduct(product: Product, previousStories: ProductStory[] 
     product_barcode: product.barcode ?? null,
     product_stock: product.stock,
     variant_title: product.variant,
+    product_track_inventory: product.trackInventory !== false,
   });
   if (error || typeof data !== "string" || !data) throw new Error("שמירת המוצר נכשלה");
   const page = product.page ?? emptyProductPage();

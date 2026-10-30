@@ -46,6 +46,7 @@ export type Product = {
   sku: string;
   barcode?: string;
   stock: number;
+  trackInventory?: boolean;
   status: ProductStatus;
   category: string;
   vendor: string;

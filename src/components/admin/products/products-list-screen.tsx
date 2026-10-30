@@ -61,11 +61,12 @@ function productInsight(products: Product[], range: DashboardWindow) {
     });
   });
   const units = [...sold.values()].reduce((sum, value) => sum + value, 0);
-  const stock = products.reduce((sum, product) => sum + Math.max(0, product.stock), 0);
+  const stock = products.filter((product) => product.trackInventory !== false).reduce((sum, product) => sum + Math.max(0, product.stock), 0);
   const soldRate = units + stock === 0 ? 0 : Math.round((units / (units + stock)) * 100);
   let endingSoon = 0;
   let stocked = 0;
   products.forEach((product) => {
+    if (product.trackInventory === false) return;
     const pace = (sold.get(product.id) ?? 0) / days;
     const cover = pace > 0 ? product.stock / pace : product.stock > 0 ? days + 1 : 0;
     if (product.stock <= 0 || cover < 7) endingSoon += 1;

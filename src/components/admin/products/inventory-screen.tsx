@@ -138,7 +138,11 @@ export function InventoryScreen() {
                   <td className="px-2.5 text-left">0</td>
                   <td className="px-2.5 text-left">{committed}</td>
                   <td className="px-1.5 text-left">
-                    <input dir="ltr" type="number" value={draft ?? String(available)} onChange={(event) => setEdits((state) => ({ ...state, [row.key]: event.target.value }))} onBlur={() => commit(row.key, row.product.id, row.index, row.quantity, committed)} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} className="h-[30px] w-[84px] rounded-lg border bg-white px-2 text-left text-sm outline-none" style={{ borderColor: draft != null && draft !== String(available) ? "#005bd3" : "#c4c4c4" }} />
+                    {row.product.trackInventory === false ? (
+                      <span className="text-ink-secondary">לא במעקב</span>
+                    ) : (
+                      <input dir="ltr" type="number" value={draft ?? String(available)} onChange={(event) => setEdits((state) => ({ ...state, [row.key]: event.target.value }))} onBlur={() => commit(row.key, row.product.id, row.index, row.quantity, committed)} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} className="h-[30px] w-[84px] rounded-lg border bg-white px-2 text-left text-sm outline-none" style={{ borderColor: draft != null && draft !== String(available) ? "#005bd3" : "#c4c4c4" }} />
+                    )}
                   </td>
                   <td className="px-2.5 text-left">{row.quantity}</td>
                   <td className="px-2.5 text-left">0</td>
