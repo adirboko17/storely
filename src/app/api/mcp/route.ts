@@ -3,6 +3,8 @@ import { publicOrigin, supabaseAuthUrl, wwwAuthenticate } from "@/lib/mcp/resour
 import { MCP_INSTRUCTIONS, MCP_TOOLS } from "@/lib/mcp/tools";
 import { negotiatedProtocol, parseRpcMessage, rpcError, rpcResult, toolCallParams } from "@/lib/mcp/protocol";
 import { compositeContent, parseCompositeRequest, renderComposite, sourceKeys, type ProductSource } from "@/lib/mcp/composite";
+import { capturePopupPreview, previewContent } from "@/lib/mcp/popup-preview";
+import { designFromTemplate, POPUP_TEMPLATES, popupDesignSchema } from "@/lib/mcp/popup-templates";
 import { cleanFileName, decodeBase64Image, decodeImage, extensionFor, imageMime, mediaContent, ownStorageObject } from "@/lib/mcp/images";
 import { createSupabaseAuthClient, createSupabaseServiceClient, createSupabaseUserClient } from "@/lib/supabase/service";
 
@@ -89,7 +91,7 @@ export async function POST(request: Request) {
   if (message.method === "tools/call") {
     const call = toolCallParams(message.params);
     if (!call) return json(rpcError(message.id, -32602, "Invalid params"), 200, headers);
-    return json(rpcResult(message.id, await callTool(actor, call.name, call.arguments)), 200, headers);
+    return json(rpcResult(message.id, await callTool(actor, call.name, call.arguments, publicOrigin(request))), 200, headers);
   }
 
   return json(rpcError(message.id, -32601, "Method not found"), 200, headers);
@@ -136,13 +138,21 @@ const IMAGE_TOOLS = new Set(["get_product_image", "get_product_images", "get_bra
 
 type ToolResult = { ok?: boolean; error?: string; code?: string; data?: Record<string, unknown>; matches?: unknown };
 
-async function callTool(actor: Actor, name: string, args: Record<string, unknown>) {
+async function callTool(actor: Actor, name: string, args: Record<string, unknown>, origin: string) {
   if (!MCP_TOOLS.some((tool) => tool.name === name)) {
     return { content: [{ type: "text", text: "Unknown tool" }], isError: true };
   }
   try {
     if (name === "upload_design_asset") return await uploadDesignAsset(actor, args);
     if (name === "create_product_composite") return await createProductComposite(actor, args);
+    if (name === "list_popup_templates") {
+      return { content: [{ type: "text", text: JSON.stringify({ templates: POPUP_TEMPLATES }, null, 2) }], isError: false };
+    }
+    if (name === "get_popup_design_schema") {
+      return { content: [{ type: "text", text: JSON.stringify(popupDesignSchema(), null, 2) }], isError: false };
+    }
+    if (name === "create_popup_from_design") return await createPopupFromDesign(actor, args);
+    if (name === "render_popup_preview") return await renderPopupPreview(actor, args, origin);
     const result = await invoke(actor, name, args);
     if (!result.ok) return result.body;
     if (IMAGE_TOOLS.has(name) && result.data?.deliver === "images") {
@@ -153,6 +163,28 @@ async function callTool(actor: Actor, name: string, args: Record<string, unknown
     console.error("MCP tool failed", name, error instanceof Error ? safeDetail(error.message) : "unknown");
     return { content: [{ type: "text", text: "The store could not complete that action" }], isError: true };
   }
+}
+
+async function createPopupFromDesign(actor: Actor, args: Record<string, unknown>) {
+  const name = typeof args.name === "string" ? args.name.trim() : "";
+  if (!name) return { content: [{ type: "text", text: "VALIDATION: A popup name is required" }], isError: true };
+  const built = designFromTemplate(args);
+  if (built.error || !built.design) return { content: [{ type: "text", text: `VALIDATION: ${built.error ?? "A design is required"}` }], isError: true };
+  const payload: Record<string, unknown> = { ...args, name, design: built.design, status: "draft" };
+  delete payload.template;
+  const result = await invoke(actor, "create_popup", payload);
+  if (!result.ok) return result.body;
+  return { content: [{ type: "text", text: JSON.stringify({ ...result.data, status: "draft" }, null, 2) }], isError: false };
+}
+
+async function renderPopupPreview(actor: Actor, args: Record<string, unknown>, origin: string) {
+  const id = typeof args.id === "string" ? args.id : "";
+  const device = args.device === "mobile" || args.device === "both" ? args.device : args.device === "desktop" ? "desktop" : "";
+  if (!id || !device) return { content: [{ type: "text", text: "VALIDATION: id and device are required" }], isError: true };
+  const loaded = await invoke(actor, "get_popup", { id });
+  if (!loaded.ok) return loaded.body;
+  const shots = await capturePopupPreview(origin, id, device);
+  return previewContent(id, shots);
 }
 
 async function invoke(actor: Actor, name: string, args: Record<string, unknown>) {

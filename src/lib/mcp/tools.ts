@@ -418,7 +418,7 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: "create_popup",
-    description: "Create a popup. Status defaults to draft. Triggers are immediate, delay, scroll, or exit. There is no wheel, click, or add-to-cart trigger. Blocks are heading, text, image, logo, button, field, spacer, or row. An image block uses assetId from upload_design_asset, or an https URL already stored for this store. An empty logo block uses the store logo. Mobile radius, padding, and gap use -1 to keep the desktop value. There is no font family, consent checkbox, or coupon-after-signup field. New popups include an email field unless blocks are sent.",
+    description: "Create a popup. Status defaults to draft. Triggers are immediate, delay, scroll, or exit. There is no wheel, click, or add-to-cart trigger. Blocks may be nested: heading, text, image, logo, button, field, spacer, row, container, columns, stack, overlay, badge, divider, icon, and shape. Read get_popup_design_schema before inventing style keys. An image uses assetId, productId plus imageIndex, or an https URL already stored for this store. A required consent field records marketing consent. couponCode is returned only after that consent. New popups include an email field unless blocks are sent.",
     inputSchema: {
       type: "object",
       properties: {
@@ -452,7 +452,7 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: "update_popup",
-    description: "Change a popup. Omitted fields stay as they are. Send blocks only when replacing the content. An image block uses assetId from upload_design_asset, or an https URL already stored for this store. Mobile, colors, spacing, and the submit button are the same fields the storefront renders. Read the popup first.",
+    description: "Change a popup. Omitted fields stay as they are. Send blocks only when replacing the content. For one block, use update_popup_block. An image uses assetId, productId plus imageIndex, or an https URL already stored for this store. Style keys are listed by get_popup_design_schema. Read the popup first. Ask before setting status to active.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1236,14 +1236,96 @@ export const MCP_TOOLS: McpTool[] = [
     description: "Recent audit rows, when any were stored. There is no rollback.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
+  {
+    name: "get_popup_design_schema",
+    description: "List the popup blocks, style keys, fonts, image rules, and form rules. Read this before creating a popup design. Templates are starting points from list_popup_templates, not a limit.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "list_popup_templates",
+    description: "List popup design templates and their starting JSON. Change any block after choosing one. Saving a template does not publish it.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "create_popup_from_design",
+    description: "Create a draft popup from a template name, a full design, or both. The design object overrides the template. Always saved as draft. Use get_brand_assets and product images first, then render_popup_preview to see the result. publish_popup is a separate call.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        template: { type: "string" },
+        design: { type: "object" },
+        blocks: { type: "array", items: { type: "object" } },
+        targeting: { type: "object" },
+        layout: { type: "string", enum: ["modal", "bar", "corner"] },
+        width: { type: "number" },
+        background: { type: "string" },
+        trigger: { type: "string", enum: ["immediate", "delay", "scroll", "exit"] },
+        frequency: { type: "string", enum: ["always", "session", "day", "once"] },
+        device: { type: "string", enum: ["all", "desktop", "mobile"] },
+      },
+      required: ["name"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_popup_block",
+    description: "Replace fields on one popup block by its id and keep every other block. Send the block fields to change. Refuses an active popup, so pause it or edit a draft. Does not publish.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string" }, blockId: { type: "string" }, block: { type: "object" } },
+      required: ["id", "blockId", "block"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "reorder_popup_blocks",
+    description: "Reorder popup blocks by id. parentId is the container, stack, overlay, row, or column whose children move. Omit parentId to reorder the top level. Refuses an active popup.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string" }, parentId: { type: "string" }, blockIds: { type: "array", items: { type: "string" } } },
+      required: ["id", "blockIds"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "restore_popup_revision",
+    description: "Restore one of the last 20 popup designs. Read revision ids from get_popup_assets. Works on a draft or paused popup, and does not publish.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string" }, revisionId: { type: "string" } },
+      required: ["id", "revisionId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_popup_assets",
+    description: "List image URLs used by a popup and the saved design revisions.",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false },
+  },
+  {
+    name: "validate_popup_design",
+    description: "Check a popup design without saving it. Returns the cleaned design or a validation error.",
+    inputSchema: { type: "object", properties: { design: { type: "object" } }, required: ["design"], additionalProperties: false },
+  },
+  {
+    name: "render_popup_preview",
+    description: "Photograph a popup with the same renderer the preview page uses. device is desktop, mobile, or both. Returns real PNG screenshots plus overflow measurements. Drafts are included. The link is temporary and is not shown to shoppers. Does not publish.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string" }, device: { type: "string", enum: ["desktop", "mobile", "both"] } },
+      required: ["id", "device"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 export const MCP_INSTRUCTIONS = [
   "You are connected to one Storely store, as the person who authorized this connection.",
   "You may read and edit that store's products, categories, articles, customers, orders, discounts, popups, quantity bundles, reviews of delivered orders, inventory, shipping rates, abandoned checkouts, email and SMS drafts, store contact, currency, language, logo, and brand colors.",
   "You cannot run SQL, change the schema, read payment secrets, or add a feature the store does not already save.",
-  "This store has no homepage banner editor, no wheel popup, no click or add-to-cart popup trigger, no upsell module, no WhatsApp templates, no 301 redirects, no canonical field, and no rollback.",
-  "Popup triggers are immediate, delay, scroll, and exit. Ask before publishing a popup.",
+  "This store has no homepage banner editor, no wheel popup, no click or add-to-cart popup trigger, no upsell module, no WhatsApp templates, no 301 redirects, and no canonical field. Popup designs keep the last 20 versions; restore_popup_revision puts one back on a draft or paused popup.",
+  "Popup triggers are immediate, delay, scroll, and exit. Design with get_popup_design_schema, list_popup_templates, get_brand_assets, and product images. Save a draft, then call render_popup_preview and look at the screenshots before changing layout. update_popup_block changes one block. Ask before publishing a popup.",
   "Free shipping starts at 250 and that threshold cannot be changed.",
   "Email, SMS, and WhatsApp are simulated. send_test_message does not deliver anything. Do not say a message was sent.",
   "A review can be created only for a product on a delivered order. The customer name comes from that order.",

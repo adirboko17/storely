@@ -111,9 +111,9 @@ export function PopupEditorScreen({ popupId }: { popupId: string }) {
 
   function addBlock(type: PopupBlock["type"]) {
     const next = blankBlock(type, draft.design.blocks);
-    if (next.type === "row") {
+    if (next.type === "row" || next.type === "columns" || next.type === "container" || next.type === "stack" || next.type === "overlay") {
       patchDesign({ blocks: [...draft.design.blocks, next] });
-      setSelected(next.columns[0]?.id ?? next.id);
+      setSelected(next.type === "row" || next.type === "columns" ? next.columns[0]?.id ?? next.id : next.id);
       return;
     }
     patchDesign({ blocks: placeLeaf(draft.design.blocks, selected, next) });
@@ -889,6 +889,8 @@ function blockHint(block: PopupBlock) {
   if (block.type === "button") return block.label;
   if (block.type === "logo") return "הלוגו של החנות";
   if (block.type === "field") return block.label || "בלי כיתוב";
-  if (block.type === "row") return `${block.columns.length} אזורים זה לצד זה`;
+  if (block.type === "row" || block.type === "columns") return `${block.columns.length} אזורים זה לצד זה`;
+  if (block.type === "badge") return block.text;
+  if (block.type === "container" || block.type === "stack" || block.type === "overlay" || block.type === "divider" || block.type === "icon" || block.type === "shape") return popupBlockLabel(block.type);
   return "רווח";
 }

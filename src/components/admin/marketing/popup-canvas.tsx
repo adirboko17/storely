@@ -1,13 +1,8 @@
 "use client";
 
 import type { CSSProperties, DragEvent } from "react";
-import { columnGrid, popupLook, type PopupClosePlace, type PopupDesign, type PopupLeaf } from "@/lib/marketing/popups";
-
-function align(value: "right" | "center" | "left"): CSSProperties["textAlign"] {
-  if (value === "left") return "left";
-  if (value === "center") return "center";
-  return "right";
-}
+import { PopupBlockView } from "@/components/marketing/popup-view";
+import { columnGrid, popupHasFields, popupLook, type PopupClosePlace, type PopupDesign } from "@/lib/marketing/popups";
 
 function closeStyle(place: PopupClosePlace, size: number, color: string): CSSProperties {
   const edge = 8;
@@ -42,7 +37,7 @@ export function PopupCanvas({
   onResizeColumn?: (id: string, width: number) => void;
 }) {
   const look = popupLook(design, device);
-  const hasFields = design.blocks.some((block) => block.type === "field" || (block.type === "row" && block.columns.some((column) => column.blocks.some((item) => item.type === "field"))));
+  const hasFields = popupHasFields(design.blocks);
   const hasRow = design.blocks.some((block) => block.type === "row");
   const split = !hasRow && look.media !== "none" && !look.stackMedia && look.layout !== "bar";
   function dropBlock(event: DragEvent<HTMLButtonElement>, index: number) {
@@ -121,7 +116,7 @@ export function PopupCanvas({
                     </button>
                     {column.blocks.length === 0 ? <span className="grid h-16 place-items-center text-xs text-[#8a8a8a]">אזור ריק</span> : column.blocks.map((child) => (
                       <button key={child.id} type="button" onClick={(event) => { event.stopPropagation(); onSelect?.(child.id); }} className="mb-2 block w-full rounded-xl border-0 bg-transparent p-0.5 text-start" style={{ outline: selectedId === child.id ? "2px solid #1a1a1a" : "2px solid transparent", outlineOffset: 2 }}>
-                        <BlockView block={child} logoUrl={logoUrl} />
+                        <PopupBlockView block={child} device={device} logoUrl={logoUrl} stack={look.stackColumns} />
                       </button>
                     ))}
                     {selectedId === column.id && onResizeColumn && !look.stackColumns ? (
@@ -148,7 +143,7 @@ export function PopupCanvas({
                 className="cursor-grab rounded-xl border-0 bg-transparent p-0.5 text-start active:cursor-grabbing"
                 style={{ gridColumn: !look.stackColumns && block.span === "half" ? "span 1" : "1 / -1", outline: selectedId === block.id ? "2px solid #1a1a1a" : "2px solid transparent", outlineOffset: 2 }}
               >
-                <BlockView block={block} logoUrl={logoUrl} />
+                <PopupBlockView block={block} device={device} logoUrl={logoUrl} stack={look.stackColumns} />
               </button>
             ))}
             {hasFields ? (
@@ -179,33 +174,3 @@ export function PopupCanvas({
   );
 }
 
-function BlockView({ block, logoUrl }: { block: PopupLeaf; logoUrl: string }) {
-  if (block.type === "heading") {
-    return <div style={{ color: block.color, fontSize: block.size, fontWeight: block.weight === "bold" ? 700 : 500, textAlign: align(block.align), lineHeight: 1.25, whiteSpace: "pre-wrap" }}>{block.text || "כותרת"}</div>;
-  }
-  if (block.type === "text") {
-    return <div style={{ color: block.color, fontSize: block.size, textAlign: align(block.align), lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{block.text || "טקסט"}</div>;
-  }
-  if (block.type === "image") {
-    if (!block.src) return <div className="mx-auto grid h-28 place-items-center rounded-xl border border-dashed border-[#c9c9c9] text-xs text-[#8a8a8a]" style={{ width: `${block.width}%` }}>תמונה</div>;
-    return <img src={block.src} alt={block.alt} className="mx-auto block object-cover" style={{ width: `${block.width}%`, borderRadius: block.radius, maxHeight: 220 }} />;
-  }
-  if (block.type === "logo") {
-    const src = logoUrl || block.src;
-    if (!src) return <div className="grid h-14 place-items-center rounded-xl border border-dashed border-[#c9c9c9] text-xs text-[#8a8a8a]">הלוגו מההגדרות</div>;
-    return <img src={src} alt="" className="mx-auto block object-contain" style={{ width: block.width, maxWidth: "100%", height: "auto" }} />;
-  }
-  if (block.type === "button") {
-    return <span className="grid h-11 place-items-center text-sm font-bold" style={{ background: block.background, color: block.color, borderRadius: block.radius }}>{block.label}</span>;
-  }
-  if (block.type === "field") {
-    const tall = block.fieldType === "textarea";
-    return (
-      <span className="block">
-        {block.label ? <span className="mb-1 block text-xs font-semibold">{block.label}{block.required ? " *" : ""}</span> : null}
-        <span className={`block rounded-xl bg-white/85 px-3 py-2 text-sm text-[#8a8a8a] shadow-[inset_0_0_0_1px_rgba(0,0,0,.12)] ${tall ? "h-20" : "h-10"}`}>{block.placeholder || "התשובה תופיע כאן"}</span>
-      </span>
-    );
-  }
-  return <span className="block" style={{ height: block.height }} />;
-}
