@@ -4,6 +4,7 @@ import { MCP_INSTRUCTIONS, MCP_TOOLS } from "@/lib/mcp/tools";
 import { negotiatedProtocol, parseRpcMessage, rpcError, rpcResult, toolCallParams } from "@/lib/mcp/protocol";
 import { compositeContent, parseCompositeRequest, renderComposite, sourceKeys, type ProductSource } from "@/lib/mcp/composite";
 import { capturePopupPreview, previewContent } from "@/lib/mcp/popup-preview";
+import { captureWebsitePreview, previewHost, websitePreviewContent } from "@/lib/mcp/website-preview";
 import { designFromTemplate, POPUP_TEMPLATES, popupDesignSchema } from "@/lib/mcp/popup-templates";
 import { cleanFileName, decodeBase64Image, decodeImage, extensionFor, imageMime, mediaContent, ownStorageObject } from "@/lib/mcp/images";
 import { createSupabaseAuthClient, createSupabaseServiceClient, createSupabaseUserClient } from "@/lib/supabase/service";
@@ -153,6 +154,7 @@ async function callTool(actor: Actor, name: string, args: Record<string, unknown
     }
     if (name === "create_popup_from_design") return await createPopupFromDesign(actor, args);
     if (name === "render_popup_preview") return await renderPopupPreview(actor, args, origin);
+    if (name === "render_website_preview") return await renderWebsitePreview(actor, args);
     const result = await invoke(actor, name, args);
     if (!result.ok) return result.body;
     if (IMAGE_TOOLS.has(name) && result.data?.deliver === "images") {
@@ -185,6 +187,31 @@ async function renderPopupPreview(actor: Actor, args: Record<string, unknown>, o
   if (!loaded.ok) return loaded.body;
   const shots = await capturePopupPreview(origin, id, device);
   return previewContent(id, shots);
+}
+
+async function renderWebsitePreview(actor: Actor, args: Record<string, unknown>) {
+  if (args.version === "draft") {
+    return { content: [{ type: "text", text: "UNSUPPORTED: There is no unpublished homepage to photograph. Homepage layout is site code and needs a deploy. This call did not save or publish anything." }], isError: true };
+  }
+  if (args.version !== "published") {
+    return { content: [{ type: "text", text: "VALIDATION: version must be published or draft" }], isError: true };
+  }
+  const device = args.device === "mobile" ? "mobile" : args.device === "desktop" ? "desktop" : "";
+  if (!device) return { content: [{ type: "text", text: "VALIDATION: device must be desktop or mobile" }], isError: true };
+  const loaded = await invoke(actor, "get_website_structure", {});
+  if (!loaded.ok) return loaded.body;
+  const domains = Array.isArray(loaded.data.domains) ? loaded.data.domains as Array<{ hostname?: string }> : [];
+  const hostname = previewHost({ domains });
+  if (!hostname) return { content: [{ type: "text", text: "VALIDATION: This store has no verified public domain to photograph" }], isError: true };
+  const path = typeof args.page === "string" ? args.page : "/";
+  const width = typeof args.width === "number" ? args.width : 0;
+  try {
+    const shot = await captureWebsitePreview(hostname, path, device, width);
+    return websitePreviewContent(hostname, path.startsWith("/") ? path : "/", shot);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The published page did not open";
+    return { content: [{ type: "text", text: `VALIDATION: ${message}` }], isError: true };
+  }
 }
 
 async function invoke(actor: Actor, name: string, args: Record<string, unknown>) {

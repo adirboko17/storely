@@ -1,5 +1,5 @@
 import { getStoreIdentity } from "@/data/live/store-identity";
-import { cleanPopupStyle, type PopupIconName, type PopupStyle } from "@/lib/marketing/popup-style";
+import { cleanPopupStyle, type PopupIconName, type PopupStyle, type PopupTextFont, type PopupTextWeight } from "@/lib/marketing/popup-style";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 export type PopupAlign = "right" | "center" | "left";
@@ -8,17 +8,27 @@ export type PopupTrigger = "immediate" | "delay" | "scroll" | "exit";
 export type PopupFrequency = "always" | "session" | "day" | "once";
 export type PopupDevice = "all" | "desktop" | "mobile";
 export type PopupStatus = "draft" | "active" | "paused";
-export type PopupFieldType = "text" | "email" | "tel" | "textarea" | "consent";
+export type PopupFieldType = "text" | "email" | "tel" | "textarea" | "checkbox" | "consent";
 export type PopupClosePlace = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 export type PopupSpan = "full" | "half";
 export type PopupMedia = "none" | "right" | "left";
+export type PopupMotion = "rise" | "fade" | "scale" | "slide" | "bloom" | "none";
+
+export const POPUP_MOTIONS: { id: PopupMotion; label: string; detail: string }[] = [
+  { id: "rise", label: "עולה", detail: "עולה בעדינות מלמטה" },
+  { id: "fade", label: "דהייה", detail: "מופיעה ונעלמת בשקיפות" },
+  { id: "scale", label: "נפתחת", detail: "גדלה מעט אל המרכז" },
+  { id: "slide", label: "גולשת", detail: "נכנסת מהצד" },
+  { id: "bloom", label: "רכה", detail: "נפתחת ועולה יחד" },
+  { id: "none", label: "בלי תנועה", detail: "מופיעה מיד" },
+];
 
 type PopupBlockBase =
-  | { id: string; type: "heading"; text: string; color: string; size: number; align: PopupAlign; weight: "regular" | "bold"; span: PopupSpan }
-  | { id: string; type: "text"; text: string; color: string; size: number; align: PopupAlign; span: PopupSpan }
-  | { id: string; type: "image"; src: string; alt: string; radius: number; width: number; span: PopupSpan; mobileSrc?: string }
-  | { id: string; type: "logo"; src: string; width: number; span: PopupSpan; mobileSrc?: string }
-  | { id: string; type: "button"; label: string; href: string; background: string; color: string; radius: number; span: PopupSpan }
+  | { id: string; type: "heading"; text: string; color: string; size: number; align: PopupAlign; font: PopupTextFont; weight: PopupTextWeight; span: PopupSpan }
+  | { id: string; type: "text"; text: string; color: string; size: number; align: PopupAlign; font: PopupTextFont; weight: PopupTextWeight; span: PopupSpan }
+  | { id: string; type: "image"; src: string; alt: string; radius: number; width: number; fit: "cover" | "contain"; focus: "center" | "top" | "bottom"; frame: number; bleed: boolean; fade: number; fadeSide: number; span: PopupSpan; mobileSrc?: string }
+  | { id: string; type: "logo"; src: string; width: number; align: PopupAlign; span: PopupSpan; mobileSrc?: string }
+  | { id: string; type: "button"; label: string; href: string; action: "link" | "submit"; background: string; color: string; radius: number; span: PopupSpan }
   | { id: string; type: "field"; fieldType: PopupFieldType; label: string; name: string; placeholder: string; required: boolean; span: PopupSpan }
   | { id: string; type: "spacer"; height: number; span: PopupSpan }
   | { id: string; type: "row"; span: PopupSpan; columns: PopupColumn[] }
@@ -31,11 +41,30 @@ type PopupBlockBase =
   | { id: string; type: "icon"; span: PopupSpan; name: PopupIconName }
   | { id: string; type: "shape"; span: PopupSpan; kind: "rect" | "ellipse" | "line" };
 
-export type PopupBlock = PopupBlockBase & { style?: PopupStyle; mobile?: PopupStyle };
+export type PopupPhoneTune = {
+  span?: PopupSpan;
+  size?: number;
+  color?: string;
+  align?: PopupAlign;
+  font?: PopupTextFont;
+  weight?: PopupTextWeight;
+  width?: number;
+  radius?: number;
+  fit?: "cover" | "contain";
+  focus?: "center" | "top" | "bottom";
+  frame?: number;
+  bleed?: boolean;
+  fade?: number;
+  fadeSide?: number;
+  height?: number;
+  background?: string;
+};
 
-export type PopupLeaf = Exclude<PopupBlockBase, { type: "row" | "container" | "stack" | "columns" | "overlay" }> & { style?: PopupStyle; mobile?: PopupStyle };
+export type PopupBlock = PopupBlockBase & { style?: PopupStyle; mobile?: PopupStyle; phone?: PopupPhoneTune };
 
-export type PopupColumn = { id: string; width: number; blocks: PopupBlock[]; mobileOrder?: number };
+export type PopupLeaf = Exclude<PopupBlockBase, { type: "row" | "container" | "stack" | "columns" | "overlay" }> & { style?: PopupStyle; mobile?: PopupStyle; phone?: PopupPhoneTune };
+
+export type PopupColumn = { id: string; width: number; blocks: PopupBlock[]; mobileOrder?: number; phoneWidth?: number };
 
 const MIN_COLUMN = 15;
 
@@ -47,6 +76,19 @@ export type PopupMobile = {
   gap: number;
   media: "same" | "stack" | "hide";
   columns: "same" | "stack";
+  tuned: boolean;
+  closeSize: number;
+  closePlace: "same" | PopupClosePlace;
+  closeColor: string;
+  background: string;
+  overlay: number;
+  submitBackground: string;
+  submitColor: string;
+  height: number;
+  imageFade: number;
+  imageWash: string;
+  imageWashOpacity: number;
+  motion: "same" | PopupMotion;
 };
 
 export type PopupDesign = {
@@ -59,6 +101,11 @@ export type PopupDesign = {
   mediaImage: string;
   background: string;
   backgroundImage: string;
+  height: number;
+  imageFade: number;
+  imageWash: string;
+  imageWashOpacity: number;
+  motion: PopupMotion;
   overlay: number;
   closeOnOverlay: boolean;
   closeColor: string;
@@ -165,8 +212,31 @@ function text(value: unknown, max: number) {
   return typeof value === "string" ? value.replace(/\u0000/g, "").slice(0, max) : "";
 }
 
+function textFont(value: unknown): PopupTextFont {
+  return value === "heebo" || value === "frank" ? value : "inherit";
+}
+
+function textWeight(value: unknown, fallback: PopupTextWeight): PopupTextWeight {
+  if (value === "bold" || value === "semibold" || value === "medium" || value === "regular") return value;
+  return fallback;
+}
+
 function align(value: unknown): PopupAlign {
   return value === "center" || value === "left" ? value : "right";
+}
+
+function logoAlign(value: unknown): PopupAlign {
+  return value === "left" || value === "right" || value === "center" ? value : "center";
+}
+
+function imageFit(row: Record<string, unknown>): "cover" | "contain" {
+  if (row.fit === "contain" || row.fit === "cover") return row.fit;
+  const style = row.style && typeof row.style === "object" ? row.style as Record<string, unknown> : null;
+  return style?.fit === "contain" ? "contain" : "cover";
+}
+
+function imageFocus(value: unknown): "center" | "top" | "bottom" {
+  return value === "top" || value === "bottom" ? value : "center";
 }
 
 function blockSpan(value: unknown): PopupSpan {
@@ -174,7 +244,11 @@ function blockSpan(value: unknown): PopupSpan {
 }
 
 export function defaultMobile(): PopupMobile {
-  return { layout: "same", width: 0, radius: -1, padding: -1, gap: -1, media: "stack", columns: "stack" };
+  return { layout: "same", width: 0, radius: -1, padding: -1, gap: -1, media: "stack", columns: "stack", tuned: false, closeSize: 0, closePlace: "same", closeColor: "", background: "", overlay: -1, submitBackground: "", submitColor: "", height: -1, imageFade: -1, imageWash: "same", imageWashOpacity: -1, motion: "same" };
+}
+
+export function popupMotionOf(value: unknown): PopupMotion {
+  return value === "fade" || value === "scale" || value === "slide" || value === "bloom" || value === "none" || value === "rise" ? value : "rise";
 }
 
 export function popupLook(design: PopupDesign, device: "desktop" | "mobile") {
@@ -191,6 +265,19 @@ export function popupLook(design: PopupDesign, device: "desktop" | "mobile") {
     mediaImage: design.mediaImage,
     stackColumns: mobile && phone.columns === "stack",
     stackMedia: mobile && phone.media === "stack" && design.media !== "none" && Boolean(design.mediaImage),
+    background: mobile && phone.background ? phone.background : design.background,
+    closeColor: mobile && phone.closeColor ? phone.closeColor : design.closeColor,
+    closeSize: mobile && phone.closeSize > 0 ? phone.closeSize : design.closeSize,
+    closePlace: mobile && phone.closePlace !== "same" ? phone.closePlace : design.closePlace,
+    overlay: mobile && phone.overlay >= 0 ? phone.overlay : design.overlay,
+    submitBackground: mobile && phone.submitBackground ? phone.submitBackground : design.submitBackground,
+    submitColor: mobile && phone.submitColor ? phone.submitColor : design.submitColor,
+    height: mobile && phone.height >= 0 ? phone.height : design.height,
+    imageFade: mobile && phone.imageFade >= 0 ? phone.imageFade : design.imageFade,
+    imageWash: mobile && phone.imageWash !== "same" ? phone.imageWash : design.imageWash,
+    imageWashOpacity: mobile && phone.imageWashOpacity >= 0 ? phone.imageWashOpacity : design.imageWashOpacity,
+    motion: mobile && phone.motion !== "same" ? phone.motion : design.motion,
+    backgroundImage: design.backgroundImage,
   };
 }
 
@@ -226,10 +313,55 @@ function cleanImage(value: unknown) {
   return /^https:\/\/[^\s"'()<>]+$/i.test(src) ? src : "";
 }
 
+function withoutImageBox(style: PopupBlock["style"]) {
+  if (!style) return undefined;
+  const next = { ...style };
+  delete next.radius;
+  delete next.height;
+  delete next.background;
+  return Object.keys(next).length ? next : undefined;
+}
+
+function releaseImageFrame(block: PopupBlock): PopupBlock {
+  if (block.type !== "image") return block;
+  const legacy = block.style?.radius != null || block.style?.height != null || Boolean(block.style?.background) || block.mobile?.radius != null || block.mobile?.height != null || Boolean(block.mobile?.background);
+  if (!legacy) return block;
+  const style = withoutImageBox(block.style);
+  const mobile = withoutImageBox(block.mobile);
+  const { style: _style, mobile: _mobile, ...rest } = block;
+  return { ...rest, radius: block.radius === 12 ? 0 : block.radius, ...(style ? { style } : {}), ...(mobile ? { mobile } : {}) };
+}
+
+function cleanPhone(value: unknown): PopupPhoneTune | undefined {
+  const row = value && typeof value === "object" ? value as Record<string, unknown> : null;
+  if (!row) return undefined;
+  const tune: PopupPhoneTune = {};
+  if (row.span === "full" || row.span === "half") tune.span = row.span;
+  if (typeof row.size === "number") tune.size = clamp(row.size, 12, 48, 15);
+  const color = hex(row.color, "");
+  if (color) tune.color = color;
+  if (row.align === "right" || row.align === "center" || row.align === "left") tune.align = row.align;
+  if (row.font === "inherit" || row.font === "heebo" || row.font === "frank") tune.font = row.font;
+  if (row.weight === "regular" || row.weight === "medium" || row.weight === "semibold" || row.weight === "bold") tune.weight = row.weight;
+  if (typeof row.width === "number") tune.width = clamp(row.width, 10, 220, 100);
+  if (typeof row.radius === "number") tune.radius = row.radius === 999 ? 999 : clamp(row.radius, 0, 40, 0);
+  if (row.fit === "cover" || row.fit === "contain") tune.fit = row.fit;
+  if (row.focus === "center" || row.focus === "top" || row.focus === "bottom") tune.focus = row.focus;
+  if (typeof row.frame === "number") tune.frame = clamp(row.frame, 0, 480, 0);
+  if (typeof row.bleed === "boolean") tune.bleed = row.bleed;
+  if (typeof row.fade === "number") tune.fade = clamp(row.fade, 0, 80, 0);
+  if (typeof row.fadeSide === "number") tune.fadeSide = clamp(row.fadeSide, 0, 80, 0);
+  if (typeof row.height === "number") tune.height = clamp(row.height, 4, 80, 16);
+  const background = hex(row.background, "");
+  if (background) tune.background = background;
+  return Object.keys(tune).length ? tune : undefined;
+}
+
 function styled(block: PopupBlock, row: Record<string, unknown>): PopupBlock {
   const style = cleanPopupStyle(row.style);
   const mobile = cleanPopupStyle(row.mobile);
-  return { ...block, ...(style ? { style } : {}), ...(mobile ? { mobile } : {}) };
+  const phone = cleanPhone(row.phone);
+  return { ...block, ...(style ? { style } : {}), ...(mobile ? { mobile } : {}), ...(phone ? { phone } : {}) };
 }
 
 function cleanColumns(value: unknown, index: number, depth: number, limit: number) {
@@ -243,7 +375,8 @@ function cleanColumns(value: unknown, index: number, depth: number, limit: numbe
     }).slice(0, 8) : [];
     const columnId = typeof column.id === "string" && column.id.trim() ? column.id.slice(0, 80) : `column-${index}`;
     const mobileOrder = clamp(column.mobileOrder, -5, 20, Number.NaN);
-    return [{ id: columnId, width: clamp(column.width, MIN_COLUMN, 100, 0), blocks, ...(Number.isFinite(mobileOrder) ? { mobileOrder } : {}) }];
+    const phoneWidth = typeof column.phoneWidth === "number" ? clamp(column.phoneWidth, MIN_COLUMN, 100, 0) : 0;
+    return [{ id: columnId, width: clamp(column.width, MIN_COLUMN, 100, 0), blocks, ...(Number.isFinite(mobileOrder) ? { mobileOrder } : {}), ...(phoneWidth > 0 ? { phoneWidth } : {}) }];
   }).slice(0, limit);
 }
 
@@ -300,20 +433,22 @@ function cleanBlock(value: unknown, index: number, depth = 0): PopupBlock | null
       color: hex(row.color, "#1a1a1a"),
       size: clamp(row.size, 16, 48, 28),
       align: align(row.align),
-      weight: row.weight === "regular" ? "regular" : "bold",
+      font: textFont(row.font),
+      weight: row.weight === "regular" ? "medium" : textWeight(row.weight, "bold"),
       span: blockSpan(row.span),
     }, row);
   }
   if (row.type === "text") {
-    return styled({ id, type: "text", text: text(row.text, 800), color: hex(row.color, "#4a4a4a"), size: clamp(row.size, 12, 24, 15), align: align(row.align), span: blockSpan(row.span) }, row);
+    return styled({ id, type: "text", text: text(row.text, 800), color: hex(row.color, "#4a4a4a"), size: clamp(row.size, 12, 24, 15), align: align(row.align), font: textFont(row.font), weight: textWeight(row.weight, "regular"), span: blockSpan(row.span) }, row);
   }
   if (row.type === "image") {
     const mobileSrc = cleanImage(row.mobileSrc);
-    return styled({ id, type: "image", src: cleanImage(row.src), alt: text(row.alt, 120), radius: clamp(row.radius, 0, 40, 12), width: clamp(row.width, 10, 100, 100), span: blockSpan(row.span), ...(mobileSrc ? { mobileSrc } : {}) }, row);
+    const drafted = styled({ id, type: "image", src: cleanImage(row.src), alt: text(row.alt, 120), radius: clamp(row.radius, 0, 40, 0), width: clamp(row.width, 10, 100, 100), fit: imageFit(row), focus: imageFocus(row.focus), frame: clamp(row.frame, 0, 480, 0), bleed: row.bleed === true, fade: clamp(row.fade, 0, 80, 0), fadeSide: clamp(row.fadeSide, 0, 80, 0), span: blockSpan(row.span), ...(mobileSrc ? { mobileSrc } : {}) }, row);
+    return drafted.type === "image" ? releaseImageFrame(drafted) : drafted;
   }
   if (row.type === "logo") {
     const mobileSrc = cleanImage(row.mobileSrc);
-    return styled({ id, type: "logo", src: cleanImage(row.src), width: clamp(row.width, 24, 220, 112), span: blockSpan(row.span), ...(mobileSrc ? { mobileSrc } : {}) }, row);
+    return styled({ id, type: "logo", src: cleanImage(row.src), width: clamp(row.width, 24, 220, 112), align: logoAlign(row.align), span: blockSpan(row.span), ...(mobileSrc ? { mobileSrc } : {}) }, row);
   }
   if (row.type === "button") {
     return styled({
@@ -321,6 +456,7 @@ function cleanBlock(value: unknown, index: number, depth = 0): PopupBlock | null
       type: "button",
       label: text(row.label, 40) || "לחצו כאן",
       href: cleanHref(row.href),
+      action: row.action === "submit" ? "submit" : "link",
       background: hex(row.background, "#1a1a1a"),
       color: hex(row.color, "#ffffff"),
       radius: row.radius === 999 ? 999 : clamp(row.radius, 0, 28, 12),
@@ -328,8 +464,8 @@ function cleanBlock(value: unknown, index: number, depth = 0): PopupBlock | null
     }, row);
   }
   if (row.type === "field") {
-    const fieldType: PopupFieldType = row.fieldType === "email" || row.fieldType === "tel" || row.fieldType === "textarea" || row.fieldType === "consent" ? row.fieldType : "text";
-    const fallback = fieldType === "email" ? "email" : fieldType === "tel" ? "phone" : fieldType === "textarea" ? "note" : fieldType === "consent" ? "consent" : "name";
+    const fieldType: PopupFieldType = row.fieldType === "email" || row.fieldType === "tel" || row.fieldType === "textarea" || row.fieldType === "checkbox" || row.fieldType === "consent" ? row.fieldType : "text";
+    const fallback = fieldType === "email" ? "email" : fieldType === "tel" ? "phone" : fieldType === "textarea" ? "note" : fieldType === "checkbox" ? "check" : fieldType === "consent" ? "consent" : "name";
     return styled({
       id,
       type: "field",
@@ -345,7 +481,7 @@ function cleanBlock(value: unknown, index: number, depth = 0): PopupBlock | null
   return null;
 }
 
-export type FieldPreset = "email" | "phone" | "name" | "note" | "custom";
+export type FieldPreset = "email" | "phone" | "name" | "note" | "custom" | "check";
 
 const FIELD_PRESETS: Record<FieldPreset, { label: string; fieldType: PopupFieldType; name: string; placeholder: string }> = {
   email: { label: "אימייל", fieldType: "email", name: "email", placeholder: "name@email.com" },
@@ -353,6 +489,7 @@ const FIELD_PRESETS: Record<FieldPreset, { label: string; fieldType: PopupFieldT
   name: { label: "שם", fieldType: "text", name: "name", placeholder: "השם שלכם" },
   note: { label: "הודעה", fieldType: "textarea", name: "note", placeholder: "כתבו כאן" },
   custom: { label: "שאלה", fieldType: "text", name: "custom", placeholder: "" },
+  check: { label: "אני מאשר/ת", fieldType: "checkbox", name: "check", placeholder: "" },
 };
 
 export const FIELD_PRESET_LABELS: Record<FieldPreset, string> = {
@@ -361,6 +498,7 @@ export const FIELD_PRESET_LABELS: Record<FieldPreset, string> = {
   name: "שם",
   note: "הודעה",
   custom: "שאלה חופשית",
+  check: "צ'קבוקס",
 };
 
 function uniqueFieldName(base: string, blocks: PopupBlock[]) {
@@ -375,6 +513,7 @@ export function fieldPreset(block: Extract<PopupBlock, { type: "field" }>): Fiel
   if (block.fieldType === "email") return "email";
   if (block.fieldType === "tel") return "phone";
   if (block.fieldType === "textarea") return "note";
+  if (block.fieldType === "checkbox" || block.fieldType === "consent") return "check";
   if (block.name === "name" || block.name.startsWith("name_")) return "name";
   return "custom";
 }
@@ -388,25 +527,25 @@ export function blankField(preset: FieldPreset, blocks: PopupBlock[] = []): Extr
     label: recipe.label,
     name: uniqueFieldName(recipe.name, blocks),
     placeholder: recipe.placeholder,
-    required: preset !== "custom",
+    required: preset !== "custom" && preset !== "check",
     span: "full",
   };
 }
 
 export function blankBlock(type: PopupBlock["type"], blocks: PopupBlock[] = []): PopupBlock {
   const id = crypto.randomUUID();
-  if (type === "heading") return { id, type, text: "כותרת", color: "#1a1a1a", size: 28, align: "center", weight: "bold", span: "full" };
-  if (type === "text") return { id, type, text: "כאן נכנס המשפט שמופיע מתחת לכותרת.", color: "#4a4a4a", size: 15, align: "center", span: "full" };
-  if (type === "image") return { id, type, src: "", alt: "", radius: 12, width: 100, span: "full" };
-  if (type === "logo") return { id, type, src: "", width: 112, span: "full" };
-  if (type === "button") return { id, type, label: "לחנות", href: "/products", background: "#1a1a1a", color: "#ffffff", radius: 999, span: "full" };
+  if (type === "heading") return { id, type, text: "כותרת", color: "#1a1a1a", size: 28, align: "center", font: "inherit", weight: "bold", span: "full" };
+  if (type === "text") return { id, type, text: "כאן נכנס המשפט שמופיע מתחת לכותרת.", color: "#4a4a4a", size: 15, align: "center", font: "inherit", weight: "regular", span: "full" };
+  if (type === "image") return { id, type, src: "", alt: "", radius: 0, width: 100, fit: "cover", focus: "center", frame: 0, bleed: false, fade: 0, fadeSide: 0, span: "full" };
+  if (type === "logo") return { id, type, src: "", width: 112, align: "center", span: "full" };
+  if (type === "button") return { id, type, label: "לחנות", href: "/products", action: "link", background: "#1a1a1a", color: "#ffffff", radius: 999, span: "full" };
   if (type === "spacer") return { id, type, height: 16, span: "full" };
   if (type === "row") return blankRow();
   return { ...blankField("email", blocks), id };
 }
 
 function areaCopy(): PopupLeaf {
-  return { id: crypto.randomUUID(), type: "text", text: "אזור חדש. כאן אפשר טקסט, תמונה או כל דבר אחר.", color: "#4a4a4a", size: 15, align: "center", span: "full" };
+  return { id: crypto.randomUUID(), type: "text", text: "אזור חדש. כאן אפשר טקסט, תמונה או כל דבר אחר.", color: "#4a4a4a", size: 15, align: "center", font: "inherit", weight: "regular", span: "full" };
 }
 
 export function blankRow(): Extract<PopupBlock, { type: "row" }> {
@@ -451,14 +590,15 @@ export function fitColumnWidths(columns: PopupColumn[]): PopupColumn[] {
   return columns.map((column, index) => ({ ...column, width: scaled[index] ?? column.width }));
 }
 
-export function setColumnWidth(blocks: PopupBlock[], columnId: string, width: number): PopupBlock[] {
+export function setColumnWidth(blocks: PopupBlock[], columnId: string, width: number, phone = false): PopupBlock[] {
   return blocks.map((block) => {
     if (block.type !== "row") return block;
     const index = block.columns.findIndex((column) => column.id === columnId);
     if (index < 0 || block.columns.length < 2) return block;
     const min = MIN_COLUMN;
     const nextWidth = Math.max(min, Math.min(100 - min * (block.columns.length - 1), Math.round(width)));
-    const current = fitColumnWidths(block.columns);
+    const basis = block.columns.map((column) => ({ ...column, width: phone ? column.phoneWidth || column.width : column.width }));
+    const current = fitColumnWidths(basis);
     const otherSum = current.reduce((sum, column, columnIndex) => (columnIndex === index ? sum : sum + column.width), 0) || 1;
     const rest = 100 - nextWidth;
     const columns = current.map((column, columnIndex) => (
@@ -467,8 +607,85 @@ export function setColumnWidth(blocks: PopupBlock[], columnId: string, width: nu
     const drift = 100 - columns.reduce((sum, column) => sum + column.width, 0);
     const fixAt = columns.findIndex((column, columnIndex) => columnIndex !== index && column.width + drift >= min);
     if (fixAt >= 0) columns[fixAt] = { ...columns[fixAt]!, width: columns[fixAt]!.width + drift };
-    return { ...block, columns };
+    if (!phone) return { ...block, columns };
+    return { ...block, columns: block.columns.map((column, columnIndex) => ({ ...column, phoneWidth: columns[columnIndex]?.width ?? column.phoneWidth ?? column.width })) };
   });
+}
+
+function detachLeaf(blocks: PopupBlock[], id: string): { blocks: PopupBlock[]; leaf: PopupBlock | null; rootIndex: number } {
+  let leaf: PopupBlock | null = null;
+  let rootIndex = -1;
+  const next: PopupBlock[] = [];
+  blocks.forEach((block, index) => {
+    if (block.id === id && block.type !== "row" && block.type !== "columns" && block.type !== "container" && block.type !== "stack" && block.type !== "overlay") {
+      leaf = block;
+      rootIndex = index;
+      return;
+    }
+    if ((block.type === "row" || block.type === "columns") && !leaf) {
+      next.push({
+        ...block,
+        columns: block.columns.map((column) => ({
+          ...column,
+          blocks: column.blocks.filter((child) => {
+            if (child.id !== id || leaf) return true;
+            leaf = child;
+            return false;
+          }),
+        })),
+      });
+      return;
+    }
+    next.push(block);
+  });
+  return { blocks: next, leaf, rootIndex };
+}
+
+export function insertLeaf(blocks: PopupBlock[], columnId: string, leaf: PopupBlock, index: number): PopupBlock[] {
+  if (leaf.type === "row" || leaf.type === "columns" || leaf.type === "container" || leaf.type === "stack" || leaf.type === "overlay") return blocks;
+  let placed = false;
+  const next = blocks.map((block) => {
+    if ((block.type !== "row" && block.type !== "columns") || placed) return block;
+    return {
+      ...block,
+      columns: block.columns.map((column) => {
+        if (column.id !== columnId) return column;
+        placed = true;
+        const items = [...column.blocks];
+        items.splice(Math.max(0, Math.min(index, items.length)), 0, leaf);
+        return { ...column, blocks: items };
+      }),
+    };
+  });
+  return placed ? next : [...blocks, leaf];
+}
+
+export function moveLeafInto(blocks: PopupBlock[], id: string, columnId: string, index: number): PopupBlock[] {
+  let fromColumn = "";
+  let fromIndex = -1;
+  for (const block of blocks) {
+    if (block.type !== "row" && block.type !== "columns") continue;
+    for (const column of block.columns) {
+      const at = column.blocks.findIndex((child) => child.id === id);
+      if (at >= 0) {
+        fromColumn = column.id;
+        fromIndex = at;
+      }
+    }
+  }
+  const taken = detachLeaf(blocks, id);
+  if (!taken.leaf || taken.leaf.type === "row" || taken.leaf.type === "columns" || taken.leaf.type === "container" || taken.leaf.type === "stack" || taken.leaf.type === "overlay") return blocks;
+  const dest = fromColumn === columnId && fromIndex >= 0 && fromIndex < index ? index - 1 : index;
+  return insertLeaf(taken.blocks, columnId, taken.leaf, dest);
+}
+
+export function moveLeafToRoot(blocks: PopupBlock[], id: string, index: number): PopupBlock[] {
+  const taken = detachLeaf(blocks, id);
+  if (!taken.leaf) return blocks;
+  const dest = taken.rootIndex >= 0 && taken.rootIndex < index ? index - 1 : index;
+  const list = [...taken.blocks];
+  list.splice(Math.max(0, Math.min(dest, list.length)), 0, taken.leaf);
+  return list;
 }
 
 export function moveColumn(blocks: PopupBlock[], columnId: string, toIndex: number): PopupBlock[] {
@@ -544,6 +761,183 @@ export function placeLeaf(blocks: PopupBlock[], selectedId: string, leaf: PopupL
     : block);
 }
 
+function visualTune(block: PopupBlock): PopupPhoneTune {
+  const tune: PopupPhoneTune = { span: block.span };
+  if (block.type === "heading" || block.type === "text") {
+    tune.size = block.size;
+    tune.color = block.color;
+    tune.align = block.align;
+    tune.font = block.font;
+    tune.weight = block.weight;
+  } else if (block.type === "image") {
+    tune.width = block.width;
+    tune.radius = block.radius;
+    tune.fit = block.fit;
+    tune.focus = block.focus;
+    tune.frame = block.frame;
+    tune.bleed = block.bleed;
+    tune.fade = block.fade;
+    tune.fadeSide = block.fadeSide;
+  } else if (block.type === "logo") {
+    tune.width = block.width;
+    tune.align = block.align;
+  } else if (block.type === "button") {
+    tune.background = block.background;
+    tune.color = block.color;
+    tune.radius = block.radius;
+  } else if (block.type === "spacer") {
+    tune.height = block.height;
+  }
+  return tune;
+}
+
+function applyTune(block: PopupBlock, tune: PopupPhoneTune): PopupBlock {
+  const span = tune.span ?? block.span;
+  if (block.type === "heading" || block.type === "text") {
+    return { ...block, span, size: tune.size ?? block.size, color: tune.color ?? block.color, align: tune.align ?? block.align, font: tune.font ?? block.font, weight: tune.weight ?? block.weight };
+  }
+  if (block.type === "image") {
+    return { ...block, span, width: tune.width ?? block.width, radius: tune.radius ?? block.radius, fit: tune.fit ?? block.fit, focus: tune.focus ?? block.focus, frame: tune.frame ?? block.frame, bleed: tune.bleed ?? block.bleed, fade: tune.fade ?? block.fade, fadeSide: tune.fadeSide ?? block.fadeSide };
+  }
+  if (block.type === "logo") return { ...block, span, width: tune.width ?? block.width, align: tune.align ?? block.align };
+  if (block.type === "button") return { ...block, span, background: tune.background ?? block.background, color: tune.color ?? block.color, radius: tune.radius ?? block.radius };
+  if (block.type === "spacer") return { ...block, span, height: tune.height ?? block.height };
+  return { ...block, span };
+}
+
+function withContent(stored: PopupBlock, next: PopupBlock): PopupBlock {
+  if (stored.type === "heading" && next.type === "heading") return { ...stored, text: next.text };
+  if (stored.type === "text" && next.type === "text") return { ...stored, text: next.text };
+  if (stored.type === "image" && next.type === "image") return { ...stored, src: next.src, alt: next.alt, ...(next.mobileSrc ? { mobileSrc: next.mobileSrc } : {}) };
+  if (stored.type === "logo" && next.type === "logo") return { ...stored, src: next.src };
+  if (stored.type === "button" && next.type === "button") return { ...stored, label: next.label, href: next.href, action: next.action };
+  if (stored.type === "field" && next.type === "field") return { ...stored, fieldType: next.fieldType, label: next.label, name: next.name, placeholder: next.placeholder, required: next.required };
+  return stored;
+}
+
+function sealBlocks(blocks: PopupBlock[]): PopupBlock[] {
+  return blocks.map((block) => {
+    if (block.type === "row" || block.type === "columns") {
+      return { ...block, columns: block.columns.map((column) => ({ ...column, phoneWidth: column.phoneWidth || column.width, blocks: sealBlocks(column.blocks) })) };
+    }
+    if (block.type === "container" || block.type === "stack" || block.type === "overlay") {
+      const next = { ...block, blocks: sealBlocks(block.blocks) };
+      return next.phone ? next : { ...next, phone: visualTune(next) };
+    }
+    return block.phone ? block : { ...block, phone: visualTune(block) };
+  });
+}
+
+function clearBlocks(blocks: PopupBlock[]): PopupBlock[] {
+  return blocks.map((block) => {
+    if (block.type === "row" || block.type === "columns") {
+      return { ...block, columns: block.columns.map(({ phoneWidth: _phoneWidth, ...column }) => ({ ...column, blocks: clearBlocks(column.blocks) })) };
+    }
+    if (block.type === "container" || block.type === "stack" || block.type === "overlay") {
+      const { phone: _phone, ...rest } = block;
+      return { ...rest, blocks: clearBlocks(block.blocks) };
+    }
+    const { phone: _phone, ...rest } = block;
+    return rest;
+  });
+}
+
+export function blockOnDevice(block: PopupBlock, device: "desktop" | "mobile"): PopupBlock {
+  if (block.type === "row" || block.type === "columns") {
+    return {
+      ...block,
+      columns: block.columns.map((column) => ({
+        ...column,
+        width: device === "mobile" && column.phoneWidth ? column.phoneWidth : column.width,
+        blocks: column.blocks.map((child) => blockOnDevice(child, device)),
+      })),
+    };
+  }
+  if (block.type === "container" || block.type === "stack" || block.type === "overlay") {
+    return { ...block, blocks: block.blocks.map((child) => blockOnDevice(child, device)) };
+  }
+  if (device === "desktop" || !block.phone) return block;
+  return applyTune(block, block.phone);
+}
+
+export function sealPhoneDesign(design: PopupDesign): PopupDesign {
+  if (design.mobile.tuned) return design;
+  return {
+    ...design,
+    blocks: sealBlocks(design.blocks),
+    mobile: {
+      ...design.mobile,
+      tuned: true,
+      closeSize: design.mobile.closeSize > 0 ? design.mobile.closeSize : design.closeSize,
+      closePlace: design.mobile.closePlace !== "same" ? design.mobile.closePlace : design.closePlace,
+      closeColor: design.mobile.closeColor || design.closeColor,
+      background: design.mobile.background || design.background,
+      overlay: design.mobile.overlay >= 0 ? design.mobile.overlay : design.overlay,
+      submitBackground: design.mobile.submitBackground || design.submitBackground,
+      submitColor: design.mobile.submitColor || design.submitColor,
+      height: design.mobile.height >= 0 ? design.mobile.height : design.height,
+      imageFade: design.mobile.imageFade >= 0 ? design.mobile.imageFade : design.imageFade,
+      imageWash: design.mobile.imageWash !== "same" ? design.mobile.imageWash : design.imageWash,
+      imageWashOpacity: design.mobile.imageWashOpacity >= 0 ? design.mobile.imageWashOpacity : design.imageWashOpacity,
+    },
+  };
+}
+
+export function clearPhoneDesign(design: PopupDesign): PopupDesign {
+  return {
+    ...design,
+    blocks: clearBlocks(design.blocks),
+    mobile: defaultMobile(),
+  };
+}
+
+export function writeBlockForDevice(design: PopupDesign, next: PopupBlock, device: "desktop" | "mobile"): PopupDesign {
+  const base = device === "mobile" ? sealPhoneDesign(design) : design;
+  const blocks = base.blocks.map(function visit(block): PopupBlock {
+    if (block.id === next.id) {
+      if (block.type !== next.type) return next;
+      if (device === "desktop") return { ...next, ...(block.phone ? { phone: block.phone } : {}) };
+      return { ...withContent(block, next), phone: visualTune(next) };
+    }
+    if (block.type === "row" || block.type === "columns") {
+      return { ...block, columns: block.columns.map((column) => ({ ...column, blocks: column.blocks.map(visit) })) };
+    }
+    if (block.type === "container" || block.type === "stack" || block.type === "overlay") {
+      return { ...block, blocks: block.blocks.map(visit) };
+    }
+    return block;
+  });
+  return { ...base, blocks };
+}
+
+export function writeWindowForDevice(design: PopupDesign, patch: Partial<PopupDesign>, device: "desktop" | "mobile"): PopupDesign {
+  if (device === "desktop") return { ...design, ...patch };
+  const sealed = sealPhoneDesign(design);
+  const mobile = { ...sealed.mobile };
+  if (patch.background) mobile.background = patch.background;
+  if (patch.closeColor) mobile.closeColor = patch.closeColor;
+  if (typeof patch.closeSize === "number") mobile.closeSize = patch.closeSize;
+  if (patch.closePlace) mobile.closePlace = patch.closePlace;
+  if (typeof patch.overlay === "number") mobile.overlay = patch.overlay;
+  if (patch.submitBackground) mobile.submitBackground = patch.submitBackground;
+  if (patch.submitColor) mobile.submitColor = patch.submitColor;
+  if (typeof patch.height === "number") mobile.height = patch.height;
+  if (typeof patch.imageFade === "number") mobile.imageFade = patch.imageFade;
+  if (patch.imageWash !== undefined) mobile.imageWash = patch.imageWash;
+  if (typeof patch.imageWashOpacity === "number") mobile.imageWashOpacity = patch.imageWashOpacity;
+  if (patch.motion) mobile.motion = patch.motion;
+  const shared: Partial<PopupDesign> = {};
+  if (patch.submitLabel !== undefined) shared.submitLabel = patch.submitLabel;
+  if (patch.successTitle !== undefined) shared.successTitle = patch.successTitle;
+  if (patch.successText !== undefined) shared.successText = patch.successText;
+  if (patch.couponCode !== undefined) shared.couponCode = patch.couponCode;
+  if (patch.closeOnOverlay !== undefined) shared.closeOnOverlay = patch.closeOnOverlay;
+  if (patch.backgroundImage !== undefined) shared.backgroundImage = patch.backgroundImage;
+  if (patch.mediaImage !== undefined) shared.mediaImage = patch.mediaImage;
+  if (patch.media) shared.media = patch.media;
+  return { ...sealed, ...shared, mobile };
+}
+
 export function replacePopupBlock(blocks: PopupBlock[], next: PopupBlock): PopupBlock[] {
   return blocks.map((block) => {
     if (block.id === next.id) return next;
@@ -586,6 +980,11 @@ export function defaultDesign(): PopupDesign {
     mediaImage: "",
     background: "#fffaf6",
     backgroundImage: "",
+    height: 0,
+    imageFade: 0,
+    imageWash: "",
+    imageWashOpacity: 0,
+    motion: "rise",
     overlay: 46,
     closeOnOverlay: true,
     closeColor: "#1a1a1a",
@@ -600,7 +999,7 @@ export function defaultDesign(): PopupDesign {
     couponCode: "",
     blocks: [
       blankBlock("heading"),
-      { id: crypto.randomUUID(), type: "text", text: "השאירו אימייל ונשלח הטבה להזמנה הבאה.", color: "#4a4a4a", size: 15, align: "center", span: "full" },
+      { id: crypto.randomUUID(), type: "text", text: "השאירו אימייל ונשלח הטבה להזמנה הבאה.", color: "#4a4a4a", size: 15, align: "center", font: "inherit", weight: "regular", span: "full" },
       blankBlock("field"),
     ],
   };
@@ -636,6 +1035,7 @@ function normalizeMobile(value: unknown): PopupMobile {
   const base = defaultMobile();
   const layout: PopupMobile["layout"] = row.layout === "modal" || row.layout === "bar" || row.layout === "corner" ? row.layout : "same";
   const media: PopupMobile["media"] = row.media === "same" || row.media === "hide" ? row.media : row.media === "stack" ? "stack" : base.media;
+  const closePlace: PopupMobile["closePlace"] = row.closePlace === "top-left" || row.closePlace === "top-right" || row.closePlace === "bottom-left" || row.closePlace === "bottom-right" ? row.closePlace : "same";
   return {
     layout,
     width: clamp(row.width, 0, 480, 0),
@@ -644,6 +1044,19 @@ function normalizeMobile(value: unknown): PopupMobile {
     gap: typeof row.gap === "number" ? clamp(row.gap, 0, 40, 0) : -1,
     media,
     columns: row.columns === "same" ? "same" : "stack",
+    tuned: row.tuned === true,
+    closeSize: typeof row.closeSize === "number" ? clamp(row.closeSize, 14, 36, 0) : 0,
+    closePlace,
+    closeColor: hex(row.closeColor, ""),
+    background: hex(row.background, ""),
+    overlay: typeof row.overlay === "number" ? clamp(row.overlay, 0, 80, 0) : -1,
+    submitBackground: hex(row.submitBackground, ""),
+    submitColor: hex(row.submitColor, ""),
+    height: typeof row.height === "number" ? clamp(row.height, 0, 960, -1) : -1,
+    imageFade: typeof row.imageFade === "number" ? clamp(row.imageFade, 0, 100, -1) : -1,
+    imageWash: row.imageWash == null || row.imageWash === "same" ? "same" : hex(row.imageWash, ""),
+    imageWashOpacity: typeof row.imageWashOpacity === "number" ? clamp(row.imageWashOpacity, 0, 100, -1) : -1,
+    motion: row.motion === "fade" || row.motion === "scale" || row.motion === "slide" || row.motion === "bloom" || row.motion === "none" || row.motion === "rise" ? row.motion : "same",
   };
 }
 
@@ -665,6 +1078,11 @@ export function normalizeDesign(value: unknown): PopupDesign {
     mediaImage: cleanImage(row.mediaImage),
     background: hex(row.background, base.background),
     backgroundImage: cleanImage(row.backgroundImage),
+    height: clamp(row.height, 0, 960, 0),
+    imageFade: clamp(row.imageFade, 0, 100, 0),
+    imageWash: hex(row.imageWash, ""),
+    imageWashOpacity: clamp(row.imageWashOpacity, 0, 100, 0),
+    motion: popupMotionOf(row.motion),
     overlay: clamp(row.overlay, 0, 80, base.overlay),
     closeOnOverlay: row.closeOnOverlay !== false,
     closeColor: hex(row.closeColor, base.closeColor),

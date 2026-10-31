@@ -1,13 +1,31 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { columnGrid, popupHasFields, popupLook, type PopupBlock, type PopupDesign } from "@/lib/marketing/popups";
-import { popupStyleCss, resolvePopupStyle, type PopupIconName, type PopupStyle } from "@/lib/marketing/popup-style";
+import { blockOnDevice, columnGrid, popupLook, type PopupBlock, type PopupDesign } from "@/lib/marketing/popups";
+import { popupFontStack, popupFontWeight, popupStyleCss, resolvePopupStyle, type PopupIconName, type PopupStyle } from "@/lib/marketing/popup-style";
+
+function richCopy(value: string) {
+  return value.split(/(\*\*[^*]+\*\*)/g).map((part, index) => (
+    part.startsWith("**") && part.endsWith("**") && part.length > 4
+      ? <strong key={index} style={{ fontWeight: 700 }}>{part.slice(2, -2)}</strong>
+      : part
+  ));
+}
 
 function textAlign(value: "right" | "center" | "left"): CSSProperties["textAlign"] {
   if (value === "left") return "left";
   if (value === "center") return "center";
   return "right";
+}
+
+export function PopupBackdrop({ image, fade, wash, washOpacity }: { image: string; fade: number; wash: string; washOpacity: number }) {
+  if (!image) return null;
+  return (
+    <>
+      <span aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: `url("${image}")`, backgroundSize: "cover", backgroundPosition: "center", opacity: (100 - fade) / 100, pointerEvents: "none" }} />
+      {wash ? <span aria-hidden style={{ position: "absolute", inset: 0, background: wash, opacity: washOpacity / 100, pointerEvents: "none" }} /> : null}
+    </>
+  );
 }
 
 function lookOf(style: PopupStyle | undefined, mobile: PopupStyle | undefined, device: "desktop" | "mobile") {
@@ -24,28 +42,52 @@ const ICONS: Record<PopupIconName, string> = {
   spark: "M12 2l1.4 6.2L20 10l-6.6 1.8L12 18l-1.4-6.2L4 10l6.6-1.8z",
 };
 
+function ImageVeil({ fade, fadeSide, edges, surface }: { fade: number; fadeSide: number; edges?: { start: boolean; end: boolean }; surface: string }) {
+  const alongEnd = !(edges && edges.end && !edges.start);
+  return (
+    <>
+      {fade > 0 ? <span aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: `${fade}%`, background: `linear-gradient(to top, ${surface}, transparent)`, pointerEvents: "none" }} /> : null}
+      {fadeSide > 0 ? <span aria-hidden style={{ position: "absolute", top: 0, bottom: 0, width: `${fadeSide}%`, insetInlineStart: alongEnd ? undefined : 0, insetInlineEnd: alongEnd ? 0 : undefined, background: alongEnd ? `linear-gradient(to inline-start, ${surface}, transparent)` : `linear-gradient(to inline-end, ${surface}, transparent)`, pointerEvents: "none" }} /> : null}
+    </>
+  );
+}
+
 export function PopupBlockView({
   block,
   device,
   logoUrl = "",
   stack = false,
+  pad = 0,
+  flushTop = false,
+  edges,
+  fill = false,
+  surface = "#ffffff",
 }: {
   block: PopupBlock;
   device: "desktop" | "mobile";
   logoUrl?: string;
   stack?: boolean;
+  pad?: number;
+  flushTop?: boolean;
+  edges?: { start: boolean; end: boolean };
+  fill?: boolean;
+  surface?: string;
 }) {
+  block = blockOnDevice(block, device);
   const style = lookOf(block.style, block.mobile, device);
   if (style?.hide === device) return null;
   const css = popupStyleCss(style);
   if (block.type === "row" || block.type === "columns") {
     return (
       <div style={{ ...css, display: "grid", gridTemplateColumns: columnGrid(block.columns, stack || style?.direction === "column"), gap: style?.gap ?? 12, width: "100%" }}>
-        {block.columns.map((column) => (
-          <div key={column.id} style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: style?.gap ?? 12, order: device === "mobile" ? column.mobileOrder : undefined }}>
-            {column.blocks.map((child) => <PopupBlockView key={child.id} block={child} device={device} logoUrl={logoUrl} stack={stack} />)}
-          </div>
-        ))}
+        {block.columns.map((column, columnIndex) => {
+          const across = stack || style?.direction === "column" || block.columns.length < 2;
+          return (
+            <div key={column.id} style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: style?.gap ?? 12, order: device === "mobile" ? column.mobileOrder : undefined }}>
+              {column.blocks.map((child, childIndex) => <PopupBlockView key={child.id} block={child} device={device} logoUrl={logoUrl} stack={stack} pad={pad} flushTop={flushTop && childIndex === 0} edges={{ start: across || columnIndex === 0, end: across || columnIndex === block.columns.length - 1 }} surface={surface} />)}
+            </div>
+          );
+        })}
       </div>
     );
   }
@@ -53,7 +95,7 @@ export function PopupBlockView({
     const direction = block.type === "stack" ? (style?.direction ?? block.direction) : (style?.direction ?? "column");
     return (
       <div style={{ ...css, display: "flex", flexDirection: direction, gap: style?.gap ?? 12, width: css.width ?? "100%", minWidth: 0 }}>
-        {block.blocks.map((child) => <PopupBlockView key={child.id} block={child} device={device} logoUrl={logoUrl} stack={stack} />)}
+        {block.blocks.map((child) => <PopupBlockView key={child.id} block={child} device={device} logoUrl={logoUrl} stack={stack} surface={surface} />)}
       </div>
     );
   }
@@ -64,36 +106,65 @@ export function PopupBlockView({
         {src ? <img src={src} alt={block.alt} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: style?.fit ?? "cover", objectPosition: style?.position ?? "center" }} /> : null}
         <div style={{ position: "absolute", inset: 0, background: style?.gradient ? undefined : "linear-gradient(180deg, transparent, rgba(58,40,38,.45))" }} />
         <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 8, minHeight: style?.height ?? 180, padding: style?.padding ?? 16 }}>
-          {block.blocks.map((child) => <PopupBlockView key={child.id} block={child} device={device} logoUrl={logoUrl} stack={stack} />)}
+          {block.blocks.map((child) => <PopupBlockView key={child.id} block={child} device={device} logoUrl={logoUrl} stack={stack} surface={surface} />)}
         </div>
       </div>
     );
   }
   if (block.type === "heading") {
-    return <div style={{ ...css, color: css.color ?? block.color, fontSize: style?.fontSize ?? block.size, fontWeight: style?.fontWeight ?? (block.weight === "bold" ? 700 : 500), textAlign: textAlign(block.align), lineHeight: style?.lineHeight ?? 1.25, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{block.text || "כותרת"}</div>;
+    return <div style={{ ...css, color: css.color ?? block.color, fontFamily: popupFontStack(block.font), fontSize: style?.fontSize ?? block.size, fontWeight: popupFontWeight(block.weight), textAlign: textAlign(block.align), lineHeight: style?.lineHeight ?? 1.25, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{richCopy(block.text || "כותרת")}</div>;
   }
   if (block.type === "text") {
-    return <div style={{ ...css, color: css.color ?? block.color, fontSize: style?.fontSize ?? block.size, textAlign: textAlign(block.align), lineHeight: style?.lineHeight ?? 1.55, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{block.text || "טקסט"}</div>;
+    return <div style={{ ...css, color: css.color ?? block.color, fontFamily: popupFontStack(block.font), fontSize: style?.fontSize ?? block.size, fontWeight: popupFontWeight(block.weight), textAlign: textAlign(block.align), lineHeight: style?.lineHeight ?? 1.55, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{richCopy(block.text || "טקסט")}</div>;
   }
   if (block.type === "image") {
     const src = device === "mobile" && block.mobileSrc ? block.mobileSrc : block.src;
     if (!src) return <div style={{ ...css, width: `${block.width}%` }}>תמונה</div>;
-    return <img src={src} alt={block.alt} style={{ ...css, display: "block", width: css.width ?? `${block.width}%`, maxWidth: "100%", height: style?.height ?? "auto", maxHeight: style?.height ?? 420, objectFit: style?.fit ?? "cover", objectPosition: style?.position ?? "center", borderRadius: style?.radius ?? block.radius, marginInline: "auto" }} />;
+    const fit = block.fit === "contain" ? "contain" : "cover";
+    const focus = block.focus === "top" || block.focus === "bottom" ? block.focus : "center";
+    const frame = fit === "cover" && block.frame > 0 ? block.frame : 0;
+    const bleed = block.bleed && pad > 0;
+    const pullStart = bleed && (edges ? edges.start : true);
+    const pullEnd = bleed && (edges ? edges.end : true);
+    const pull = (pullStart ? pad : 0) + (pullEnd ? pad : 0);
+    const fade = block.fade > 0 ? block.fade : 0;
+    const fadeSide = block.fadeSide > 0 ? block.fadeSide : 0;
+    const legacyFrame = style?.radius != null || style?.height != null || Boolean(style?.background);
+    const radius = bleed || fade > 0 || fadeSide > 0 ? 0 : legacyFrame && block.radius === 12 ? 0 : block.radius;
+    const veil = <ImageVeil fade={fade} fadeSide={fadeSide} edges={edges} surface={surface} />;
+    if (fill) {
+      return (
+        <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+          <img src={src} alt={block.alt} style={{ display: "block", width: "100%", height: "100%", objectFit: fit, objectPosition: focus }} />
+          {veil}
+        </div>
+      );
+    }
+    return (
+      <div style={{ position: "relative", width: pull ? `calc(100% + ${pull}px)` : `${block.width}%`, maxWidth: pull ? "none" : "100%", marginInline: pull ? undefined : "auto", marginInlineStart: pullStart ? -pad : undefined, marginInlineEnd: pullEnd ? -pad : undefined, marginTop: bleed && flushTop ? -pad : undefined, height: frame || undefined, overflow: radius || fade || fadeSide ? "hidden" : undefined, borderRadius: radius || undefined }}>
+        <img src={src} alt={block.alt} style={{ display: "block", width: "100%", height: frame ? "100%" : "auto", maxHeight: frame ? undefined : fit === "cover" ? 420 : undefined, objectFit: fit, objectPosition: focus }} />
+        {veil}
+      </div>
+    );
   }
   if (block.type === "logo") {
     const src = device === "mobile" && block.mobileSrc ? block.mobileSrc : (logoUrl || block.src);
     if (!src) return null;
-    return <img src={src} alt="" style={{ ...css, display: "block", width: style?.width ?? block.width, maxWidth: "100%", height: "auto", objectFit: "contain" }} />;
+    return (
+      <div style={{ width: "100%", textAlign: textAlign(block.align), alignSelf: "stretch" }}>
+        <img src={src} alt="" style={{ ...css, display: "inline-block", width: block.width, maxWidth: "100%", height: "auto", objectFit: "contain" }} />
+      </div>
+    );
   }
   if (block.type === "button") {
     return <span style={{ ...css, display: "grid", minHeight: 44, placeItems: "center", textAlign: "center", background: css.background ?? block.background, color: css.color ?? block.color, borderRadius: style?.radius ?? block.radius, fontWeight: 700 }}>{block.label}</span>;
   }
   if (block.type === "field") {
-    if (block.fieldType === "consent") {
+    if (block.fieldType === "consent" || block.fieldType === "checkbox") {
       return (
-        <label style={{ ...css, display: "flex", alignItems: "flex-start", gap: 8, fontSize: style?.fontSize ?? 13, lineHeight: 1.45 }}>
-          <span aria-hidden style={{ width: 18, height: 18, flex: "0 0 18px", marginTop: 1, borderRadius: 4, border: "1.5px solid currentColor", background: "#fff" }} />
-          <span>{block.label || "אני מסכימה לקבל דיוור"}{block.required ? " *" : ""}</span>
+        <label style={{ ...css, display: "flex", alignItems: "flex-start", gap: 10, fontSize: style?.fontSize ?? 14, lineHeight: 1.45 }}>
+          <span aria-hidden style={{ width: 18, height: 18, flex: "0 0 18px", marginTop: 1, borderRadius: 5, border: "1.5px solid #1a1a1a", background: "#fff" }} />
+          <span>{block.label || "אני מאשר/ת"}{block.required ? " *" : ""}</span>
         </label>
       );
     }
@@ -142,37 +213,33 @@ export function PopupStage({
     display: "flex",
     flexDirection: "column",
     width: look.layout === "bar" ? "100%" : `min(${look.width}px, calc(100% - 24px))`,
+    height: look.height > 0 ? look.height : undefined,
     maxHeight: "calc(100dvh - 32px)",
-    overflow: "auto",
-    background: design.background,
-    backgroundImage: design.backgroundImage ? `linear-gradient(rgba(255,255,255,.08), rgba(255,255,255,.08)), url("${design.backgroundImage}")` : undefined,
-    backgroundSize: "cover",
-    backgroundPosition: "center",
+    overflow: "hidden",
+    background: look.background,
     borderRadius: look.layout === "bar" ? `${look.radius}px ${look.radius}px 0 0` : look.radius,
     boxShadow: "0 18px 50px rgba(20,16,14,.22)",
     color: "#1a1a1a",
   };
   return (
     <div data-popup-root dir="rtl" lang="he" style={{ position: "relative", minHeight: "100dvh", overflow: "hidden", background: "#e7e1db" }}>
-      {look.layout === "modal" ? <div style={{ position: "absolute", inset: 0, background: `rgba(20,16,14,${design.overlay / 100})` }} /> : null}
+      {look.layout === "modal" ? <div style={{ position: "absolute", inset: 0, background: `rgba(20,16,14,${look.overlay / 100})` }} /> : null}
       <div style={{ position: "relative", minHeight: "100dvh", display: "flex", alignItems: look.layout === "modal" ? "center" : "flex-end", justifyContent: look.layout === "corner" ? "flex-start" : "center", padding: 16 }}>
         <div data-popup-card style={card}>
-          <span aria-hidden style={{ position: "absolute", top: 8, left: 8, zIndex: 2, width: 32, height: 32, display: "grid", placeItems: "center", color: design.closeColor, fontSize: design.closeSize }}>×</span>
-          <div style={{ paddingTop: Math.max(look.padding, 36), paddingInline: look.padding, paddingBottom: look.padding, display: "flex", flexDirection: "column", gap: look.gap }}>
+          <PopupBackdrop image={look.backgroundImage} fade={look.imageFade} wash={look.imageWash} washOpacity={look.imageWashOpacity} />
+          <span aria-hidden style={{ position: "absolute", top: 8, left: 8, zIndex: 2, width: 32, height: 32, display: "grid", placeItems: "center", color: look.closeColor, fontSize: look.closeSize }}>×</span>
+          <div style={{ position: "relative", zIndex: 1, flex: look.height > 0 ? 1 : undefined, minHeight: 0, overflow: look.height > 0 ? "auto" : undefined, paddingTop: Math.max(look.padding, 36), paddingInline: look.padding, paddingBottom: look.padding, display: "flex", flexDirection: "column", gap: look.gap }}>
             {submitted ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 8 }}>
                 <strong style={{ fontSize: 28 }}>{design.successTitle}</strong>
                 <p style={{ margin: 0, lineHeight: 1.5 }}>{design.successText}</p>
                 {design.couponCode ? (
-                  <button type="button" style={{ minHeight: 44, border: 0, borderRadius: 999, background: design.submitBackground, color: design.submitColor, fontWeight: 700 }}>{design.couponCode}</button>
+                  <button type="button" style={{ minHeight: 44, border: 0, borderRadius: 999, background: look.submitBackground, color: look.submitColor, fontWeight: 700 }}>{design.couponCode}</button>
                 ) : null}
               </div>
             ) : (
               <>
-                {design.blocks.map((block) => <PopupBlockView key={block.id} block={block} device={device} logoUrl={logoUrl} stack={stack} />)}
-                {popupHasFields(design.blocks) ? (
-                  <span style={{ display: "grid", minHeight: 44, placeItems: "center", background: design.submitBackground, color: design.submitColor, borderRadius: 999, fontWeight: 700 }}>{design.submitLabel}</span>
-                ) : null}
+                {design.blocks.map((block, index) => <PopupBlockView key={block.id} block={block} device={device} logoUrl={logoUrl} stack={stack} pad={look.padding} flushTop={index === 0} surface={design.background} />)}
               </>
             )}
           </div>

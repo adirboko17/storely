@@ -1318,12 +1318,124 @@ export const MCP_TOOLS: McpTool[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: "get_website_structure",
+    description: "Read this store's real public-site contract. Returns the connected store, its verified domains, and the pages Storely actually stores: articles, policies, collections, events, popups, logo, and brand colors. The homepage layout is custom site code and is marked read-only. Does not accept a store id. Call this before any website edit.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "get_website_design_capabilities",
+    description: "List what this store's installed site can change without a code deploy. Capabilities come from the saved CMS contract, not from a generic section catalog. Homepage layout returns requiresDeploy true.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "list_available_sections",
+    description: "List homepage section types this store can add without a deploy. An empty list means the site has no installable section catalog. Articles are added with create_page, not as homepage sections.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "update_website_section",
+    description: "Update one saved CMS record by its stable id from get_website_structure. Homepage, header, and footer layout ids are rejected. Article, policy, logo, and brand-color ids use the existing CMS save. Send properties with only the fields that record already accepts. No HTML, CSS, or JavaScript.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sectionId: { type: "string" },
+        properties: { type: "object" },
+      },
+      required: ["sectionId", "properties"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "add_website_section",
+    description: "Add a section only when this site already renders that type. Homepage types such as hero, banner, faq, and gallery are rejected. type article creates an unpublished article through create_page.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        page: { type: "string" },
+        type: { type: "string" },
+        properties: { type: "object" },
+      },
+      required: ["page", "type"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "remove_website_section",
+    description: "Hide an article by setting it unpublished. Homepage sections cannot be removed. Nothing is deleted.",
+    inputSchema: {
+      type: "object",
+      properties: { sectionId: { type: "string" } },
+      required: ["sectionId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "reorder_website_sections",
+    description: "Reorder homepage sections. Rejected for every store until that site stores a section list the admin editor and the public renderer both read.",
+    inputSchema: {
+      type: "object",
+      properties: { page: { type: "string" }, sectionIds: { type: "array", items: { type: "string" } } },
+      required: ["page", "sectionIds"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "save_website_draft",
+    description: "There is no homepage draft document. Article and popup drafts already exist: a new article stays unpublished, and a popup stays draft until publish_popup.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "publish_website_changes",
+    description: "Publish is not a homepage deploy. This tool does not publish anything. Publishing an article is update_page with visible true, and publishing a popup is publish_popup. Ask the merchant first.",
+    inputSchema: {
+      type: "object",
+      properties: { confirm: { type: "boolean" } },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "list_website_revisions",
+    description: "List saved revisions for a popup section id. Homepage layout has no revision history because it is not stored as sections.",
+    inputSchema: {
+      type: "object",
+      properties: { sectionId: { type: "string" } },
+      required: ["sectionId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "restore_website_revision",
+    description: "Restore a popup revision onto a draft or paused popup. Does not publish. Homepage layout cannot be restored from Storely.",
+    inputSchema: {
+      type: "object",
+      properties: { sectionId: { type: "string" }, revisionId: { type: "string" } },
+      required: ["sectionId", "revisionId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "render_website_preview",
+    description: "Photograph this store's published website on one of its verified domains, using that site's own renderer. device is desktop or mobile. version must be published. Draft is rejected because homepage edits are not stored. Returns a PNG plus overflow, broken images, and page errors. Does not publish and does not accept a URL.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        page: { type: "string" },
+        device: { type: "string", enum: ["desktop", "mobile"] },
+        version: { type: "string", enum: ["published", "draft"] },
+        width: { type: "integer" },
+      },
+      required: ["device", "version"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 export const MCP_INSTRUCTIONS = [
   "You are connected to one Storely store, as the person who authorized this connection.",
   "You may read and edit that store's products, categories, articles, customers, orders, discounts, popups, quantity bundles, reviews of delivered orders, inventory, shipping rates, abandoned checkouts, email and SMS drafts, store contact, currency, language, logo, and brand colors.",
   "You cannot run SQL, change the schema, read payment secrets, or add a feature the store does not already save.",
+  "Call get_website_structure before editing the public site. The homepage, header, and footer layout are that store's own code. They are read-only here and need a deploy of that site. Do not invent a hero, banner, FAQ, or gallery. Articles, policies, collections, events, popups, the logo, and brand colors are the parts Storely stores, and those updates show on the next storefront load without a deploy.",
   "This store has no homepage banner editor, no wheel popup, no click or add-to-cart popup trigger, no upsell module, no WhatsApp templates, no 301 redirects, and no canonical field. Popup designs keep the last 20 versions; restore_popup_revision puts one back on a draft or paused popup.",
   "Popup triggers are immediate, delay, scroll, and exit. Design with get_popup_design_schema, list_popup_templates, get_brand_assets, and product images. Save a draft, then call render_popup_preview and look at the screenshots before changing layout. update_popup_block changes one block. Ask before publishing a popup.",
   "Free shipping starts at 250 and that threshold cannot be changed.",

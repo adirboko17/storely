@@ -53,10 +53,26 @@ const SHADOW: Record<PopupShadow, string> = {
 
 const FONT: Record<PopupFont, string> = {
   inherit: "inherit",
-  heebo: 'var(--font-assistant), "Heebo", sans-serif',
+  heebo: '"Heebo", "Assistant", sans-serif',
   frank: '"Frank Ruhl Libre", "Times New Roman", serif',
   playfair: '"Playfair Display", "Frank Ruhl Libre", serif',
 };
+
+export type PopupTextFont = "inherit" | "heebo" | "frank";
+export type PopupTextWeight = "regular" | "medium" | "semibold" | "bold";
+
+export function popupFontStack(font: PopupTextFont | undefined) {
+  if (font === "heebo") return FONT.heebo;
+  if (font === "frank") return FONT.frank;
+  return undefined;
+}
+
+export function popupFontWeight(weight: PopupTextWeight | undefined) {
+  if (weight === "bold") return 700;
+  if (weight === "semibold") return 600;
+  if (weight === "medium") return 500;
+  return 400;
+}
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
