@@ -39,6 +39,7 @@ type Row = {
   sku: string;
   barcode: string;
   stock: string;
+  variantStock: boolean;
   description: string;
   tags: string;
   badge: string;
@@ -58,6 +59,7 @@ function toRow(product: Product): Row {
     sku: product.sku,
     barcode: product.barcode ?? "",
     stock: String(product.stock),
+    variantStock: (product.quantities?.length ?? 0) > 1,
     description: product.description ?? "",
     tags: product.tags.join(", "),
     badge: product.badge ?? "",
@@ -98,6 +100,7 @@ export function BulkEditor({ products, onClose }: { products: Product[]; onClose
         const category = row.category.trim();
         const collections = product.collections.map((name) => (name === product.category ? category : name)).filter(Boolean);
         if (category && !collections.includes(category)) collections.unshift(category);
+        const stock = row.variantStock ? product.stock : Math.max(0, Number.parseInt(row.stock, 10) || 0);
         await saveCatalogProduct({
           ...product,
           title: row.title.trim(),
@@ -110,7 +113,8 @@ export function BulkEditor({ products, onClose }: { products: Product[]; onClose
           cost: money(row.cost) ?? 0,
           sku: row.sku.trim(),
           barcode: row.barcode.trim() || undefined,
-          stock: Math.max(0, Number.parseInt(row.stock, 10) || 0),
+          stock,
+          quantities: row.variantStock ? product.quantities : product.quantities ? [stock] : undefined,
           description: row.description,
           tags: row.tags.split(/[,|]/).map((tag) => tag.trim()).filter(Boolean),
           badge: row.badge.trim().slice(0, 24),
@@ -199,6 +203,9 @@ function Cell({ row, column, onChange }: { row: Row; column: ColumnId; onChange:
   }
   if (column === "description") {
     return <textarea value={row.description} rows={1} onChange={(event) => onChange({ description: event.target.value })} className="block w-full resize-y border-0 bg-transparent px-3 py-2 text-sm leading-5 outline-none focus:bg-[#f3f7ff]" />;
+  }
+  if (column === "stock" && row.variantStock) {
+    return <div dir="ltr" title="למוצר יש וריאנטים. עדכון המלאי נעשה במסך המלאי לכל וריאנט" className="flex h-10 items-center justify-end px-3 text-sm text-[#8a8a8a]">{row.stock}</div>;
   }
   const numeric = column === "price" || column === "compare" || column === "cost" || column === "stock";
   const value = row[column];
