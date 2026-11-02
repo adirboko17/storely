@@ -200,6 +200,12 @@ begin
     raise exception 'transactional mail was allowed after a bounce';
   end if;
 
+  insert into public.customers (store_id, name, email, phone, subscribed)
+  values (store_id, 'Still In', 'clear@example.test', '0500000002', true);
+  if not private.marketing_send_allowed(store_id, 'email', 'Clear@example.test', 'marketing') then
+    raise exception 'a subscribed address was blocked by another customer suppression';
+  end if;
+
   update test_auth set uid = staff_id;
   begin
     perform public.save_store_sections(store_id, jsonb_build_object('marketing', '{}'::jsonb));

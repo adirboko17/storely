@@ -57,7 +57,7 @@ export function CampaignsScreen() {
                 <b className="block">{campaign.name}</b>
                 <span className="text-xs text-ink-secondary">{campaignStatusLabel(campaign.status)}</span>
               </div>
-              <span className="text-sm">{audienceLabel(campaign.audience)}</span>
+              <span className="text-sm">{campaign.savedSegmentName ?? audienceLabel(campaign.audience)}</span>
               <span className="text-sm">{campaign.scheduledAt ? new Date(campaign.scheduledAt).toLocaleString("he-IL") : "—"}</span>
               <button type="button" className="h-7 justify-self-start rounded-lg border-0 bg-[#f1f1f1] px-2.5 text-[12px] font-semibold" onClick={(event) => { event.stopPropagation(); void copy(campaign); }}>שכפול</button>
             </div>

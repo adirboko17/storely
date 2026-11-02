@@ -98,7 +98,30 @@ export function replaceAbandoned(checkouts: AbandonedCheckout[]) {
 
 export function customerOrderCount(customerId: number) {
   if (customerId < 0) return 0;
-  return ORDERS.reduce((count, order) => count + (order.customerIndex === customerId ? 1 : 0), 0);
+  return customerCommerce(customerId).orders;
+}
+
+let commerceVersion = -1;
+const commerceByCustomer = new Map<number, { orders: number; spent: number }>();
+
+function customerCommerce(customerId: number) {
+  if (commerceVersion !== current.version) {
+    commerceByCustomer.clear();
+    for (const order of ORDERS) {
+      if (order.customerIndex < 0) continue;
+      const row = commerceByCustomer.get(order.customerIndex) ?? { orders: 0, spent: 0 };
+      row.orders += 1;
+      row.spent += order.totalAmount ?? toOrderView(order).total;
+      commerceByCustomer.set(order.customerIndex, row);
+    }
+    commerceVersion = current.version;
+  }
+  return commerceByCustomer.get(customerId) ?? { orders: 0, spent: 0 };
+}
+
+export function customerSpentAmount(customerId: number) {
+  if (customerId < 0) return 0;
+  return customerCommerce(customerId).spent;
 }
 
 function resolve(orderId: number): ResolvedOrder {

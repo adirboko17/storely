@@ -10,16 +10,14 @@ import { Icon } from "@/components/ui/icon";
 import { CUSTOMER_PAGE_SIZE, focusCustomerPage, isCustomerPageReady } from "@/data/live/admin-slices";
 import { getStoreIdentity } from "@/data/live/store-identity";
 import { LOCAL_CUSTOMER_ID, getPeopleVersion, listPeople, profileOf, subscribePeople } from "@/data/mock/people-session";
-import { getOrderSessionVersion, listResolvedOrders, subscribeOrderSession } from "@/data/mock/order-session";
+import { customerSpentAmount, getOrderSessionVersion, subscribeOrderSession } from "@/data/mock/order-session";
 import { formatMoney } from "@/lib/formatting/money";
 import type { Customer } from "@/types/commerce";
 
 const clearInput = { backgroundColor: "transparent", color: "#303030" } as const;
 
 export function customerSpent(customerId: number, _orderCount: number) {
-  return listResolvedOrders()
-    .filter((order) => order.customer.id === customerId)
-    .reduce((sum, order) => sum + order.total, 0);
+  return customerSpentAmount(customerId);
 }
 
 function matchesCustomer(person: Customer, query: string, applied: string) {

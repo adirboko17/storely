@@ -11,6 +11,7 @@ import { FLOW_TRIGGERS, TRIGGER_WINDOWS, createEmail, createSms, deleteFlow, ema
 import { getOrderSessionVersion, subscribeOrderSession } from "@/data/mock/order-session";
 import { getPeopleVersion, subscribePeople } from "@/data/mock/people-session";
 import { customerCountLabel, timedTrigger, triggerAudienceCount } from "@/data/mock/trigger-audience";
+import { countCustomerSegment, customerSegmentDetail, listCustomerSegments, type CustomerSegment } from "@/lib/marketing/customer-segments";
 import { SimulationPanel } from "@/components/admin/marketing/simulation-panel";
 import { cn } from "@/lib/cn";
 
@@ -764,6 +765,12 @@ function Library({ onConfirm }: { onConfirm: (kind: StepKind) => void }) {
 function TriggerDialog({ trigger, lookback, onClose, onConfirm }: { trigger: string; lookback?: number; onClose: () => void; onConfirm: (trigger: string, lookback: number) => void }) {
   const [picked, setPicked] = useState(trigger === "בחרו טריגר" ? "" : trigger);
   const [range, setRange] = useState(false);
+  const [segments, setSegments] = useState<CustomerSegment[]>([]);
+  useEffect(() => {
+    let alive = true;
+    listCustomerSegments().then((rows) => { if (alive) setSegments(rows); }).catch(() => { if (alive) setSegments([]); });
+    return () => { alive = false; };
+  }, []);
   return (
     <>
       <FlowWindow
@@ -790,6 +797,19 @@ function TriggerDialog({ trigger, lookback, onClose, onConfirm }: { trigger: str
                     </button>
                   );
                 })}
+                {group === "קהל" ? segments.map((segment) => {
+                  const active = picked === segment.name;
+                  return (
+                    <button key={segment.id} type="button" onClick={() => setPicked(segment.name)} className="flex w-full items-center gap-2.5 border-0 border-b border-[#f3f3f3] px-3 py-2.5 text-start last:border-b-0" style={{ background: active ? "#f7f7f7" : "#fff" }}>
+                      <span className="grid size-4 shrink-0 place-items-center rounded-full" style={{ boxShadow: active ? "inset 0 0 0 5px #1a1a1a" : "inset 0 0 0 1.5px #c9c9c9" }} />
+                      <span className="min-w-0 flex-1">
+                        <b className="block truncate text-sm">{segment.name}</b>
+                        <span className="block truncate text-[12px] text-[#616161]">{customerSegmentDetail(segment)}</span>
+                      </span>
+                      <span className="shrink-0 text-[12px] font-semibold text-[#1a1a1a]">{segment.source === "quiz" ? "שאלון" : countCustomerSegment(segment)}</span>
+                    </button>
+                  );
+                }) : null}
               </div>
             </div>
           ))}
@@ -842,6 +862,12 @@ function RangeDialog({ label, lookback, onClose, onConfirm }: { label: string; l
 function ConditionEditor({ step, onChange }: { step: Extract<FlowStep, { type: "cond" }>; onChange: (next: FlowStep) => void }) {
   const match = step.match === "any" ? "any" : "all";
   const rules = step.rules?.length ? step.rules : [];
+  const [segments, setSegments] = useState<CustomerSegment[]>([]);
+  useEffect(() => {
+    let alive = true;
+    listCustomerSegments().then((rows) => { if (alive) setSegments(rows); }).catch(() => { if (alive) setSegments([]); });
+    return () => { alive = false; };
+  }, []);
 
   function write(nextRules: FlowRule[], nextMatch: "all" | "any" = match) {
     onChange({ ...step, match: nextMatch, rules: nextRules, text: undefined });
@@ -875,6 +901,11 @@ function ConditionEditor({ step, onChange }: { step: Extract<FlowStep, { type: "
                 <select value={rule.value === "no" ? "no" : "yes"} onChange={(event) => changeRule(index, { value: event.target.value })} className="h-[34px] rounded-[10px] border border-[#c9c9c9] bg-white px-2 text-sm">
                   <option value="yes">כן</option>
                   <option value="no">לא</option>
+                </select>
+              ) : field.id === "segment" ? (
+                <select value={rule.value} onChange={(event) => changeRule(index, { value: event.target.value })} className="h-[34px] rounded-[10px] border border-[#c9c9c9] bg-white px-2 text-sm">
+                  <option value="">{segments.length ? "בחרו פלח" : "אין פלחים שמורים"}</option>
+                  {segments.map((segment) => <option key={segment.id} value={segment.name}>{segment.name}</option>)}
                 </select>
               ) : (
                 <input value={rule.value} onChange={(event) => changeRule(index, { value: field.kind === "number" ? event.target.value.replace(/[^\d]/g, "") : event.target.value })} className="h-[34px] rounded-[10px] border border-[#c9c9c9] bg-white px-2 text-sm" />

@@ -112,3 +112,22 @@ export function placeStorefrontOrder(
     payment_status: input.paymentStatus ?? "paid",
   });
 }
+
+/** Saves the homepage quiz answers. Call this from the storefront server when the quiz form is submitted. */
+export function submitStoreQuiz(
+  input: ShopCall & {
+    email: string;
+    name?: string;
+    phone?: string;
+    answers: { questionId: string; choiceId: string }[];
+    marketingConsent: boolean;
+  },
+) {
+  return storefrontRpc(input, "submit_store_quiz", {
+    email: input.email,
+    person_name: input.name ?? "",
+    phone: input.phone ?? "",
+    answers: input.answers,
+    marketing_consent: input.marketingConsent,
+  });
+}

@@ -107,7 +107,7 @@ export function QuizEditorScreen() {
           )}
         </div>
       </div>
-      <div className="bg-[#f3f3f3] px-4 py-5">
+      <div className="min-h-[calc(100dvh-50px)] flex-1 bg-[#f3f3f3] px-4 py-5">
         <p className="mx-auto mb-4 mt-0 max-w-[1100px] text-sm text-[#4a4a4a]">
           {saved.status === "active" && stored ? "הגרסה האחרונה שנשמרה מוצגת בדף הבית." : "פרסום מציג את השאלון הזה בדף הבית."}
           {" "}הקוד שנשלח ללקוחה נשאר 5% על ההזמנה הראשונה.
@@ -121,68 +121,46 @@ export function QuizEditorScreen() {
 }
 
 const NEW_QUESTION = "__new";
-const selectClass = "h-[34px] rounded-[10px] border border-[#c9c9c9] bg-white px-2 text-sm";
+const selectClass = "h-8 rounded-lg border border-[#8a8a8a] bg-white px-2 text-sm";
+
+type Column = { question: QuizQuestion; picked: QuizChoice | null; via: QuizChoice | null; viaQuestionId: string | null };
 
 function FlowEditor({ document, products, onChange }: { document: QuizDocument; products: QuizProductOption[]; onChange: (next: QuizDocument) => void }) {
-  const [open, setOpen] = useState<Record<string, boolean>>({});
-  const loose = document.questions.filter((question) => !quizReaches(document, question.id));
+  const [picked, setPicked] = useState<string[]>([]);
+  const columns: Column[] = [];
+  let ending: QuizChoice | null = null;
+  let cursor = document.entry;
+  let via: QuizChoice | null = null;
+  let viaQuestionId: string | null = null;
+  const seen = new Set<string>();
+  for (let depth = 0; ; depth += 1) {
+    const question = document.questions.find((item) => item.id === cursor);
+    if (!question || seen.has(question.id)) break;
+    seen.add(question.id);
+    const choice = question.choices.find((item) => item.id === picked[depth]) ?? null;
+    columns.push({ question, picked: choice, via, viaQuestionId });
+    if (!choice) break;
+    if (choice.next === FORM) {
+      ending = choice;
+      break;
+    }
+    via = choice;
+    viaQuestionId = question.id;
+    cursor = choice.next;
+  }
+  const endingQuestionId = ending ? columns[columns.length - 1]?.question.id ?? null : null;
+  const loose = document.questions.filter((item) => !quizReaches(document, item.id));
 
-  function reveal(choiceId: string) {
-    setOpen((current) => ({ ...current, [choiceId]: true }));
+  function pick(depth: number, choiceId: string) {
+    setPicked((current) => (current[depth] === choiceId && current.length === depth + 1 ? current : [...current.slice(0, depth), choiceId]));
   }
 
-  function dropLoose() {
-    onChange({ ...document, questions: document.questions.filter((question) => quizReaches(document, question.id)) });
+  function updateQuestion(next: QuizQuestion) {
+    onChange({ ...document, questions: document.questions.map((item) => (item.id === next.id ? next : item)) });
   }
 
-  return (
-    <div className="mx-auto flex max-w-[760px] flex-col gap-3">
-      <p className="m-0 text-sm text-[#4a4a4a]">כל תשובה נפתחת אל השאלה שבאה אחריה. אם שתי תשובות ממשיכות לאותו מקום, כתוב את זה במפורש.</p>
-      <QuestionCard document={document} questionId={document.entry} depth={1} products={products} ancestors={[]} open={open} onToggle={(choiceId) => setOpen((current) => ({ ...current, [choiceId]: !current[choiceId] }))} onReveal={reveal} onChange={onChange} />
-      {loose.length ? (
-        <section className="rounded-[14px] bg-white p-4 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
-          <b className="text-sm">שאלות שאף תשובה לא מגיעה אליהן</b>
-          <p className="mb-3 mt-1 text-xs text-[#8a8a8a]">{loose.length === 1 ? "שאלה אחת נותקה מהמסלול." : `${loose.length} שאלות נותקו מהמסלול.`}</p>
-          <button type="button" onClick={dropLoose} className="h-9 rounded-lg border-0 bg-[#f1f1f1] px-3 text-sm font-semibold">מחיקה</button>
-        </section>
-      ) : null}
-    </div>
-  );
-}
-
-function QuestionCard({
-  document,
-  questionId,
-  depth,
-  products,
-  ancestors,
-  open,
-  onToggle,
-  onReveal,
-  onChange,
-}: {
-  document: QuizDocument;
-  questionId: string;
-  depth: number;
-  products: QuizProductOption[];
-  ancestors: string[];
-  open: Record<string, boolean>;
-  onToggle: (choiceId: string) => void;
-  onReveal: (choiceId: string) => void;
-  onChange: (next: QuizDocument) => void;
-}) {
-  const question = document.questions.find((item) => item.id === questionId);
-  if (!question) return <p className="m-0 text-sm text-[#8a1f11]">השאלה הבאה נמחקה.</p>;
-  if (ancestors.includes(question.id)) return <p className="m-0 text-sm text-[#8a1f11]">המסלול חוזר לשאלה שכבר הופיעה למעלה.</p>;
-  const step: QuizQuestion = question;
-  const trail = [...ancestors, step.id];
-
-  function update(next: QuizQuestion) {
-    onChange({ ...document, questions: document.questions.map((item) => item.id === next.id ? next : item) });
-  }
-
-  function patchChoice(choiceId: string, patch: Partial<QuizChoice>, extra: QuizQuestion[] = []) {
-    const questions = document.questions.map((item) => item.id !== step.id ? item : {
+  function patchChoice(questionId: string, choiceId: string, patch: Partial<QuizChoice>, extra: QuizQuestion[] = []) {
+    const questions = document.questions.map((item) => item.id !== questionId ? item : {
       ...item,
       choices: item.choices.map((choice) => {
         if (choice.id !== choiceId) return choice;
@@ -194,40 +172,17 @@ function QuestionCard({
     onChange({ ...document, questions: [...questions, ...extra] });
   }
 
-  function moveChoice(choiceId: string, direction: -1 | 1) {
-    const from = step.choices.findIndex((choice) => choice.id === choiceId);
-    const target = from + direction;
-    if (from < 0 || target < 0 || target >= step.choices.length) return;
-    const choices = [...step.choices];
-    const [item] = choices.splice(from, 1);
-    if (!item) return;
-    choices.splice(target, 0, item);
-    update({ ...step, choices });
-  }
-
-  function addChoice() {
-    if (step.choices.length >= 12) return;
-    update({ ...step, choices: [...step.choices, { id: newQuizId("a"), label: "", next: FORM, products: [] }] });
-  }
-
-  function removeChoice(choiceId: string) {
-    if (step.choices.length < 2) return;
-    update({ ...step, choices: step.choices.filter((choice) => choice.id !== choiceId) });
-  }
-
-  function follow(choice: QuizChoice, value: string) {
+  function lead(questionId: string, choice: QuizChoice, value: string) {
     if (value === NEW_QUESTION) {
       if (document.questions.length >= 40) return;
       const created: QuizQuestion = { id: newQuizId("q"), title: "", choices: [{ id: newQuizId("a"), label: "", next: FORM, products: [] }] };
-      patchChoice(choice.id, { next: created.id }, [created]);
-      onReveal(choice.id);
+      patchChoice(questionId, choice.id, { next: created.id }, [created]);
       return;
     }
-    patchChoice(choice.id, { next: value });
-    if (value !== FORM) onReveal(choice.id);
+    patchChoice(questionId, choice.id, { next: value });
   }
 
-  function separate(choice: QuizChoice) {
+  function separate(questionId: string, choice: QuizChoice) {
     const source = document.questions.find((item) => item.id === choice.next);
     if (!source || document.questions.length >= 40) return;
     const copy: QuizQuestion = {
@@ -235,112 +190,232 @@ function QuestionCard({
       title: source.title,
       choices: source.choices.map((item) => ({ ...item, id: newQuizId("a"), products: [...item.products] })),
     };
-    patchChoice(choice.id, { next: copy.id }, [copy]);
-    onReveal(choice.id);
+    patchChoice(questionId, choice.id, { next: copy.id }, [copy]);
   }
 
-  function removeQuestion() {
-    if (step.id === document.entry) return;
+  function removeQuestion(questionId: string, depth: number) {
+    if (questionId === document.entry) return;
     const questions = document.questions
-      .filter((item) => item.id !== step.id)
-      .map((item) => ({ ...item, choices: item.choices.map((choice) => choice.next === step.id ? { ...choice, next: FORM, products: [] } : choice) }));
+      .filter((item) => item.id !== questionId)
+      .map((item) => ({ ...item, choices: item.choices.map((choice) => (choice.next === questionId ? { ...choice, next: FORM } : choice)) }));
     const next = { ...document, questions };
     onChange({ ...next, questions: questions.filter((item) => quizReaches(next, item.id)) });
+    setPicked((current) => current.slice(0, depth));
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-[14px] bg-white p-4 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
-      <div className="flex items-center gap-2">
-        <b className="flex-1 text-sm">{depth === 1 ? "השאלה הראשונה" : `שאלה ${depth}`}</b>
-        {question.id !== document.entry ? <button type="button" onClick={removeQuestion} className="h-8 rounded-lg border-0 bg-[#f1f1f1] px-2.5 text-xs font-semibold">מחיקת השאלה</button> : null}
+    <div className="mx-auto flex max-w-[1200px] flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white px-4 py-3 shadow-[0_0_0_1px_rgba(26,26,26,.07)]">
+        <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#f1f1f1] text-sm">i</span>
+        <p className="m-0 flex-1 text-sm text-[#4a4a4a]">לוחצים על תשובה כדי לפתוח את השלב שבא אחריה. שלבים קודמים מתכווצים, ולחיצה עליהם פותחת אותם שוב.</p>
+        <span className="text-[13px] text-ink-secondary">{document.questions.length} שאלות בשאלון</span>
       </div>
-      <label className="text-xs font-semibold text-[#616161]">
-        נוסח השאלה
-        <textarea value={question.title} onChange={(event) => update({ ...question, title: event.target.value.slice(0, 160) })} className={popupAreaClass} rows={2} />
-      </label>
-      <div className="flex flex-col gap-2">
-        {question.choices.map((choice, index) => {
-          const nextQuestion = document.questions.find((item) => item.id === choice.next);
-          const owner = firstAnswer(document.questions, choice.next, choice.id);
-          const shared = Boolean(owner) && !ancestors.includes(choice.next);
-          const expanded = open[choice.id] === true;
-          return (
-            <div key={choice.id} className="flex flex-col gap-2 rounded-2xl bg-[#f6f6f6] p-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-[#8a8a8a]">{index + 1}</span>
-                <input aria-label={`תשובה ${index + 1}`} value={choice.label} onChange={(event) => patchChoice(choice.id, { label: event.target.value.slice(0, 80) })} placeholder="טקסט התשובה" className="h-[34px] min-w-0 flex-1 rounded-[10px] border border-[#c9c9c9] bg-white px-3 text-sm" />
-                <button type="button" aria-label="הזזה למעלה" onClick={() => moveChoice(choice.id, -1)} disabled={index === 0} className="grid size-7 place-items-center rounded-lg border-0 bg-white text-sm disabled:opacity-30">↑</button>
-                <button type="button" aria-label="הזזה למטה" onClick={() => moveChoice(choice.id, 1)} disabled={index === question.choices.length - 1} className="grid size-7 place-items-center rounded-lg border-0 bg-white text-sm disabled:opacity-30">↓</button>
-                <button type="button" aria-label="מחיקת תשובה" onClick={() => removeChoice(choice.id)} disabled={question.choices.length < 2} className="grid size-7 place-items-center rounded-lg border-0 bg-white text-sm disabled:opacity-30">×</button>
+      <div className="flex flex-wrap items-start justify-start gap-x-0 gap-y-3 pb-4">
+        {columns.map((column, depth) => (
+          <div key={`${column.question.id}-${depth}`} className="flex shrink-0 items-start">
+          {depth > 0 ? <Connector /> : null}
+          {depth < columns.length - 1 ? (
+            <button type="button" onClick={() => setPicked((current) => current.slice(0, depth))} className="flex w-[190px] shrink-0 flex-col gap-2 rounded-2xl border-0 bg-white p-3 text-start shadow-[0_0_0_1px_rgba(26,26,26,.07),0_1px_2px_rgba(26,26,26,.06)] hover:shadow-[0_0_0_1px_#8a8a8a]">
+              <span className="flex items-center gap-2">
+                <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#303030] text-[12px] font-bold text-white">{depth + 1}</span>
+                <span className="text-[12px] font-semibold text-ink-secondary">{depth === 0 ? "השאלה הראשונה" : `שלב ${depth + 1}`}</span>
+              </span>
+              <span className="line-clamp-2 text-[13px] leading-5 font-semibold">{column.question.title.trim() || "שאלה בלי נוסח"}</span>
+              {column.picked ? <span className="self-start rounded-full bg-[#303030] px-2.5 py-1 text-[12px] font-semibold text-white">{column.picked.label.trim() || "תשובה"}</span> : null}
+              <span className="text-[12px] text-ink-secondary">לחיצה לעריכה</span>
+            </button>
+          ) : (
+          <StageColumn
+            document={document}
+            column={column}
+            depth={depth}
+            onPick={(choiceId) => pick(depth, choiceId)}
+            onUpdate={updateQuestion}
+            onPatch={(choiceId, patch) => patchChoice(column.question.id, choiceId, patch)}
+            onLead={(choice, value) => lead(column.question.id, choice, value)}
+            onSeparate={column.via && column.viaQuestionId ? () => separate(column.viaQuestionId!, column.via!) : undefined}
+            onRemove={() => removeQuestion(column.question.id, depth - 1)}
+            onDropPick={() => setPicked((current) => current.slice(0, depth))}
+          />
+          )}
+          </div>
+        ))}
+        {ending && endingQuestionId ? (
+          <div className="flex shrink-0 items-start">
+            <Connector />
+            <section className="flex w-[320px] shrink-0 flex-col gap-3 overflow-hidden rounded-2xl bg-white shadow-[0_0_0_1px_rgba(26,26,26,.07),0_1px_2px_rgba(26,26,26,.06)]">
+              <div className="flex items-center gap-2.5 bg-[#f7f7f7] px-4 py-3">
+                <span className="grid size-7 place-items-center rounded-full bg-[#e3f1df] text-sm font-bold text-[#0c5132]">✓</span>
+                <div>
+                  <b className="block text-sm">טופס הפרטים</b>
+                  <span className="block text-[12px] text-ink-secondary">סוף המסלול</span>
+                </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <select aria-label="לאן התשובה ממשיכה" value={choice.next === FORM ? FORM : choice.next} onChange={(event) => follow(choice, event.target.value)} className={selectClass}>
-                  <option value={FORM}>מסיימים בטופס</option>
-                  {choice.next !== FORM ? <option value={choice.next}>ממשיכים לשאלה הבאה</option> : null}
-                  <option value={NEW_QUESTION}>פותחים שאלה חדשה</option>
-                  {continuations(document, question.id, choice.next).map((item) => (
-                    <option key={item.id} value={item.id}>ממשיכים כמו «{item.via}»</option>
-                  ))}
-                </select>
-                {choice.next !== FORM ? (
-                  <button type="button" onClick={() => onToggle(choice.id)} className="h-[34px] rounded-lg border-0 bg-white px-3 text-sm font-semibold">
-                    {expanded ? "הסתרה" : "השאלה הבאה"}
-                  </button>
+              <div className="flex flex-col gap-3 px-4 pb-4">
+                <p className="m-0 text-[13px] leading-5 text-ink-secondary">מי שבחרה «{ending.label.trim() || "התשובה הזו"}» עוברת לטופס ומקבלת את ה-5%. אפשר לבחור מוצרים שיוצגו לה בסוף.</p>
+                <ProductPicker products={products} selected={ending.products} onChange={(handles) => patchChoice(endingQuestionId, ending!.id, { products: handles })} />
+              </div>
+            </section>
+          </div>
+        ) : (
+          <div className="flex shrink-0 items-start">
+            <Connector muted />
+            <div className="grid h-[180px] w-[260px] shrink-0 place-items-center rounded-2xl border-2 border-dashed border-[#d4d4d4] px-6 text-center text-sm text-[#8a8a8a]">
+              בחרו תשובה כדי לראות לאן היא ממשיכה
+            </div>
+          </div>
+        )}
+      </div>
+      {loose.length ? (
+        <section className="rounded-xl bg-white p-4 shadow-[0_0_0_1px_rgba(26,26,26,.07)]">
+          <p className="m-0 text-sm">{loose.length === 1 ? "שאלה אחת לא מחוברת לאף תשובה." : `${loose.length} שאלות לא מחוברות לאף תשובה.`}</p>
+          <button type="button" onClick={() => onChange({ ...document, questions: document.questions.filter((item) => quizReaches(document, item.id)) })} className="mt-2 h-8 rounded-lg border-0 bg-[#f1f1f1] px-3 text-sm font-semibold">מחיקה</button>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+function StageColumn({
+  document,
+  column,
+  depth,
+  onPick,
+  onUpdate,
+  onPatch,
+  onLead,
+  onSeparate,
+  onRemove,
+  onDropPick,
+}: {
+  document: QuizDocument;
+  column: Column;
+  depth: number;
+  onPick: (choiceId: string) => void;
+  onUpdate: (next: QuizQuestion) => void;
+  onPatch: (choiceId: string, patch: Partial<QuizChoice>) => void;
+  onLead: (choice: QuizChoice, value: string) => void;
+  onSeparate?: () => void;
+  onRemove: () => void;
+  onDropPick: () => void;
+}) {
+  const { question, picked, via } = column;
+  const shared = via ? otherAnswers(document, question.id, via.id) : [];
+
+  function move(choiceId: string, direction: -1 | 1) {
+    const from = question.choices.findIndex((choice) => choice.id === choiceId);
+    const target = from + direction;
+    if (from < 0 || target < 0 || target >= question.choices.length) return;
+    const choices = [...question.choices];
+    const [item] = choices.splice(from, 1);
+    if (!item) return;
+    choices.splice(target, 0, item);
+    onUpdate({ ...question, choices });
+  }
+
+  function remove(choiceId: string) {
+    if (question.choices.length < 2) return;
+    if (picked?.id === choiceId) onDropPick();
+    onUpdate({ ...question, choices: question.choices.filter((choice) => choice.id !== choiceId) });
+  }
+
+
+  return (
+    <section className="flex w-[340px] shrink-0 flex-col overflow-hidden rounded-2xl bg-white shadow-[0_0_0_1px_rgba(26,26,26,.07),0_1px_2px_rgba(26,26,26,.06)]">
+      <div className="flex items-center gap-2.5 bg-[#f7f7f7] px-4 py-3">
+        <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#303030] text-[13px] font-bold text-white">{depth + 1}</span>
+        <div className="min-w-0 flex-1">
+          <b className="block text-sm">{depth === 0 ? "השאלה הראשונה" : `שלב ${depth + 1}`}</b>
+          {via ? <span className="block truncate text-[12px] text-ink-secondary">אחרי «{via.label.trim() || "תשובה"}»</span> : <span className="block text-[12px] text-ink-secondary">כאן כל אחת מתחילה</span>}
+        </div>
+        {depth > 0 ? <button type="button" onClick={onRemove} className="h-7 rounded-lg border-0 bg-white px-2.5 text-[12px] font-semibold text-[#8e1f0b] shadow-[0_0_0_1px_#e3e3e3]">מחיקה</button> : null}
+      </div>
+      <div className="flex flex-col gap-3 p-4">
+        {shared.length && onSeparate ? (
+          <div className="rounded-xl bg-[#fff4d6] px-3 py-2 text-[13px] leading-5 text-[#4f3b00]">
+            גם {shared.join(", ")} מגיעות לשאלה הזו, אז שינוי כאן משנה גם אצלן.
+            <button type="button" onClick={onSeparate} className="ms-1 border-0 bg-transparent p-0 text-[13px] font-semibold underline">הפרדה לשאלה משלה</button>
+          </div>
+        ) : null}
+        <textarea value={question.title} onChange={(event) => onUpdate({ ...question, title: event.target.value.slice(0, 160) })} placeholder="כתבו את השאלה" rows={2} className="w-full resize-none rounded-xl border border-transparent bg-[#f7f7f7] px-3 py-2.5 text-[15px] leading-6 font-bold outline-none focus:border-[#8a8a8a] focus:bg-white" />
+        <span className="text-[12px] font-semibold text-ink-secondary">תשובות</span>
+        <div className="flex flex-col gap-2">
+          {question.choices.map((choice, index) => {
+            const active = picked?.id === choice.id;
+            const ends = choice.next === FORM;
+            const nextTitle = document.questions.find((item) => item.id === choice.next)?.title.trim();
+            const siblings = siblingStages(document, question.id, choice.next);
+            return (
+              <div key={choice.id} className="overflow-hidden rounded-xl transition-shadow" style={{ boxShadow: active ? "0 0 0 2px #303030" : "0 0 0 1px #e3e3e3", background: active ? "#fff" : "#fcfcfc" }}>
+                <div className="flex cursor-pointer items-center gap-2 px-2.5 py-2" onClick={() => onPick(choice.id)}>
+                  <span className="grid size-6 shrink-0 place-items-center rounded-full text-[12px] font-semibold" style={{ background: active ? "#303030" : "#f1f1f1", color: active ? "#fff" : "#4a4a4a" }}>{index + 1}</span>
+                  <input value={choice.label} onFocus={() => onPick(choice.id)} onChange={(event) => onPatch(choice.id, { label: event.target.value.slice(0, 80) })} placeholder="כתבו תשובה" className="h-8 min-w-0 flex-1 border-0 bg-transparent px-1 text-sm outline-none" />
+                  <span className="shrink-0 rounded-full px-2.5 py-1 text-[12px] font-semibold" style={{ background: ends ? "#e3f1df" : "#eef2ff", color: ends ? "#0c5132" : "#2c3e8f" }}>{ends ? "לטופס" : "ממשיכה ‹"}</span>
+                </div>
+                {active ? (
+                  <div className="flex flex-col gap-2 bg-[#f7f7f7] px-3 py-2.5">
+                    <label className="text-[12px] font-semibold text-ink-secondary">
+                      לאן התשובה מובילה
+                      <select aria-label="לאן התשובה מובילה" value={ends ? FORM : choice.next} onChange={(event) => onLead(choice, event.target.value)} className={`${selectClass} mt-1 w-full font-normal`}>
+                        <option value={FORM}>מסיימת בטופס</option>
+                        {!ends ? <option value={choice.next}>ממשיכה ל: {nextTitle || "שאלה בלי נוסח"}</option> : null}
+                        <option value={NEW_QUESTION}>ממשיכה לשאלה חדשה</option>
+                        {siblings.map((item) => <option key={item.id} value={item.id}>ממשיכה כמו «{item.via}»</option>)}
+                      </select>
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <button type="button" aria-label="הזזה למעלה" onClick={() => move(choice.id, -1)} disabled={index === 0} className="grid size-7 place-items-center rounded-lg border-0 bg-white text-xs shadow-[0_0_0_1px_#e3e3e3] disabled:opacity-30">↑</button>
+                      <button type="button" aria-label="הזזה למטה" onClick={() => move(choice.id, 1)} disabled={index === question.choices.length - 1} className="grid size-7 place-items-center rounded-lg border-0 bg-white text-xs shadow-[0_0_0_1px_#e3e3e3] disabled:opacity-30">↓</button>
+                      <button type="button" onClick={() => remove(choice.id)} disabled={question.choices.length < 2} className="ms-auto h-7 border-0 bg-transparent px-1 text-xs font-semibold text-[#8e1f0b] disabled:opacity-30">מחיקת התשובה</button>
+                    </div>
+                  </div>
                 ) : null}
               </div>
-              {choice.next === FORM ? (
-                <ProductPicker products={products} selected={choice.products} onChange={(handles) => patchChoice(choice.id, { products: handles })} />
-              ) : (
-                <p className="m-0 text-xs text-[#616161]">
-                  {shared && owner ? `ממשיכה לאותה שאלה כמו «${owner.label}».` : `השאלה הבאה: ${nextQuestion?.title.trim() || "בלי נוסח"}`}
-                </p>
-              )}
-              {expanded && choice.next !== FORM && !ancestors.includes(choice.next) ? (
-                <div className="border-s-2 border-[#e3e3e3] ps-3">
-                  {shared && owner ? (
-                    <div className="mb-2 flex flex-wrap items-center gap-2">
-                      <span className="text-xs text-[#8a8a8a]">עריכה כאן משנה גם את «{owner.label}».</span>
-                      <button type="button" onClick={() => separate(choice)} className="h-7 rounded-lg border-0 bg-white px-2.5 text-xs font-semibold">הפרדה לשאלה נפרדת</button>
-                    </div>
-                  ) : null}
-                  <QuestionCard document={document} questionId={choice.next} depth={depth + 1} products={products} ancestors={trail} open={open} onToggle={onToggle} onReveal={onReveal} onChange={onChange} />
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+        <button type="button" onClick={() => { if (question.choices.length < 12) onUpdate({ ...question, choices: [...question.choices, { id: newQuizId("a"), label: "", next: FORM, products: [] }] }); }} disabled={question.choices.length >= 12} className="h-9 rounded-xl border border-dashed border-[#c9c9c9] bg-white text-sm font-semibold text-[#4a4a4a] hover:bg-[#f7f7f7] disabled:opacity-40">+ הוספת תשובה</button>
       </div>
-      <button type="button" onClick={addChoice} disabled={question.choices.length >= 12} className="h-10 rounded-xl border-0 bg-[#1a1a1a] text-sm font-semibold text-white hover:bg-[#303030] disabled:opacity-40">תשובה חדשה</button>
     </section>
   );
 }
 
-function firstAnswer(questions: QuizQuestion[], questionId: string, choiceId: string) {
-  for (const question of questions) {
-    for (const choice of question.choices) {
-      if (choice.id === choiceId) return null;
-      if (choice.next === questionId && choice.label.trim()) return { choiceId: choice.id, label: choice.label.trim() };
-    }
-  }
-  return null;
+function Connector({ muted = false }: { muted?: boolean }) {
+  return (
+    <div aria-hidden className="flex h-[68px] w-8 shrink-0 items-center justify-center">
+      <svg viewBox="0 0 32 12" width="32" height="12" fill="none" stroke={muted ? "#c9c9c9" : "#303030"} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M30 6H3M7 2L3 6l4 4" strokeDasharray={muted ? "3 3" : undefined} />
+      </svg>
+    </div>
+  );
 }
 
-function continuations(document: QuizDocument, currentQuestionId: string, currentNext: string) {
-  const question = document.questions.find((item) => item.id === currentQuestionId);
+function otherAnswers(document: QuizDocument, questionId: string, choiceId: string) {
+  const labels: string[] = [];
+  for (const question of document.questions) {
+    for (const choice of question.choices) {
+      if (choice.id !== choiceId && choice.next === questionId && choice.label.trim()) labels.push(`«${choice.label.trim()}»`);
+    }
+  }
+  return labels;
+}
+
+function siblingStages(document: QuizDocument, questionId: string, currentNext: string) {
+  const question = document.questions.find((item) => item.id === questionId);
   if (!question) return [];
   const seen = new Set<string>();
   const items: { id: string; via: string }[] = [];
   for (const choice of question.choices) {
     const via = choice.label.trim();
     if (!via || choice.next === FORM || choice.next === currentNext || seen.has(choice.next)) continue;
-    if (reaches(document.questions, choice.next, currentQuestionId)) continue;
+    if (leadsTo(document.questions, choice.next, questionId)) continue;
     seen.add(choice.next);
     items.push({ id: choice.next, via });
   }
   return items;
 }
 
-function reaches(questions: QuizQuestion[], fromId: string, targetId: string) {
+function leadsTo(questions: QuizQuestion[], fromId: string, targetId: string) {
   const seen = new Set<string>();
   const pending = [fromId];
   while (pending.length) {
