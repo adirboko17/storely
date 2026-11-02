@@ -6,9 +6,23 @@ import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { notFound } from "next/navigation";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { SlicePending, useAdminSlice } from "@/components/admin/slice-pending";
-import { assignProductSubcategory, deleteCategorySubcategory, getCatalogVersion, getCollectionDraft, listCatalogProducts, subscribeCatalog } from "@/data/mock/catalog-session";
+import { assignProductSubcategory, deleteCategorySubcategory, getCatalogVersion, getCollectionDraft, isVideoMedia, listCatalogProducts, subscribeCatalog } from "@/data/mock/catalog-session";
 import { PRODUCT_STATUS } from "@/lib/catalog/present";
 import { formatMoney } from "@/lib/formatting/money";
+import type { Product } from "@/types/commerce";
+
+function productImage(product: Product) {
+  return product.media?.find((item) => item && !isVideoMedia(item)) ?? "";
+}
+
+function ProductThumb({ product, className }: { product: Product; className: string }) {
+  const photo = productImage(product);
+  return (
+    <span className={`relative block shrink-0 overflow-hidden ${className}`} style={{ background: product.tone }}>
+      {photo ? <img src={photo} alt="" className="absolute inset-0 size-full object-cover" /> : null}
+    </span>
+  );
+}
 
 export function SubcategoryScreen({ categoryKey, subcategory }: { categoryKey: string; subcategory: string }) {
   const router = useRouter();
@@ -86,7 +100,7 @@ export function SubcategoryScreen({ categoryKey, subcategory }: { categoryKey: s
                   const inParent = product.category.trim() === categoryKey || product.collections.includes(categoryKey);
                   return (
                     <button key={product.id} type="button" className="flex w-full items-center gap-2 rounded-lg border-0 bg-transparent px-2 py-1.5 text-start text-sm hover:bg-[#f1f1f1]" onClick={() => assign(product.id, true)}>
-                      <span className="size-8 shrink-0 rounded-md" style={{ background: product.tone }} />
+                      <ProductThumb product={product} className="size-8 rounded-md" />
                       <span className="min-w-0 flex-1 truncate">{product.title}</span>
                       <span className="text-[12px] text-[#616161]">{inParent ? parentTitle : "יצורף גם לקטגוריה"}</span>
                     </button>
@@ -102,7 +116,7 @@ export function SubcategoryScreen({ categoryKey, subcategory }: { categoryKey: s
                 const status = PRODUCT_STATUS[product.status];
                 return (
                   <div key={product.id} className="flex items-center gap-3 border-b border-[#f1f1f1] py-2 last:border-0">
-                    <span className="size-10 shrink-0 rounded-lg" style={{ background: product.tone }} />
+                    <ProductThumb product={product} className="size-10 rounded-lg" />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium">{product.title}</div>
                       <div className="text-[13px] text-[#616161]">{parentTitle}</div>
