@@ -28,6 +28,12 @@ const KNOWN_ERRORS = [
   "חסרים פרטי Pulseem",
   "סיסמת Pulseem קצרה מדי",
   "מספר השולח לא תקין",
+  "מספר המסוף צריך להיות 7 עד 12 ספרות",
+  "מפתח ה-API לא תקין",
+  "PassP לא תקין",
+  "הדביקו את מפתח ה-API ואת PassP",
+  "שמירת מפתח ה-API נכשלה",
+  "שמירת PassP נכשלה",
 ];
 
 function readableError(message: string, fallback = "לא הצלחנו לפתוח את האתר") {
@@ -101,6 +107,28 @@ export async function saveStoreMessaging(_previous: { error: string } | null, fo
     clear_sms: checked(formData, "clearSms"),
   });
   if (error) return { error: readableError(error.message, "לא הצלחנו לשמור את החיבור") };
+  redirect(`/platform/${storeId}`);
+}
+
+export async function savePlatformPayment(_previous: { error: string } | null, formData: FormData) {
+  const supabase = await requireOperator();
+  const storeId = String(formData.get("storeId") ?? "");
+  if (!/^[0-9a-f-]{36}$/i.test(storeId)) return { error: "לא הצלחנו לשמור את הסליקה" };
+  const clearing = formData.get("clearPayment") === "1";
+  const { error } = clearing
+    ? await supabase.rpc("clear_store_payment_account", { target_store: storeId })
+    : await supabase.rpc("save_store_payment_account", {
+        target_store: storeId,
+        terminal: String(formData.get("terminal") ?? ""),
+        api_key: String(formData.get("apiKey") ?? ""),
+        api_password: String(formData.get("apiPassword") ?? ""),
+      });
+  if (error) {
+    const message = error.message.includes("forbidden")
+      ? "אין הרשאה לעדכן את הסליקה"
+      : readableError(error.message, "שמירת הסליקה נכשלה");
+    return { error: message };
+  }
   redirect(`/platform/${storeId}`);
 }
 

@@ -25,12 +25,7 @@ security definer
 set search_path = ''
 as $$
   select target_store is not null
-    and auth.uid() is not null
-    and (
-      private.has_store_permission(target_store, 'settings.manage', true)
-      or private.is_platform_operator('platform.stores.read')
-      or private.is_platform_operator('platform.stores.create')
-    );
+    and private.is_platform_operator('platform.stores.create');
 $$;
 
 revoke all on function private.can_manage_store_payments(uuid) from public, anon, authenticated;

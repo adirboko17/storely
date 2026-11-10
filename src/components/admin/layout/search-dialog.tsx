@@ -184,14 +184,6 @@ function buildHits(navItems: NavItem[], storefront: string, showSettings: boolea
       href: "/admin/settings",
       haystack: "הגדרות משתמשים",
     });
-    hits.push({
-      id: "page-settings-payments",
-      kind: "pages",
-      title: "סליקה",
-      hint: "הגדרות",
-      href: "/admin/settings/payments",
-      haystack: "סליקה hyp מסוף מפתח",
-    });
   }
 
   if (keys.has("content")) for (const post of listPosts()) {

@@ -314,6 +314,8 @@ declare
   placed jsonb;
   try_index integer;
   cart_text text;
+  draft_id uuid;
+  mail_items text;
 begin
   if clean_visitor !~ '^[A-Za-z0-9_-]{16,80}$' then
     return jsonb_build_object('ok', false, 'reason', 'העגלה לא תקינה');
@@ -459,6 +461,42 @@ begin
       total = excluded.total,
       recovered = false,
       updated_at = now();
+
+  select draft.id into draft_id
+  from public.checkout_drafts as draft
+  where draft.store_id = found_store and draft.visitor_key = clean_visitor;
+
+  select coalesce(string_agg(
+    coalesce(nullif(btrim(item->>'title'), ''), 'פריט') || ' × ' || coalesce(nullif(item->>'quantity', ''), '1'),
+    E'\n'
+  ), '')
+  into mail_items
+  from jsonb_array_elements(coalesce(quote->'lines', '[]'::jsonb)) as item;
+
+  begin
+    perform private.dispatch_marketing(found_store, 'checkout', jsonb_build_object(
+      'email', btrim(customer_email),
+      'name', btrim(customer_name),
+      'items', mail_items,
+      'total', trim(to_char(due, 'FM999999990.00')) || ' ₪',
+      'checkoutUrl', 'https://' || hostname || '/checkout?recover=' || coalesce(draft_id::text, ''),
+      'host', hostname,
+      'ref', clean_visitor
+    ));
+    perform private.dispatch_marketing(found_store, 'cart', jsonb_build_object(
+      'email', btrim(customer_email),
+      'name', btrim(customer_name),
+      'items', mail_items,
+      'total', trim(to_char(due, 'FM999999990.00')) || ' ₪',
+      'checkoutUrl', 'https://' || hostname || '/checkout?recover=' || coalesce(draft_id::text, ''),
+      'host', hostname,
+      'ref', clean_visitor
+    ));
+    perform private.flush_marketing_mail();
+  exception
+    when others then
+      null;
+  end;
 
   return jsonb_build_object('ok', true, 'url', 'https://pay.hyp.co.il/p/?' || signed);
 end;

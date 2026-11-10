@@ -143,7 +143,6 @@ const TITLES: Record<string, string> = {
   "/admin/analytics/reports": "דוחות",
   "/admin/analytics/live": "צפייה חיה",
   "/admin/settings": "הגדרות",
-  "/admin/settings/payments": "סליקה",
   "/admin/settings/ai": "חיבור AI",
   "/admin/settings/users": "משתמשים",
   "/admin/settings/users/new": "הוספת משתמש",
