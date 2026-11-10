@@ -20,7 +20,7 @@ STORELY_SUPABASE_URL=${url}
 STORELY_PUBLISHABLE_KEY=${key}
 STORELY_TRACKING_KEY=${input.trackingKey}
 
-מפתחות הסליקה נשארים באתר כמו שהם. Storely לא מחליף את חברת הסליקה. החיוב נשלח במטבע currency שמגיע מ-storefront_shop ומ-quote_storefront: ILS, USD או EUR. אחרי שהתשלום אושר באתר, השרת קורא ל-place_storefront_order.
+מפתחות הסליקה נשמרים ב-Storely, לא באתר. החיוב נשלח במטבע currency שמגיע מ-storefront_shop ומ-quote_storefront: ILS, USD או EUR. באישור ההזמנה השרת קורא ל-begin_storefront_payment ומעביר את הלקוח לכתובת url שחוזרת. אחרי חזרה מדף התשלום השרת קורא ל-complete_storefront_payment עם מחרוזת השאילתה כפי שהגיעה, בלי לסדר אותה מחדש.
 
 hostname בכל קריאה הוא ה-Host ששירת את הבקשה, בלי פרוטוקול ובלי נתיב. שלח רק אם הוא ${hostLine}.
 visitor_key נשמר בעוגייה: 16 עד 80 תווים, רק אותיות, ספרות, _ ו-.
@@ -61,7 +61,7 @@ design.layout הוא modal, bar או corner. design.blocks יכולים להיו
 
 עגלה שננטשה נשמרת ב-save_storefront_checkout עם visitor_key, lines ופרטי הלקוח.
 
-אחרי תשלום שהתקבל קוראים ל-place_storefront_order עם אותם שדות ועם payment_status בשם paid. זו ההזמנה, הלקוח, המלאי והקופון ב-CMS.
+begin_storefront_payment מקבל את אותם שדות של העגלה והלקוח. complete_storefront_payment יוצר את ההזמנה, הלקוח, המלאי והקופון רק אחרי שחברת הסליקה אישרה.
 
 צפייה חיה, ניתוח ולוח הבקרה מגיעים מ-record_storefront_event:
 page_view בכל עמוד,

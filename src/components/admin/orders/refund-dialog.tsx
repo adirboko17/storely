@@ -99,7 +99,7 @@ export function RefundDialog({
               <span dir="ltr">{formatMoney(amount)}</span>
             </div>
             <div className="text-[13px] text-ink-secondary">
-              ניתן להחזיר עד {formatMoney(order.total - order.refundedAmount)} · יוחזר לכרטיס ויזה •••• 4821
+              ניתן להחזיר עד {formatMoney(order.total - order.refundedAmount)} · יוחזר לכרטיס ששילם
             </div>
           </div>
           {error ? <div className="text-[13px] text-[#8e1f0b]">{error}</div> : null}

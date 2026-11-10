@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { useAdminSlice } from "@/components/admin/slice-pending";
-import { getStoreIdentity } from "@/data/live/store-identity";
+import { checkoutRecoveryHref, getStoreIdentity, getStoreIdentityVersion, subscribeStoreIdentity } from "@/data/live/store-identity";
 import { ColumnsButton, IndexDock, SearchField, darkButton, menuItem, menuPanel } from "@/components/admin/orders/chrome";
 import { Icon } from "@/components/ui/icon";
 import {
@@ -43,6 +43,8 @@ export function AbandonedListScreen() {
   const router = useRouter();
   const { menu, toggleMenu, closeMenu, toast } = useAdmin();
   useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
+  useSyncExternalStore(subscribeStoreIdentity, getStoreIdentityVersion, () => 0);
+  const hostname = getStoreIdentity().hostname;
   const checkoutsReady = useAdminSlice("checkouts");
   const checkouts = listLiveCheckouts();
   const [status, setStatus] = useState<StatusFilter>("open");
@@ -176,8 +178,23 @@ export function AbandonedListScreen() {
                       className="m-0 size-4 cursor-pointer accent-[#303030] align-middle"
                     />
                   </td>
-                  <td dir="ltr" className="px-2.5 text-right font-semibold whitespace-nowrap underline">
-                    {checkoutLabel(checkout.id)}
+                  <td className="px-2.5 whitespace-nowrap">
+                    <span dir="ltr" className="font-semibold underline">{checkoutLabel(checkout.id)}</span>
+                    <button
+                      type="button"
+                      className="ms-2 text-[13px] text-[#0b57d0] underline"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        const link = checkoutRecoveryHref(hostname, checkout.id);
+                        if (!link) {
+                          toast("לחנות עדיין אין כתובת, אז אין קישור לשלוח");
+                          return;
+                        }
+                        void navigator.clipboard.writeText(link).then(() => toast("קישור העגלה הועתק")).catch(() => toast("לא הצלחנו להעתיק"));
+                      }}
+                    >
+                      קישור
+                    </button>
                   </td>
                   <td className="px-2.5 whitespace-nowrap">{checkout.date}</td>
                   <td dir="auto" className="px-2.5 text-right whitespace-nowrap underline">

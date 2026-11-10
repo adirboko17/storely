@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { ModulePlaceholder } from "@/components/admin/shared/module-placeholder";
+import { ReturnsScreen } from "@/components/admin/orders/returns-screen";
 
 export const metadata: Metadata = { title: "החזרות והחזרים כספיים" };
 
 export default function ReturnsPage() {
-  return <ModulePlaceholder title="החזרות והחזרים כספיים" />;
+  return <ReturnsScreen />;
 }

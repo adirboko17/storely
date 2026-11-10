@@ -172,6 +172,7 @@ export function PaymentsScreen() {
           <span className="text-[12px] text-ink-secondary">סיסמת ה-API מהפורטל, לא הסיסמה שבה נכנסים אליו.</span>
         </label>
 
+        <p className="m-0 text-[13px] text-ink-secondary">אחרי חיוב מאושר Hyp מפיק חשבונית מס קבלה ושולח אותה למייל של הלקוחה. זיכוי מהמערכת שולח גם חשבונית זיכוי. סוג המסמך נקבע בפורטל, תחת הגדרת מסמך ברירת מחדל.</p>
         <div className="flex items-center justify-between gap-3 border-t border-[#ebebeb] pt-4">
           {account?.connected ? (
             <button type="button" className={`${softButton} text-[#8e1f0b]`} disabled={clearing || saving} onClick={() => void clearKeys()}>

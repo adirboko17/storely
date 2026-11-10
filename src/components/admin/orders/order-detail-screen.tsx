@@ -21,6 +21,7 @@ import {
   subscribeOrderSession,
 } from "@/data/mock/order-session";
 import { isVideoMedia } from "@/data/mock/catalog-session";
+import { refundStoreOrder } from "@/app/admin/orders/returns/actions";
 import { getStoreIdentity } from "@/data/live/store-identity";
 import { getSettings } from "@/data/mock/settings-session";
 import { formatMoney } from "@/lib/formatting/money";
@@ -640,14 +641,20 @@ export function OrderDetailScreen({ orderId }: { orderId: number }) {
               setRefundError("יש לבחור לפחות פריט אחד או את דמי המשלוח");
               return;
             }
-            const totalRefunded = order.refundedAmount + amount;
-            confirmRefund(order.id, {
-              totalRefunded,
-              pay: totalRefunded >= order.total - 0.01 ? "refunded" : "partially_refunded",
-              text: `הוחזר ללקוח ${formatMoney(amount)} לכרטיס ויזה •••• 4821.${restock ? " הפריטים הוחזרו למלאי." : ""}`,
+            const storeId = getStoreIdentity().storeId;
+            void refundStoreOrder(storeId, order.id, amount).then((result) => {
+              if ("error" in result) {
+                setRefundError(result.error);
+                return;
+              }
+              confirmRefund(order.id, {
+                totalRefunded: result.refunded,
+                pay: result.status === "refunded" ? "refunded" : "partially_refunded",
+                text: `זוכה ללקוח ${formatMoney(amount)} לכרטיס ששילם.`,
+              });
+              setRefundOpen(false);
+              toast(`זוכו ${formatMoney(amount)}`);
             });
-            setRefundOpen(false);
-            toast(`הוחזרו ${formatMoney(amount)} ללקוח`);
           }}
         />
       ) : null}
