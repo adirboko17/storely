@@ -12,7 +12,7 @@ import { claimStore, getStoreIdentity, setStoreIdentity } from "@/data/live/stor
 import { enableLiveMetrics } from "@/lib/dashboard/chart";
 import type { TimelineEvent } from "@/lib/orders/present";
 import type { AbandonedCheckout } from "@/data/mock/abandoned";
-import { parseProductMerch } from "@/lib/catalog/merch";
+import { parseProductMerch, parseVariantRows } from "@/lib/catalog/merch";
 import type { Customer, CustomerOrderStatus, FulfillmentStatus, Order, PayStatus, Product, ProductStatus } from "@/types/commerce";
 
 export type StoreSnapshot = {
@@ -71,17 +71,21 @@ function mapProduct(value: unknown, index: number): Product {
   const { tags, subcategories } = splitProductTags(rawTags);
   const compareAt = item?.compareAt == null ? undefined : amount(item.compareAt);
   const merch = parseProductMerch(item?.merch);
+  const variants = parseVariantRows(item?.variants);
+  const options = merch.options;
+  const choices = options.length ? variants.filter((variant) => variant.title) : [];
+  const choiceLabels = options.reduce<string[]>((labels, option) => (labels.length ? labels.flatMap((label) => option.values.map((value) => `${label} / ${value}`)) : [...option.values]), []);
   return {
     id: index,
     sourceId: text(item?.id),
     title: text(item?.title),
-    variant: text(item?.variant),
-    price: amount(item?.price),
+    variant: choices[0]?.title || text(item?.variant),
+    price: choices.length ? Math.min(...choices.map((variant) => variant.price)) : amount(item?.price),
     compareAt,
     cost: amount(item?.cost),
     sku: text(item?.sku),
     barcode: text(item?.barcode) || undefined,
-    stock: amount(item?.stock),
+    stock: choices.length ? choices.reduce((sum, variant) => sum + variant.stock, 0) : amount(item?.stock),
     trackInventory: item?.trackInventory !== false,
     status: productStatus(item?.status),
     category: text(item?.category),
@@ -91,6 +95,9 @@ function mapProduct(value: unknown, index: number): Product {
     tags,
     collections: [],
     subcategories,
+    ...(options.length ? { options, option: { name: options.map((option) => option.name).join(" / "), values: choiceLabels } } : {}),
+    ...(variants.length ? { variants } : {}),
+    ...(choices.length ? { quantities: choices.map((variant) => variant.stock) } : {}),
     description: text(item?.description),
     bundles: merch.bundles,
     page: merch.page,

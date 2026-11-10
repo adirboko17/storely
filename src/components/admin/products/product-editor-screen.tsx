@@ -35,13 +35,86 @@ import { emptyProductPage, OLI_STORE_OWNER, type Product, type ProductHeadlineMo
 const field = "h-[34px] w-full rounded-[10px] border border-[#c9c9c9] bg-white px-3 text-sm text-ink outline-none";
 const card = "rounded-xl border border-[#d9d9d9] bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,.06)]";
 const OPTION_PRESETS = ["צבע", "מידה", "חומר", "סגנון"];
+const COLOR_PALETTE = ["#1c1c1c", "#5c5c5c", "#b9b9b9", "#f7f4ef", "#ffffff", "#4a2c1a", "#6b4226", "#a67c52", "#e6d3b3", "#d8b89a", "#6e2430", "#b42318", "#e07a5f", "#e7a3b5", "#f3c9d4", "#2f5f98", "#3f6b4a", "#c6a15b", "#6d4c8a", "#d9782d"];
 
-type OptionGroup = { name: string; values: string[] };
+type OptionGroup = { name: string; values: string[]; colors?: Record<string, string> };
+type OptionDraft = { name: string; values: string[]; pending: string; colors: Record<string, string> };
+
+function isColorOption(name: string) {
+  return /צבע|גוון|color|colour/i.test(name.trim());
+}
+
+function cleanColors(name: string, values: string[], colors?: Record<string, string>) {
+  if (!isColorOption(name) || !colors) return undefined;
+  const next: Record<string, string> = {};
+  for (const value of values) {
+    const hex = colors[value]?.trim().toLowerCase() ?? "";
+    if (/^#[0-9a-f]{6}$/.test(hex)) next[value] = hex;
+  }
+  return Object.keys(next).length ? next : undefined;
+}
 
 function cleanOptions(options: OptionGroup[]) {
   return options
-    .map((option) => ({ name: option.name.trim(), values: option.values.map((value) => value.trim()).filter(Boolean) }))
+    .map((option) => {
+      const name = option.name.trim();
+      const values = option.values.map((value) => value.trim()).filter(Boolean);
+      const colors = cleanColors(name, values, option.colors);
+      return { name, values, ...(colors ? { colors } : {}) };
+    })
     .filter((option) => option.name && option.values.length);
+}
+
+function ColorChoice({ label, color, onChange }: { label: string; color: string; onChange: (hex: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [place, setPlace] = useState({ top: 0, right: 0 });
+  const rootRef = useRef<HTMLSpanElement>(null);
+  const chosen = /^#[0-9a-f]{6}$/i.test(color) ? color.toLowerCase() : "";
+  function placePanel() {
+    const rect = rootRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = 232;
+    const aligned = window.innerWidth - rect.right;
+    const right = Math.min(Math.max(aligned, 12), Math.max(12, window.innerWidth - width - 12));
+    const top = rect.bottom + 8 + 176 > window.innerHeight ? Math.max(12, rect.top - 8 - 168) : rect.bottom + 8;
+    setPlace({ top, right });
+  }
+  useEffect(() => {
+    if (!open) return;
+    function close(event: MouseEvent) {
+      if (rootRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", placePanel);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", placePanel);
+    };
+  }, [open]);
+  return (
+    <span ref={rootRef} className="relative inline-flex">
+      <button type="button" aria-label={`בחירת צבע עבור ${label}`} aria-expanded={open} className="size-[18px] cursor-pointer rounded-full" style={{ background: chosen || "transparent", boxShadow: chosen ? "inset 0 0 0 1px rgba(0,0,0,.18)" : "inset 0 0 0 1.5px #8a8a8a" }} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); event.preventDefault(); if (!open) placePanel(); setOpen((current) => !current); }} />
+      {open ? (
+        <span className="fixed z-50 w-[232px] rounded-xl bg-white p-3 text-start shadow-[0_0_0_1px_rgba(0,0,0,.08),0_16px_40px_rgba(0,0,0,.16)]" style={{ top: place.top, right: place.right }} onClick={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()}>
+          <span className="grid grid-cols-7 gap-1.5">
+            {COLOR_PALETTE.map((hex) => (
+              <button key={hex} type="button" aria-label={hex} aria-pressed={chosen === hex} className="size-6 rounded-full border border-black/10" style={{ background: hex, outline: chosen === hex ? "2px solid #303030" : undefined, outlineOffset: 2 }} onClick={() => { onChange(hex); setOpen(false); }} />
+            ))}
+          </span>
+          <label className="mt-3 flex items-center gap-2 text-[13px] text-ink" onMouseDown={(event) => event.stopPropagation()}>
+            <input type="color" value={chosen || "#c4b8ae"} aria-label={`צבע מדויק עבור ${label}`} onChange={(event) => onChange(event.target.value)} className="size-8 cursor-pointer border-0 bg-transparent p-0" />
+            בחירה מדויקת
+          </label>
+        </span>
+      ) : null}
+    </span>
+  );
 }
 
 function optionLabels(options: OptionGroup[]) {
@@ -50,11 +123,12 @@ function optionLabels(options: OptionGroup[]) {
   return groups.reduce<string[]>((labels, option) => (labels.length ? labels.flatMap((label) => option.values.map((value) => `${label} / ${value}`)) : [...option.values]), []);
 }
 
-function alignVariantRows(previousLabels: string[], nextLabels: string[], prices: string[], qty: string[], fallbackPrice: string) {
-  const known = new Map(previousLabels.map((label, index) => [label, { price: prices[index] ?? fallbackPrice, qty: qty[index] ?? "0" }]));
+function alignVariantRows(previousLabels: string[], nextLabels: string[], prices: string[], qty: string[], ids: string[], fallbackPrice: string) {
+  const known = new Map(previousLabels.map((label, index) => [label, { price: prices[index] ?? fallbackPrice, qty: qty[index] ?? "0", id: ids[index] ?? "" }]));
   return {
     variantPrices: nextLabels.map((label) => known.get(label)?.price ?? (fallbackPrice || "0.00")),
     variantQty: nextLabels.map((label) => known.get(label)?.qty ?? "0"),
+    variantIds: nextLabels.map((label) => known.get(label)?.id ?? ""),
   };
 }
 
@@ -81,6 +155,7 @@ type Draft = {
   options: OptionGroup[];
   variantPrices: string[];
   variantQty: string[];
+  variantIds: string[];
   media: string[];
   bundles: { label: string; qty: string; price: string; image: string; tag: string }[];
   page: ProductPage;
@@ -97,12 +172,13 @@ function selectedCategories(product: Product | null) {
 
 function fromProduct(product: Product | null): Draft {
   const options = product?.options?.length
-    ? product.options.map((option) => ({ name: option.name, values: [...option.values] }))
+    ? product.options.map((option) => ({ name: option.name, values: [...option.values], ...(option.colors ? { colors: { ...option.colors } } : {}) }))
     : product?.option?.values.length
       ? [{ name: product.option.name, values: [...product.option.values] }]
       : [];
   const labels = optionLabels(options);
   const quantities = product?.quantities ?? (product ? [product.stock] : []);
+  const byTitle = new Map((product?.variants ?? []).map((variant) => [variant.title, variant]));
   return {
     title: product?.title ?? "",
     description: product?.description ?? "",
@@ -124,8 +200,9 @@ function fromProduct(product: Product | null): Draft {
     seoDesc: product?.seoDescription || product?.description?.slice(0, 155) || "",
     handle: product?.handle || slugifyHandle(product?.title ?? ""),
     options,
-    variantPrices: labels.map(() => (product ? product.price.toFixed(2) : "")),
-    variantQty: labels.map((_, index) => String(quantities[index] ?? 0)),
+    variantPrices: labels.map((label) => (byTitle.get(label)?.price ?? product?.price ?? 0).toFixed(2)),
+    variantQty: labels.map((label, index) => String(byTitle.get(label)?.stock ?? quantities[index] ?? 0)),
+    variantIds: labels.map((label) => byTitle.get(label)?.id ?? ""),
     media: product?.media ? [...product.media] : [],
     bundles: (product?.bundles ?? []).map((bundle) => ({ label: bundle.label, qty: String(bundle.qty), price: bundle.price.toFixed(2), image: bundle.image ?? "", tag: bundle.tag ?? "" })),
     badge: product?.badge ?? "",
@@ -196,7 +273,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
   const [pickerOpen, setPickerOpen] = useState(false);
   const [optionQuery, setOptionQuery] = useState("");
   const [editing, setEditing] = useState<number | null>(null);
-  const [optionDraft, setOptionDraft] = useState({ name: "", values: [] as string[], pending: "" });
+  const [optionDraft, setOptionDraft] = useState<OptionDraft>({ name: "", values: [], pending: "", colors: {} });
   useSyncExternalStore(subscribeStoreIdentity, getStoreIdentityVersion, () => 0);
   const fileRef = useRef<HTMLInputElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -211,7 +288,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
     setDraft(saved);
     setPickerOpen(false);
     setEditing(null);
-    setOptionDraft({ name: "", values: [], pending: "" });
+    setOptionDraft({ name: "", values: [], pending: "", colors: {} });
     setErrors([]);
   }
 
@@ -236,7 +313,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
     setDraft((current) => {
       const previous = optionLabels(current.options);
       const next = optionLabels(nextOptions);
-      return { ...current, options: nextOptions, ...alignVariantRows(previous, next, current.variantPrices, current.variantQty, current.price || "0.00") };
+      return { ...current, options: nextOptions, ...alignVariantRows(previous, next, current.variantPrices, current.variantQty, current.variantIds, current.price || "0.00") };
     });
     setErrors([]);
   }
@@ -245,10 +322,10 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
     setPickerOpen(false);
     setOptionQuery("");
     setEditing(index);
-    setOptionDraft({ name: seed?.name ?? "", values: seed ? [...seed.values] : [], pending: "" });
+    setOptionDraft({ name: seed?.name ?? "", values: seed ? [...seed.values] : [], pending: "", colors: seed?.colors ? { ...seed.colors } : {} });
   }
 
-  function takePending(current: { name: string; values: string[]; pending: string }) {
+  function takePending(current: OptionDraft) {
     const pending = current.pending.trim().replace(/,$/, "");
     if (!pending || current.values.some((value) => value.trim() === pending)) return { ...current, pending: "" };
     return { ...current, values: [...current.values, pending], pending: "" };
@@ -266,22 +343,31 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
       toast("הוסיפו לפחות ערך אחד");
       return false;
     }
+    if (values.some((value) => value.includes("/"))) {
+      toast("ערך לא יכול לכלול את הסימן /");
+      return false;
+    }
     if (draft.options.some((item, index) => item.name.trim() === name && index !== editing)) {
       toast("האפשרות הזו כבר קיימת");
       return false;
     }
-    const group = { name, values };
+    const colors = cleanColors(name, values, next.colors);
+    const group = { name, values, ...(colors ? { colors } : {}) };
     const nextOptions = editing != null && editing >= 0 ? draft.options.map((item, index) => (index === editing ? group : item)) : [...draft.options, group];
+    if (optionLabels(nextOptions).length > 100) {
+      toast("אפשר עד 100 וריאציות");
+      return false;
+    }
     commitOptions(nextOptions);
     setEditing(null);
-    setOptionDraft({ name: "", values: [], pending: "" });
+    setOptionDraft({ name: "", values: [], pending: "", colors: {} });
     return true;
   }
 
   function deleteOption() {
     if (editing != null && editing >= 0) commitOptions(draft.options.filter((_, index) => index !== editing));
     setEditing(null);
-    setOptionDraft({ name: "", values: [], pending: "" });
+    setOptionDraft({ name: "", values: [], pending: "", colors: {} });
   }
 
   function requestAdd() {
@@ -306,18 +392,32 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
 
   function save() {
     const nextErrors: string[] = [];
-    const price = Number(draft.price);
+    const options = cleanOptions(draft.options);
+    const labels = optionLabels(options);
+    const priced = labels.map((_, index) => Number(draft.variantPrices[index]));
+    const basePrice = Number(draft.price);
     if (!draft.title.trim()) nextErrors.push("יש להזין כותרת למוצר");
-    if (!(price >= 0) || draft.price.trim() === "") nextErrors.push("יש להזין מחיר תקין");
+    if (labels.length) {
+      if (priced.some((value, index) => !(value >= 0) || !(draft.variantPrices[index] ?? "").trim())) nextErrors.push("יש להזין מחיר לכל וריאציה");
+    } else if (!(basePrice >= 0) || draft.price.trim() === "") nextErrors.push("יש להזין מחיר תקין");
     if (nextErrors.length) {
       setErrors(nextErrors);
       return;
     }
     setSaving(true);
     const id = product?.id ?? nextProductId();
-    const options = cleanOptions(draft.options);
-    const labels = optionLabels(options);
+    const price = labels.length ? Math.min(...priced) : basePrice;
     const quantities = labels.length ? labels.map((_, index) => Math.max(0, Number(draft.variantQty[index]) || 0)) : [Math.max(0, Number(draft.qty) || 0)];
+    const loneId = labels.length && labels.every((_, index) => !draft.variantIds[index]) && product?.variants?.length === 1 ? product?.variants[0]?.id : undefined;
+    const variantChoices = labels.map((title, index) => {
+      const parts = title.split(" / ");
+      const selected: Record<string, string> = {};
+      options.forEach((option, optionIndex) => {
+        if (parts[optionIndex]) selected[option.name] = parts[optionIndex];
+      });
+      const variantId = draft.variantIds[index] || (index === 0 ? loneId : undefined);
+      return { ...(variantId ? { id: variantId } : {}), title, price: priced[index], stock: quantities[index], selected };
+    });
     const savedProduct: Product = {
       id,
       sourceId: product?.sourceId,
@@ -340,6 +440,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
       subcategories: draft.subcategories,
       option: labels.length ? { name: options.map((option) => option.name).join(" / "), values: labels } : undefined,
       options: options.length ? options : undefined,
+      variants: variantChoices.length ? variantChoices : product?.variants,
       quantities: labels.length ? quantities : undefined,
       description: draft.description,
       bundles: parseBundles(draft.bundles.map((bundle) => ({ label: bundle.label, qty: Number(bundle.qty), price: Number(bundle.price), image: bundle.image, tag: bundle.tag }))),
@@ -780,6 +881,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
             <style>{`@keyframes variant-pop { from { opacity: 0; transform: translateY(8px) scale(.97) } to { opacity: 1; transform: none } } @keyframes variant-panel { from { opacity: 0; transform: translateY(10px) scale(.985) } to { opacity: 1; transform: none } } @media (prefers-reduced-motion: reduce) { @keyframes variant-pop { from, to { opacity: 1; transform: none } } @keyframes variant-panel { from, to { opacity: 1; transform: none } } }`}</style>
             <div className="px-5 pt-4">
               <h2 className="m-0 text-[15px] font-semibold">וריאציות</h2>
+              <p className="m-0 mt-1 text-[13px] text-ink-secondary">צבע, מידה או כל אפשרות אחרת. בעמוד המוצר כל אפשרות נבחרת בנפרד, והמחיר והמלאי מתעדכנים לפי השילוב.</p>
               {hasVariants ? (
                 <div className="mt-3 flex flex-col gap-2">
                   <button type="button" aria-pressed={!draft.trackInventory} className="h-9 self-start rounded-full border px-3 text-sm font-semibold" style={{ borderColor: draft.trackInventory ? "#c9c9c9" : "#303030", background: draft.trackInventory ? "#fff" : "#303030", color: draft.trackInventory ? "#303030" : "#fff" }} onClick={() => patch({ trackInventory: !draft.trackInventory })}>
@@ -795,7 +897,24 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
             </div>
             <div className="flex flex-col gap-3 p-4">
               {draft.options.map((option, index) => (
-                editing === index ? null : (
+                editing === index ? null : isColorOption(option.name) ? (
+                  <div key={`${option.name}-${index}`} className="relative rounded-xl border border-[#e3e3e3] bg-white">
+                    <button type="button" className="absolute inset-0 rounded-xl hover:bg-[#f7f7f7]" aria-label={`עריכת ${option.name}`} onClick={() => openOptionEditor(index, option)} />
+                    <div className="pointer-events-none relative px-3 py-2.5">
+                      <span className="block text-sm font-semibold">{option.name}</span>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-ink-secondary">
+                        {option.values.map((value) => (
+                          <span key={value} className="inline-flex items-center gap-1.5">
+                            <span>{value}</span>
+                            <span className="pointer-events-auto">
+                              <ColorChoice label={value} color={option.colors?.[value] ?? ""} onChange={(hex) => setDraft((current) => ({ ...current, options: current.options.map((item, itemIndex) => itemIndex === index ? { ...item, colors: { ...item.colors, [value]: hex } } : item) }))} />
+                            </span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
                   <button key={`${option.name}-${index}`} type="button" className="rounded-xl border border-[#e3e3e3] bg-white px-3 py-2.5 text-start" onClick={() => openOptionEditor(index, option)}>
                     <span className="block text-sm font-semibold">{option.name}</span>
                     <span className="mt-0.5 block text-[13px] text-ink-secondary">{option.values.join(" · ")}</span>
@@ -812,8 +931,9 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
                     <span className="mb-1.5 block text-sm font-medium">ערכי האפשרות</span>
                     <div className="flex min-h-[36px] flex-wrap items-center gap-1 rounded-[10px] border border-[#c9c9c9] bg-white px-2 py-1">
                       {optionDraft.values.map((value, index) => (
-                        <span key={`${value}-${index}`} className="inline-flex h-6 items-center gap-1 rounded-md bg-[#e3e3e3] ps-2 pe-1 text-[13px]">
+                        <span key={`${value}-${index}`} className="inline-flex h-7 items-center gap-1 rounded-md bg-[#e3e3e3] ps-2 pe-1 text-[13px]">
                           {value}
+                          {isColorOption(optionDraft.name) ? <ColorChoice label={value} color={optionDraft.colors[value] ?? ""} onChange={(hex) => setOptionDraft((current) => ({ ...current, colors: { ...current.colors, [value]: hex } }))} /> : null}
                           <button type="button" aria-label="הסרת ערך" className="border-0 bg-transparent text-[#616161]" onClick={() => setOptionDraft((current) => ({ ...current, values: current.values.filter((_, itemIndex) => itemIndex !== index) }))}>×</button>
                         </span>
                       ))}

@@ -5,6 +5,7 @@ import { placeByIds } from "@/lib/catalog/arrange";
 import { COLLECTION_SEEDS } from "@/lib/catalog/present";
 import { GIFT_AMOUNT_PREFIX, OPEN_GIFT_TAG, packProductTags, subcategoryRules } from "@/lib/catalog/subcategories";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { parseVariantRows } from "@/lib/catalog/merch";
 import { emptyProductPage, type Product, type ProductBundle, type ProductStatus, type ProductStory } from "@/types/commerce";
 
 export type GiftCard = {
@@ -50,8 +51,9 @@ function cloneProduct(product: Product): Product {
     subcategories: [...(product.subcategories ?? [])],
     media: product.media ? [...product.media] : undefined,
     option: product.option ? { name: product.option.name, values: [...product.option.values] } : undefined,
-    options: product.options?.map((option) => ({ name: option.name, values: [...option.values] })),
+    options: product.options?.map((option) => ({ name: option.name, values: [...option.values], ...(option.colors ? { colors: { ...option.colors } } : {}) })),
     quantities: product.quantities ? [...product.quantities] : undefined,
+    variants: product.variants?.map((variant) => ({ ...variant, selected: variant.selected ? { ...variant.selected } : undefined })),
     bundles: product.bundles?.map((bundle) => ({ ...bundle })),
     headline: product.headline ? { ...product.headline } : undefined,
     giftAmounts: product.giftAmounts ? [...product.giftAmounts] : undefined,
@@ -326,6 +328,35 @@ async function removeStoryVideos(storeId: string, productId: string, previous: P
   await supabase.storage.from(mediaBucket).remove(stale);
 }
 
+function variantRows(product: Product) {
+  const groups = (product.options ?? [])
+    .map((option) => {
+      const name = option.name.trim();
+      const values = option.values.map((value) => value.trim()).filter(Boolean);
+      const colors: Record<string, string> = {};
+      if (/צבע|גוון|color|colour/i.test(name) && option.colors) {
+        for (const value of values) {
+          const hex = option.colors[value]?.trim().toLowerCase() ?? "";
+          if (/^#[0-9a-f]{6}$/.test(hex)) colors[value] = hex;
+        }
+      }
+      return { name, values, ...(Object.keys(colors).length ? { colors } : {}) };
+    })
+    .filter((option) => option.name && option.values.length)
+    .slice(0, 3);
+  if (!groups.length) return { groups: [], rows: [] as { id?: string; price: number; stock: number }[] };
+  const titles = groups.reduce<string[]>((labels, option) => (labels.length ? labels.flatMap((label) => option.values.map((value) => `${label} / ${value}`)) : [...option.values]), []);
+  return {
+    groups,
+    rows: titles.map((title, index) => {
+      const known = (product.variants ?? []).find((item) => item.title === title);
+      const price = Math.round((known?.price ?? product.price) * 100) / 100;
+      const stock = Math.max(0, Math.round(product.quantities?.[index] ?? known?.stock ?? 0));
+      return { ...(known?.id ? { id: known.id } : {}), price, stock };
+    }),
+  };
+}
+
 async function persistProduct(product: Product, previousStories: ProductStory[] = [], previousBundles: ProductBundle[] = []) {
   if (typeof window === "undefined") return null;
   const storeId = getStoreIdentity().storeId;
@@ -386,6 +417,15 @@ async function persistProduct(product: Product, previousStories: ProductStory[] 
     if (fresh.length > 0) await supabase.storage.from(mediaBucket).remove(fresh);
     throw new Error(merchError.message?.includes("הכתובת כבר בשימוש") ? "הכתובת כבר בשימוש" : "שמירת הבאנדלים והתוכן לעמוד המוצר נכשלה");
   }
+  const variantPayload = variantRows(product);
+  const { data: savedVariants, error: variantError } = await supabase.rpc("save_store_product_variants", {
+    target_store: storeId,
+    product_id: data,
+    option_groups: variantPayload.groups,
+    variant_rows: variantPayload.rows,
+  });
+  if (variantError) throw new Error(variantError.message || "שמירת הווריאציות נכשלה");
+  const variants = parseVariantRows(savedVariants);
   for (const item of [...uploadedStories.uploaded, ...uploadedBundles.uploaded]) {
     pendingMedia.delete(item.local);
     if (item.local.startsWith("blob:")) URL.revokeObjectURL(item.local);
@@ -393,7 +433,7 @@ async function persistProduct(product: Product, previousStories: ProductStory[] 
   await removeStoryVideos(storeId, data, previousStories, stories);
   await removeBundleImages(storeId, data, previousBundles, bundles, product.media ?? []);
   if (data !== product.sourceId) rememberProductSource(product.id, data);
-  const stored = { ...product, sourceId: data, page: nextPage, bundles };
+  const stored = { ...product, sourceId: data, page: nextPage, bundles, variants, options: variantPayload.groups.length ? variantPayload.groups : undefined };
   if (product.media) {
     const media = await uploadProductMedia(storeId, data, product.media);
     return { ...stored, media };
@@ -448,7 +488,8 @@ export function setVariantQuantity(productId: number, index: number, quantity: n
     if (product.id !== productId) return product;
     const quantities = [...(product.quantities ?? [product.stock])];
     quantities[index] = Math.max(0, quantity);
-    return { ...product, quantities, stock: quantities.reduce((sum, value) => sum + value, 0) };
+    const variants = product.variants?.map((variant, variantIndex) => (variantIndex === index ? { ...variant, stock: quantities[index] } : variant));
+    return { ...product, quantities, variants, stock: quantities.reduce((sum, value) => sum + value, 0) };
   });
   publish({ ...current, products });
   const product = products.find((item) => item.id === productId);

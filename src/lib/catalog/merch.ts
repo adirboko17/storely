@@ -8,6 +8,68 @@ function text(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+export function parseOptions(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const options: { name: string; values: string[] }[] = [];
+  for (const item of value) {
+    const row = record(item);
+    const name = text(row?.name).replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 40);
+    if (!name || seen.has(name) || !Array.isArray(row?.values)) continue;
+    const values: string[] = [];
+    const used = new Set<string>();
+    for (const entry of row.values) {
+      const valueText = text(entry).replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 40);
+      if (!valueText || valueText.includes("/") || used.has(valueText)) continue;
+      used.add(valueText);
+      values.push(valueText);
+      if (values.length === 30) break;
+    }
+    if (!values.length) continue;
+    seen.add(name);
+    const colors: Record<string, string> = {};
+    const rawColors = record(row?.colors);
+    if (rawColors) {
+      for (const valueText of values) {
+        const hex = text(rawColors[valueText]).toLowerCase();
+        if (/^#[0-9a-f]{6}$/.test(hex)) colors[valueText] = hex;
+      }
+    }
+    options.push({ name, values, ...(Object.keys(colors).length ? { colors } : {}) });
+    if (options.length === 3) break;
+  }
+  return options;
+}
+
+export function parseVariantRows(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  const variants: { id?: string; title: string; price: number; stock: number; selected?: Record<string, string> }[] = [];
+  for (const item of value) {
+    const row = record(item);
+    const price = Number(row?.price);
+    if (!Number.isFinite(price) || price < 0 || price > 1_000_000) continue;
+    const stock = Number(row?.stock ?? row?.available);
+    const selected: Record<string, string> = {};
+    const picked = record(row?.selected);
+    if (picked) {
+      for (const [key, entry] of Object.entries(picked)) {
+        const name = key.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 40);
+        const choice = text(entry).replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 40);
+        if (name && choice) selected[name] = choice;
+      }
+    }
+    const id = text(row?.id);
+    variants.push({
+      ...(id ? { id } : {}),
+      title: text(row?.title).slice(0, 160),
+      price: Math.round(price * 100) / 100,
+      stock: Number.isFinite(stock) && stock >= 0 ? Math.min(1_000_000, Math.round(stock)) : 0,
+      ...(Object.keys(selected).length ? { selected } : {}),
+    });
+  }
+  return variants;
+}
+
 export function parseProductMerch(value: unknown) {
   const row = record(value);
   const badge = record(row?.badge);
@@ -19,6 +81,7 @@ export function parseProductMerch(value: unknown) {
     headline: parseHeadline(row?.headline),
     seoTitle: text(record(row?.seo)?.title).replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 70),
     seoDescription: text(record(row?.seo)?.description).replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 160),
+    options: parseOptions(row?.options),
   };
 }
 
