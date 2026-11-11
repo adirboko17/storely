@@ -1,5 +1,6 @@
 import { getStoreIdentity } from "@/data/live/store-identity";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { OLI_STORE_OWNER } from "@/types/commerce";
 
 export type QuizChoice = {
   id: string;
@@ -339,6 +340,10 @@ function storeId() {
   return id;
 }
 
+export function quizForThisStore() {
+  return getStoreIdentity().ownerEmail.trim().toLowerCase() === OLI_STORE_OWNER;
+}
+
 type QuizRow = { status: string; flow: unknown; updated_at: string };
 
 export async function loadQuiz(): Promise<{ quiz: StoreQuiz; stored: boolean }> {
@@ -355,6 +360,7 @@ export async function loadQuiz(): Promise<{ quiz: StoreQuiz; stored: boolean }> 
 }
 
 export async function saveQuiz(input: StoreQuiz) {
+  if (!quizForThisStore()) throw new Error("השאלון לא זמין בחנות הזו");
   const quiz = normalizeQuiz(input.status, input.document, new Date().toISOString());
   const problem = quizProblem(quiz);
   if (problem) throw new Error(problem);

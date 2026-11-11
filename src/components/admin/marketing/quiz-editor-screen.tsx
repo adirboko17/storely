@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
+import { getStoreIdentityVersion, subscribeStoreIdentity } from "@/data/live/store-identity";
 import { popupAreaClass, popupFieldClass } from "@/lib/marketing/popups";
 import {
   listQuizProducts,
   loadQuiz,
   newQuizId,
+  quizForThisStore,
   quizProblem,
   quizReaches,
   quizStatusLabel,
@@ -25,6 +27,8 @@ const FORM = "form";
 
 export function QuizEditorScreen() {
   const { toast } = useAdmin();
+  useSyncExternalStore(subscribeStoreIdentity, getStoreIdentityVersion, () => 0);
+  const quizStore = quizForThisStore();
   const [quiz, setQuiz] = useState<StoreQuiz | null>(null);
   const [saved, setSaved] = useState<StoreQuiz | null>(null);
   const [stored, setStored] = useState(true);
@@ -34,6 +38,7 @@ export function QuizEditorScreen() {
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
+    if (!quizStore) return;
     let alive = true;
     loadQuiz()
       .then((result) => {
@@ -45,7 +50,7 @@ export function QuizEditorScreen() {
       .catch((error: Error) => { if (alive) setFailed(true); toast(error.message); });
     listQuizProducts().then((rows) => { if (alive) setProducts(rows); }).catch((error: Error) => toast(error.message));
     return () => { alive = false; };
-  }, [toast]);
+  }, [quizStore, toast]);
 
   const dirty = JSON.stringify(quiz) !== JSON.stringify(saved);
 
@@ -73,6 +78,7 @@ export function QuizEditorScreen() {
 
   useUnsavedEditor(dirty, saving, () => void persist(), () => setQuiz(saved ? structuredClone(saved) : saved));
 
+  if (!quizStore) return <p className="px-5 py-6 text-sm text-[#4a4a4a]">השאלון לא זמין בחנות הזו.</p>;
   if (failed) return <p className="px-5 py-6 text-sm text-[#4a4a4a]">לא הצלחנו לטעון את השאלון.</p>;
   if (!quiz || !saved) return <p className="px-5 py-6 text-sm text-[#4a4a4a]">טוען שאלון…</p>;
   const draft = quiz;
