@@ -2,11 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
+import { sendTestEmail } from "@/app/admin/marketing/automations/actions";
 import { darkButton, softButton } from "@/components/admin/orders/chrome";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { Icon } from "@/components/ui/icon";
 import { createFlow, deleteFlow, getMarketingVersion, listFlows, subscribeMarketing, toggleFlow, triggerTitle } from "@/data/mock/marketing-session";
 import { channelLabel, type StoreMessagingStatus } from "@/data/live/messaging";
+import { getStoreIdentity, getStoreIdentityVersion, subscribeStoreIdentity } from "@/data/live/store-identity";
 import { formatInteger, formatMoney0 } from "@/lib/formatting/money";
 
 const TEMPLATES = [
@@ -17,6 +19,57 @@ const TEMPLATES = [
   { key: "winback" as const, name: "החזרת לקוח", detail: "לקוח שלא קנה כבר תקופה שאתם בוחרים.", channels: ["דוא״ל", "SMS"] },
   { key: "blank" as const, name: "אוטומציה ריקה", detail: "בוחרים טריגר ובונים את השלבים.", channels: [] as string[] },
 ];
+
+function SendTestMail({ saved }: { saved: boolean }) {
+  const { toast } = useAdmin();
+  useSyncExternalStore(subscribeStoreIdentity, getStoreIdentityVersion, getStoreIdentityVersion);
+  const store = getStoreIdentity();
+  const [recipient, setRecipient] = useState("");
+  const [recipientName, setRecipientName] = useState("");
+  const [sending, setSending] = useState(false);
+  const field = "h-9 w-full rounded-lg border border-[#c9c9c9] bg-white px-2.5 text-sm outline-none focus:border-[#1a1a1a]";
+
+  async function send() {
+    if (!store.storeId || sending || !saved) return;
+    setSending(true);
+    try {
+      const result = await sendTestEmail(store.storeId, recipient, recipientName);
+      if ("error" in result) {
+        toast(result.error);
+        return;
+      }
+      toast("המייל נשלח. בדקו את התיבה, גם בספאם.");
+      setRecipient("");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-3 rounded-[14px] bg-white p-4 shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
+      <div>
+        <h2 className="m-0 text-[15px] font-semibold">שליחה עכשיו</h2>
+        <p className="m-0 mt-1 text-[13px] leading-5 text-[#4a4a4a]">
+          שולח מייל בדיקה לכתובת שתכתבו, מיד, בלי לחכות לאוטומציה. הנושא הוא «בדיקת מייל» והשולח הוא כתובת ה-Resend של החנות.
+        </p>
+      </div>
+      <div className="grid gap-3 min-[700px]:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] min-[700px]:items-end">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[13px] font-medium">אימייל הלקוח</span>
+          <input value={recipient} onChange={(event) => setRecipient(event.target.value)} type="email" dir="ltr" autoComplete="off" disabled={!saved || sending} className={`${field} text-left`} />
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[13px] font-medium">שם, אם יש</span>
+          <input value={recipientName} onChange={(event) => setRecipientName(event.target.value)} autoComplete="off" disabled={!saved || sending} className={field} />
+        </label>
+        <button type="button" className={darkButton} disabled={!saved || sending || recipient.trim() === ""} onClick={() => void send()}>
+          {sending ? "שולח…" : "שליחה"}
+        </button>
+      </div>
+      {saved ? null : <p className="m-0 text-[13px] text-[#8e1f0b]">קודם מחברים את Resend בכרטיס החנות.</p>}
+    </section>
+  );
+}
 
 export function AutomationsScreen({ messaging }: { messaging: StoreMessagingStatus }) {
   const router = useRouter();
@@ -53,6 +106,7 @@ export function AutomationsScreen({ messaging }: { messaging: StoreMessagingStat
           {messaging.email.login ? " כניסה עם קוד למייל מסומנת לאתר הזה." : ""}
           {messaging.sms.login ? " כניסה עם קוד ב-SMS מסומנת לאתר הזה." : ""}
         </p>
+        <SendTestMail saved={messaging.email.saved} />
         <h2 className="m-0 mt-1.5 text-[15px] font-semibold">האוטומציות שלכם</h2>
         <div className="overflow-hidden rounded-[14px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,.08)]">
           <div className="grid h-[34px] grid-cols-[minmax(0,1fr)_110px_90px_90px_90px_110px_86px] items-center gap-2.5 bg-[#f7f7f7] px-4 text-[13px] font-semibold text-[#4a4a4a]"><span>שם</span><span>ערוץ</span><span className="text-left">נשלחו</span><span className="text-left">פתיחה</span><span className="text-left">הקלקה</span><span className="text-left">הכנסות</span><span>פעיל</span></div>
