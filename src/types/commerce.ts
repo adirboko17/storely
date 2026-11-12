@@ -57,7 +57,7 @@ export type Product = {
   subcategories?: string[];
   option?: { name: string; values: string[] };
   options?: { name: string; values: string[]; colors?: Record<string, string> }[];
-  variants?: { id?: string; title: string; price: number; stock: number; selected?: Record<string, string> }[];
+  variants?: { id?: string; title: string; price: number; stock: number; selected?: Record<string, string>; image?: string }[];
   quantities?: number[];
   description?: string;
   bundles?: ProductBundle[];

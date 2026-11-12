@@ -5,7 +5,7 @@ import { placeByIds } from "@/lib/catalog/arrange";
 import { COLLECTION_SEEDS } from "@/lib/catalog/present";
 import { GIFT_AMOUNT_PREFIX, OPEN_GIFT_TAG, packProductTags, subcategoryRules } from "@/lib/catalog/subcategories";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { parseVariantRows } from "@/lib/catalog/merch";
+import { parseVariantRows, variantImageUrl } from "@/lib/catalog/merch";
 import { emptyProductPage, type Product, type ProductBundle, type ProductStatus, type ProductStory } from "@/types/commerce";
 
 export type GiftCard = {
@@ -328,6 +328,16 @@ async function removeStoryVideos(storeId: string, productId: string, previous: P
   await supabase.storage.from(mediaBucket).remove(stale);
 }
 
+function remapVariantImage(previous: string[], next: string[], image: string | undefined) {
+  const raw = (image ?? "").trim();
+  if (!raw) return "";
+  if (previous.length === next.length) {
+    const index = previous.indexOf(raw);
+    if (index >= 0) return variantImageUrl(next[index]);
+  }
+  return variantImageUrl(raw);
+}
+
 function variantRows(product: Product) {
   const groups = (product.options ?? [])
     .map((option) => {
@@ -352,7 +362,8 @@ function variantRows(product: Product) {
       const known = (product.variants ?? []).find((item) => item.title === title);
       const price = Math.round((known?.price ?? product.price) * 100) / 100;
       const stock = Math.max(0, Math.round(product.quantities?.[index] ?? known?.stock ?? 0));
-      return { ...(known?.id ? { id: known.id } : {}), price, stock };
+      const image = variantImageUrl(known?.image);
+      return { ...(known?.id ? { id: known.id } : {}), price, stock, ...(image ? { image } : { image: "" }) };
     }),
   };
 }
@@ -417,7 +428,19 @@ async function persistProduct(product: Product, previousStories: ProductStory[] 
     if (fresh.length > 0) await supabase.storage.from(mediaBucket).remove(fresh);
     throw new Error(merchError.message?.includes("הכתובת כבר בשימוש") ? "הכתובת כבר בשימוש" : "שמירת הבאנדלים והתוכן לעמוד המוצר נכשלה");
   }
-  const variantPayload = variantRows(product);
+  let ready = product;
+  if (product.media) {
+    const media = await uploadProductMedia(storeId, data, product.media);
+    ready = {
+      ...product,
+      media,
+      variants: product.variants?.map((variant) => {
+        const image = remapVariantImage(product.media ?? [], media, variant.image);
+        return image ? { ...variant, image } : { ...variant, image: undefined };
+      }),
+    };
+  }
+  const variantPayload = variantRows(ready);
   const { data: savedVariants, error: variantError } = await supabase.rpc("save_store_product_variants", {
     target_store: storeId,
     product_id: data,
@@ -431,14 +454,9 @@ async function persistProduct(product: Product, previousStories: ProductStory[] 
     if (item.local.startsWith("blob:")) URL.revokeObjectURL(item.local);
   }
   await removeStoryVideos(storeId, data, previousStories, stories);
-  await removeBundleImages(storeId, data, previousBundles, bundles, product.media ?? []);
+  await removeBundleImages(storeId, data, previousBundles, bundles, ready.media ?? []);
   if (data !== product.sourceId) rememberProductSource(product.id, data);
-  const stored = { ...product, sourceId: data, page: nextPage, bundles, variants, options: variantPayload.groups.length ? variantPayload.groups : undefined };
-  if (product.media) {
-    const media = await uploadProductMedia(storeId, data, product.media);
-    return { ...stored, media };
-  }
-  return stored;
+  return { ...ready, sourceId: data, page: nextPage, bundles, variants, options: variantPayload.groups.length ? variantPayload.groups : undefined };
 }
 
 export function setProductStatuses(ids: number[], status: ProductStatus) {

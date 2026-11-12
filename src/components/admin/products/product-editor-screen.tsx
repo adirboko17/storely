@@ -123,13 +123,82 @@ function optionLabels(options: OptionGroup[]) {
   return groups.reduce<string[]>((labels, option) => (labels.length ? labels.flatMap((label) => option.values.map((value) => `${label} / ${value}`)) : [...option.values]), []);
 }
 
-function alignVariantRows(previousLabels: string[], nextLabels: string[], prices: string[], qty: string[], ids: string[], fallbackPrice: string) {
-  const known = new Map(previousLabels.map((label, index) => [label, { price: prices[index] ?? fallbackPrice, qty: qty[index] ?? "0", id: ids[index] ?? "" }]));
+function alignVariantRows(previousLabels: string[], nextLabels: string[], prices: string[], qty: string[], ids: string[], images: string[], fallbackPrice: string) {
+  const known = new Map(previousLabels.map((label, index) => [label, { price: prices[index] ?? fallbackPrice, qty: qty[index] ?? "0", id: ids[index] ?? "", image: images[index] ?? "" }]));
   return {
     variantPrices: nextLabels.map((label) => known.get(label)?.price ?? (fallbackPrice || "0.00")),
     variantQty: nextLabels.map((label) => known.get(label)?.qty ?? "0"),
     variantIds: nextLabels.map((label) => known.get(label)?.id ?? ""),
+    variantImages: nextLabels.map((label) => known.get(label)?.image ?? ""),
   };
+}
+
+function VariantImage({ label, image, choices, onPick, onClear, onUpload }: {
+  label: string;
+  image: string;
+  choices: string[];
+  onPick: (src: string) => void;
+  onClear: () => void;
+  onUpload: (file: File) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [place, setPlace] = useState({ top: 0, right: 0 });
+  const rootRef = useRef<HTMLSpanElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  function placePanel() {
+    const rect = rootRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = 280;
+    const aligned = window.innerWidth - rect.right;
+    const right = Math.min(Math.max(aligned, 12), Math.max(12, window.innerWidth - width - 12));
+    const top = rect.bottom + 8 + 320 > window.innerHeight ? Math.max(12, rect.top - 8 - 280) : rect.bottom + 8;
+    setPlace({ top, right });
+  }
+  useEffect(() => {
+    if (!open) return;
+    function close(event: MouseEvent) {
+      if (rootRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", placePanel);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", placePanel);
+    };
+  }, [open]);
+  return (
+    <span ref={rootRef} className="relative inline-flex">
+      <button type="button" aria-label={image ? `החלפת התמונה של ${label}` : `הוספת תמונה ל${label}`} aria-expanded={open} className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg border border-[#c9c9c9] bg-[#fafafa]" onClick={() => { if (!open) placePanel(); setOpen((current) => !current); }}>
+        {image && !isVideoMedia(image) ? <img src={image} alt="" className="size-full object-cover" /> : <span className="text-lg leading-none text-[#616161]">+</span>}
+      </button>
+      {open ? (
+        <span className="fixed z-50 w-[280px] rounded-xl bg-white p-3 text-start shadow-[0_0_0_1px_rgba(0,0,0,.08),0_16px_40px_rgba(0,0,0,.16)]" style={{ top: place.top, right: place.right }} onMouseDown={(event) => event.stopPropagation()}>
+          <span className="block text-sm font-semibold">תמונת הוריאציה</span>
+          <span className="mt-1 block text-[13px] text-ink-secondary">בחירה בוריאציה הזו באתר מציגה את התמונה כראשית.</span>
+          {choices.length ? (
+            <span className="mt-3 grid grid-cols-4 gap-1.5">
+              {choices.map((src, choiceIndex) => (
+                <button key={`${choiceIndex}-${src.slice(-32)}`} type="button" aria-label="שיוך תמונה קיימת" aria-pressed={image === src} className="size-14 overflow-hidden rounded-lg border bg-white p-0" style={{ borderColor: image === src ? "#303030" : "#e3e3e3" }} onClick={() => { onPick(src); setOpen(false); }}>
+                  <img src={src} alt="" className="size-full object-cover" />
+                </button>
+              ))}
+            </span>
+          ) : <span className="mt-3 block text-[13px] text-ink-secondary">עוד אין תמונות על המוצר. אפשר להעלות אחת עכשיו.</span>}
+          <span className="mt-3 flex gap-2">
+            <button type="button" className="h-8 flex-1 rounded-lg border border-[#c9c9c9] bg-white text-[13px] font-semibold" onClick={() => fileRef.current?.click()}>העלאת תמונה</button>
+            {image ? <button type="button" className="h-8 rounded-lg border-0 bg-transparent px-2 text-[13px] font-semibold text-[#d72c0d]" onClick={() => { onClear(); setOpen(false); }}>הסרה</button> : null}
+          </span>
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) { onUpload(file); setOpen(false); } }} />
+        </span>
+      ) : null}
+    </span>
+  );
 }
 
 type Draft = {
@@ -156,6 +225,7 @@ type Draft = {
   variantPrices: string[];
   variantQty: string[];
   variantIds: string[];
+  variantImages: string[];
   media: string[];
   bundles: { label: string; qty: string; price: string; image: string; tag: string }[];
   page: ProductPage;
@@ -203,6 +273,7 @@ function fromProduct(product: Product | null): Draft {
     variantPrices: labels.map((label) => (byTitle.get(label)?.price ?? product?.price ?? 0).toFixed(2)),
     variantQty: labels.map((label, index) => String(byTitle.get(label)?.stock ?? quantities[index] ?? 0)),
     variantIds: labels.map((label) => byTitle.get(label)?.id ?? ""),
+    variantImages: labels.map((label) => byTitle.get(label)?.image ?? ""),
     media: product?.media ? [...product.media] : [],
     bundles: (product?.bundles ?? []).map((bundle) => ({ label: bundle.label, qty: String(bundle.qty), price: bundle.price.toFixed(2), image: bundle.image ?? "", tag: bundle.tag ?? "" })),
     badge: product?.badge ?? "",
@@ -313,7 +384,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
     setDraft((current) => {
       const previous = optionLabels(current.options);
       const next = optionLabels(nextOptions);
-      return { ...current, options: nextOptions, ...alignVariantRows(previous, next, current.variantPrices, current.variantQty, current.variantIds, current.price || "0.00") };
+      return { ...current, options: nextOptions, ...alignVariantRows(previous, next, current.variantPrices, current.variantQty, current.variantIds, current.variantImages, current.price || "0.00") };
     });
     setErrors([]);
   }
@@ -416,7 +487,9 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
         if (parts[optionIndex]) selected[option.name] = parts[optionIndex];
       });
       const variantId = draft.variantIds[index] || (index === 0 ? loneId : undefined);
-      return { ...(variantId ? { id: variantId } : {}), title, price: priced[index], stock: quantities[index], selected };
+      const image = (draft.variantImages[index] ?? "").trim();
+      const usable = image && draft.media.includes(image) ? image : "";
+      return { ...(variantId ? { id: variantId } : {}), title, price: priced[index], stock: quantities[index], selected, ...(usable ? { image: usable } : {}) };
     });
     const savedProduct: Product = {
       id,
@@ -608,9 +681,43 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
     setDraft((current) => {
       const removed = current.media[index];
       if (removed) releaseProductMedia(removed);
-      return { ...current, media: current.media.filter((_, item) => item !== index) };
+      return {
+        ...current,
+        media: current.media.filter((_, item) => item !== index),
+        variantImages: removed ? current.variantImages.map((image) => (image === removed ? "" : image)) : current.variantImages,
+      };
     });
     setErrors([]);
+  }
+
+  function assignVariantImage(index: number, src: string) {
+    setDraft((current) => ({
+      ...current,
+      variantImages: current.variantImages.map((image, itemIndex) => (itemIndex === index ? src : image)),
+    }));
+    setErrors([]);
+  }
+
+  async function addVariantImage(index: number, file: File) {
+    if (!file.type.startsWith("image/")) {
+      toast("אפשר לשייך רק תמונה");
+      return;
+    }
+    setUploading(true);
+    try {
+      const url = await readImageFile(file);
+      if (!url) return;
+      setDraft((current) => ({
+        ...current,
+        media: current.media.includes(url) ? current.media : [...current.media, url],
+        variantImages: current.variantImages.map((image, itemIndex) => (itemIndex === index ? url : image)),
+      }));
+      toast("התמונה שויכה לוריאציה. שמרו את המוצר כדי שהאתר יציג אותה");
+    } catch {
+      toast("העלאת התמונה נכשלה");
+    } finally {
+      setUploading(false);
+    }
   }
 
   return (
@@ -881,7 +988,7 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
             <style>{`@keyframes variant-pop { from { opacity: 0; transform: translateY(8px) scale(.97) } to { opacity: 1; transform: none } } @keyframes variant-panel { from { opacity: 0; transform: translateY(10px) scale(.985) } to { opacity: 1; transform: none } } @media (prefers-reduced-motion: reduce) { @keyframes variant-pop { from, to { opacity: 1; transform: none } } @keyframes variant-panel { from, to { opacity: 1; transform: none } } }`}</style>
             <div className="px-5 pt-4">
               <h2 className="m-0 text-[15px] font-semibold">וריאציות</h2>
-              <p className="m-0 mt-1 text-[13px] text-ink-secondary">צבע, מידה או כל אפשרות אחרת. בעמוד המוצר כל אפשרות נבחרת בנפרד, והמחיר והמלאי מתעדכנים לפי השילוב.</p>
+              <p className="m-0 mt-1 text-[13px] text-ink-secondary">צבע, מידה או כל אפשרות אחרת. בעמוד המוצר כל אפשרות נבחרת בנפרד, והמחיר והמלאי מתעדכנים לפי השילוב. לכל וריאציה אפשר לשייך תמונה, והלחיצה עליה באתר מציגה אותה כתמונה הראשית.</p>
               {hasVariants ? (
                 <div className="mt-3 flex flex-col gap-2">
                   <button type="button" aria-pressed={!draft.trackInventory} className="h-9 self-start rounded-full border px-3 text-sm font-semibold" style={{ borderColor: draft.trackInventory ? "#c9c9c9" : "#303030", background: draft.trackInventory ? "#fff" : "#303030", color: draft.trackInventory ? "#303030" : "#fff" }} onClick={() => patch({ trackInventory: !draft.trackInventory })}>
@@ -1008,7 +1115,12 @@ export function ProductEditorScreen({ productId }: { productId: number | null })
                     <tbody>
                       {variantLabels.map((value, index) => (
                         <tr key={value} className="h-[72px] border-b border-[#ebebeb]">
-                          <td className="px-2 font-medium">{value}</td>
+                          <td className="px-2">
+                            <div className="flex items-center gap-2.5">
+                              <VariantImage label={value} image={draft.variantImages[index] ?? ""} choices={draft.media.filter((src) => !isVideoMedia(src))} onPick={(src) => assignVariantImage(index, src)} onClear={() => assignVariantImage(index, "")} onUpload={(file) => void addVariantImage(index, file)} />
+                              <span className="font-medium">{value}</span>
+                            </div>
+                          </td>
                           <td className="px-2"><input dir="ltr" value={draft.variantPrices[index] ?? ""} onChange={(event) => updateVariantRow(index, { price: event.target.value })} className={field} /></td>
                           <td className="px-2">{draft.trackInventory ? <input dir="ltr" type="number" min={0} value={draft.variantQty[index] ?? "0"} onChange={(event) => updateVariantRow(index, { qty: event.target.value })} className={`${field} text-end`} /> : <span className="text-ink-secondary">ללא הגבלה</span>}</td>
                         </tr>

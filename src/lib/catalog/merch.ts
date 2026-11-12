@@ -41,9 +41,15 @@ export function parseOptions(value: unknown) {
   return options;
 }
 
+export function variantImageUrl(value: unknown) {
+  const url = text(value).slice(0, 500);
+  if (!url || url.includes("..") || /\s/.test(url) || !/^https:\/\/\S+$/i.test(url)) return "";
+  return url;
+}
+
 export function parseVariantRows(value: unknown) {
   if (!Array.isArray(value)) return [];
-  const variants: { id?: string; title: string; price: number; stock: number; selected?: Record<string, string> }[] = [];
+  const variants: { id?: string; title: string; price: number; stock: number; selected?: Record<string, string>; image?: string }[] = [];
   for (const item of value) {
     const row = record(item);
     const price = Number(row?.price);
@@ -59,12 +65,14 @@ export function parseVariantRows(value: unknown) {
       }
     }
     const id = text(row?.id);
+    const image = variantImageUrl(row?.image);
     variants.push({
       ...(id ? { id } : {}),
       title: text(row?.title).slice(0, 160),
       price: Math.round(price * 100) / 100,
       stock: Number.isFinite(stock) && stock >= 0 ? Math.min(1_000_000, Math.round(stock)) : 0,
       ...(Object.keys(selected).length ? { selected } : {}),
+      ...(image ? { image } : {}),
     });
   }
   return variants;
