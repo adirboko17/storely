@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
 import { getStoreIdentityVersion, subscribeStoreIdentity } from "@/data/live/store-identity";
@@ -213,7 +213,7 @@ function FlowEditor({ document, products, onChange }: { document: QuizDocument; 
     <div className="mx-auto flex max-w-[1200px] flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white px-4 py-3 shadow-[0_0_0_1px_rgba(26,26,26,.07)]">
         <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#f1f1f1] text-sm">i</span>
-        <p className="m-0 flex-1 text-sm text-[#4a4a4a]">לוחצים על תשובה כדי לפתוח את השלב שבא אחריה. שלבים קודמים מתכווצים, ולחיצה עליהם פותחת אותם שוב.</p>
+        <p className="m-0 flex-1 text-sm text-[#4a4a4a]">עריכה משנה את נוסח השאלה בלי לעבור הלאה. לחיצה על תשובה פותחת את השלב שבא אחריה, ושלבים קודמים מתכווצים.</p>
         <span className="text-[13px] text-ink-secondary">{document.questions.length} שאלות בשאלון</span>
       </div>
       <div className="flex flex-wrap items-start justify-start gap-x-0 gap-y-3 pb-4">
@@ -307,6 +307,15 @@ function StageColumn({
 }) {
   const { question, picked, via } = column;
   const shared = via ? otherAnswers(document, question.id, via.id) : [];
+  const [editing, setEditing] = useState(false);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!editing) return;
+    titleRef.current?.focus();
+    const length = titleRef.current?.value.length ?? 0;
+    titleRef.current?.setSelectionRange(length, length);
+  }, [editing]);
 
   function move(choiceId: string, direction: -1 | 1) {
     const from = question.choices.findIndex((choice) => choice.id === choiceId);
@@ -343,7 +352,18 @@ function StageColumn({
             <button type="button" onClick={onSeparate} className="ms-1 border-0 bg-transparent p-0 text-[13px] font-semibold underline">הפרדה לשאלה משלה</button>
           </div>
         ) : null}
-        <textarea value={question.title} onChange={(event) => onUpdate({ ...question, title: event.target.value.slice(0, 160) })} placeholder="כתבו את השאלה" rows={2} className="w-full resize-none rounded-xl border border-transparent bg-[#f7f7f7] px-3 py-2.5 text-[15px] leading-6 font-bold outline-none focus:border-[#8a8a8a] focus:bg-white" />
+        {editing ? (
+          <textarea
+            ref={titleRef}
+            value={question.title}
+            onChange={(event) => onUpdate({ ...question, title: event.target.value.slice(0, 160) })}
+            placeholder="כתבו את השאלה"
+            rows={2}
+            className="w-full resize-none rounded-xl border border-[#8a8a8a] bg-white px-3 py-2.5 text-[15px] leading-6 font-bold outline-none"
+          />
+        ) : (
+          <p className="m-0 rounded-xl bg-[#f7f7f7] px-3 py-2.5 text-[15px] leading-6 font-bold">{question.title.trim() || "שאלה בלי נוסח"}</p>
+        )}
         <span className="text-[12px] font-semibold text-ink-secondary">תשובות</span>
         <div className="flex flex-col gap-2">
           {question.choices.map((choice, index) => {
@@ -353,9 +373,9 @@ function StageColumn({
             const siblings = siblingStages(document, question.id, choice.next);
             return (
               <div key={choice.id} className="overflow-hidden rounded-xl transition-shadow" style={{ boxShadow: active ? "0 0 0 2px #303030" : "0 0 0 1px #e3e3e3", background: active ? "#fff" : "#fcfcfc" }}>
-                <div className="flex cursor-pointer items-center gap-2 px-2.5 py-2" onClick={() => onPick(choice.id)}>
+                <div className="flex cursor-pointer items-center gap-2 px-2.5 py-2" onClick={(event) => { if ((event.target as HTMLElement).closest("input")) return; onPick(choice.id); }}>
                   <span className="grid size-6 shrink-0 place-items-center rounded-full text-[12px] font-semibold" style={{ background: active ? "#303030" : "#f1f1f1", color: active ? "#fff" : "#4a4a4a" }}>{index + 1}</span>
-                  <input value={choice.label} onFocus={() => onPick(choice.id)} onChange={(event) => onPatch(choice.id, { label: event.target.value.slice(0, 80) })} placeholder="כתבו תשובה" className="h-8 min-w-0 flex-1 border-0 bg-transparent px-1 text-sm outline-none" />
+                  <input value={choice.label} onClick={(event) => event.stopPropagation()} onChange={(event) => onPatch(choice.id, { label: event.target.value.slice(0, 80) })} placeholder="כתבו תשובה" className="h-8 min-w-0 flex-1 border-0 bg-transparent px-1 text-sm outline-none" />
                   <span className="shrink-0 rounded-full px-2.5 py-1 text-[12px] font-semibold" style={{ background: ends ? "#e3f1df" : "#eef2ff", color: ends ? "#0c5132" : "#2c3e8f" }}>{ends ? "לטופס" : "ממשיכה ‹"}</span>
                 </div>
                 {active ? (
@@ -380,7 +400,10 @@ function StageColumn({
             );
           })}
         </div>
-        <button type="button" onClick={() => { if (question.choices.length < 12) onUpdate({ ...question, choices: [...question.choices, { id: newQuizId("a"), label: "", next: FORM, products: [] }] }); }} disabled={question.choices.length >= 12} className="h-9 rounded-xl border border-dashed border-[#c9c9c9] bg-white text-sm font-semibold text-[#4a4a4a] hover:bg-[#f7f7f7] disabled:opacity-40">+ הוספת תשובה</button>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setEditing((open) => !open)} className="h-9 shrink-0 rounded-xl border-0 bg-[#f1f1f1] px-4 text-sm font-semibold text-[#1a1a1a] hover:bg-[#e7e7e7]">{editing ? "סיום" : "עריכה"}</button>
+          <button type="button" onClick={() => { if (question.choices.length < 12) onUpdate({ ...question, choices: [...question.choices, { id: newQuizId("a"), label: "", next: FORM, products: [] }] }); }} disabled={question.choices.length >= 12} className="h-9 min-w-0 flex-1 rounded-xl border border-dashed border-[#c9c9c9] bg-white text-sm font-semibold text-[#4a4a4a] hover:bg-[#f7f7f7] disabled:opacity-40">+ הוספת תשובה</button>
+        </div>
       </div>
     </section>
   );

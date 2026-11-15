@@ -30,6 +30,7 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       { key: "returns", label: "החזרות והחזרים כספיים", href: "/admin/orders/returns" },
       { key: "abandoned", label: "עגלות נטושות", href: "/admin/orders/abandoned" },
+      { key: "feed", label: "מפתח קריאה", href: "/admin/orders/feed" },
     ],
   },
   {
@@ -115,6 +116,7 @@ const TITLES: Record<string, string> = {
   "/admin/orders": "הזמנות",
   "/admin/orders/returns": "החזרות והחזרים כספיים",
   "/admin/orders/abandoned": "עגלות נטושות",
+  "/admin/orders/feed": "מפתח קריאה להזמנות",
   "/admin/products": "מוצרים",
   "/admin/products/new": "מוצר חדש",
   "/admin/products/collections": "קטגוריות",
