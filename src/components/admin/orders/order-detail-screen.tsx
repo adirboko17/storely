@@ -269,7 +269,7 @@ export function OrderDetailScreen({ orderId }: { orderId: number }) {
           <button type="button" className={quietButton}>
             החזרה
           </button>
-          <button type="button" className={quietButton}>
+          <button type="button" className={quietButton} onClick={() => router.push(`/admin/orders/${order.id}/edit`)}>
             עריכה
           </button>
           <div className="relative">
@@ -534,7 +534,7 @@ export function OrderDetailScreen({ orderId }: { orderId: number }) {
           <section className="flex flex-col gap-2 rounded-xl bg-white p-4 shadow-[var(--shadow-card)]">
             <div className="flex items-center">
               <h2 className="m-0 flex-1 text-[15px] font-bold">הערות</h2>
-              <button type="button" aria-label="עריכת הערות" className="grid size-7 place-items-center rounded-lg border-0 bg-transparent text-[#4a4a4a] hover:bg-[#f1f1f1]">
+              <button type="button" aria-label="עריכת הערות" className="grid size-7 place-items-center rounded-lg border-0 bg-transparent text-[#4a4a4a] hover:bg-[#f1f1f1]" onClick={() => router.push(`/admin/orders/${order.id}/edit`)}>
                 <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden>
                   <path d="M13.5 3.5l3 3-9 9H4.5v-3z" />
                 </svg>
@@ -572,9 +572,9 @@ export function OrderDetailScreen({ orderId }: { orderId: number }) {
           <section className="flex flex-col gap-2.5 rounded-xl bg-white p-4 shadow-[var(--shadow-card)]">
             <div className="flex items-center">
               <h2 className="m-0 flex-1 text-[15px] font-bold">תגיות</h2>
-              <a href="#tags" className="storely-link text-sm" onClick={(event) => event.preventDefault()}>
+              <button type="button" className="storely-link border-0 bg-transparent p-0 text-sm" onClick={() => router.push(`/admin/orders/${order.id}/edit`)}>
                 ניהול
-              </a>
+              </button>
             </div>
             <input placeholder="חיפוש או יצירת תגית" className="h-8 w-full rounded-lg border border-[#8a8a8a] px-3 text-sm outline-none" />
             {order.tags?.length ? (

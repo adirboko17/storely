@@ -4,11 +4,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { softButton } from "@/components/admin/orders/chrome";
-import { useAdminSlice } from "@/components/admin/slice-pending";
+import { SlicePending, useAdminSlice, useOrderCatalog } from "@/components/admin/slice-pending";
 import { reloadAdminSlice } from "@/data/live/admin-slices";
 import { getStoreIdentity, getStoreIdentityVersion, subscribeStoreIdentity } from "@/data/live/store-identity";
 import { writeStore } from "@/data/live/write";
 import { getCatalogVersion, listCatalogProducts, subscribeCatalog } from "@/data/mock/catalog-session";
+import { getOrderSessionVersion, resolveOrder, subscribeOrderSession } from "@/data/mock/order-session";
 import { getPeopleVersion, listPeople, subscribePeople } from "@/data/mock/people-session";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { currencyLabel } from "@/lib/formatting/currency";
@@ -119,13 +120,16 @@ function MoneyRow({ label, detail, value, strong = false }: { label: string; det
   );
 }
 
-export function CreateOrderScreen() {
+export function CreateOrderScreen({ orderId }: { orderId?: number } = {}) {
   const router = useRouter();
   const { toast, narrow } = useAdmin();
   useSyncExternalStore(subscribeCatalog, getCatalogVersion, () => 0);
   useSyncExternalStore(subscribePeople, getPeopleVersion, () => 0);
   useSyncExternalStore(subscribeStoreIdentity, getStoreIdentityVersion, () => 0);
+  const orderVersion = useSyncExternalStore(subscribeOrderSession, getOrderSessionVersion, () => 0);
   const catalogReady = useAdminSlice("catalog");
+  const ordersReady = useAdminSlice("orders");
+  const orderCatalog = useOrderCatalog();
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [picker, setPicker] = useState<"product" | "custom" | null>(null);
   const [productQuery, setProductQuery] = useState("");
@@ -152,6 +156,13 @@ export function CreateOrderScreen() {
   const [zip, setZip] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [seeded, setSeeded] = useState(orderId == null);
+  const [missing, setMissing] = useState(false);
+  const [shipLabel, setShipLabel] = useState("");
+  const [originalShip, setOriginalShip] = useState(0);
+  const [discountCode, setDiscountCode] = useState("");
+  const [paidAlready, setPaidAlready] = useState(false);
+  const [alreadyShipped, setAlreadyShipped] = useState(false);
 
   const subtotal = Math.round(lines.reduce((sum, line) => sum + line.price * line.qty, 0) * 100) / 100;
   const discount = discountOpen ? amountOf(discountText) : 0;
@@ -188,6 +199,51 @@ export function CreateOrderScreen() {
       window.clearTimeout(timer);
     };
   }, [customerQuery, selected]);
+
+  useEffect(() => {
+    if (!orderId || seeded) return;
+    if (!catalogReady) return;
+    const order = resolveOrder(orderId);
+    if (!order) {
+      if (ordersReady && orderCatalog.complete) setMissing(true);
+      return;
+    }
+    setLines(order.lines.map((line, index) => ({
+      key: line.product.sourceId ? `${line.product.sourceId}-${index}` : `kept-${index}`,
+      productId: line.product.sourceId,
+      title: line.product.title,
+      variant: line.product.variant && line.product.variant !== line.product.title ? line.product.variant : "",
+      price: line.product.price,
+      qty: line.quantity,
+      image: line.product.media?.find((url) => url.startsWith("http")),
+      stock: line.product.sourceId && line.product.trackInventory !== false ? line.product.stock + line.quantity : undefined,
+    })));
+    if (order.discountAmount > 0) {
+      setDiscountOpen(true);
+      setDiscountText(String(order.discountAmount));
+    }
+    setDiscountCode(order.discount?.[0] ?? "");
+    if (order.shipCost > 0) {
+      setShippingOpen(true);
+      setShippingText(String(order.shipCost));
+    }
+    setShipLabel(order.ship);
+    setOriginalShip(order.shipCost);
+    setNote(order.note ?? "");
+    setTags(order.tags ?? []);
+    setPaidAlready(order.pay !== "pending");
+    setAlreadyShipped(order.fulfillment === "fulfilled");
+    setSelected({
+      id: "",
+      name: order.customer.name,
+      email: order.customer.email,
+      phone: order.customer.phone,
+      street: order.customer.street,
+      city: order.customer.city,
+      zip: order.customer.zip,
+    });
+    setSeeded(true);
+  }, [orderId, seeded, catalogReady, ordersReady, orderCatalog.complete, orderVersion]);
 
   function addProduct(product: Product) {
     const productId = product.sourceId;
@@ -270,29 +326,60 @@ export function CreateOrderScreen() {
       setError("הנחה או משלוח לא תקינים");
       return;
     }
-    if (!selected && !name.trim()) {
+    if (!orderId && !selected && !name.trim()) {
       setError("צריך לבחור לקוח או לרשום שם");
       return;
     }
     const pendingTag = tagText.replace(/,/g, "").trim().slice(0, 40);
     const orderTags = pendingTag && !tags.includes(pendingTag) && tags.length < 12 ? [...tags, pendingTag] : tags;
+    const shippingName = orderId && shipping === originalShip
+      ? shipLabel || "ללא משלוח"
+      : shipping > 0
+        ? "משלוח"
+        : freeShipping
+          ? "משלוח חינם"
+          : "ללא משלוח";
+    const orderLines = lines.map((line) =>
+      line.productId
+        ? { productId: line.productId, quantity: line.qty }
+        : { title: line.title, quantity: line.qty, unitPrice: line.price },
+    );
     setSaving(true);
     setError("");
     try {
+      if (orderId) {
+        const data = await writeStore("edit_store_order", {
+          order_number: orderId,
+          payload: {
+            lines: orderLines,
+            discount,
+            shipping,
+            shippingName,
+            note: note.trim(),
+            tags: orderTags,
+          },
+        });
+        const result = data && typeof data === "object" ? (data as { ok?: boolean; reason?: string }) : null;
+        if (!result?.ok) {
+          setError(result?.reason || "לא הצלחנו לשמור את ההזמנה");
+          return;
+        }
+        const storeId = getStoreIdentity().storeId;
+        if (storeId) await reloadAdminSlice(storeId, "orders");
+        toast("ההזמנה עודכנה");
+        router.push(`/admin/orders/${orderId}`);
+        return;
+      }
       const data = await writeStore("create_store_order", {
         payload: {
           customerId: selected?.id,
           customer: selected
             ? undefined
             : { name: name.trim(), email: email.trim(), phone: phone.trim(), street: street.trim(), city: city.trim(), zip: zip.trim() },
-          lines: lines.map((line) =>
-            line.productId
-              ? { productId: line.productId, quantity: line.qty }
-              : { title: line.title, quantity: line.qty, unitPrice: line.price },
-          ),
+          lines: orderLines,
           discount,
           shipping,
-          shippingName: shipping > 0 ? "משלוח" : freeShipping ? "משלוח חינם" : "ללא משלוח",
+          shippingName,
           payment,
           note: note.trim(),
           tags: orderTags,
@@ -314,17 +401,27 @@ export function CreateOrderScreen() {
     }
   }
 
+  if (orderId && missing) {
+    return (
+      <div className="mx-auto flex max-w-[1040px] flex-col gap-3" style={{ padding: narrow ? 16 : 24 }}>
+        <p className="m-0 text-sm">ההזמנה לא נמצאה</p>
+        <button type="button" className={`${softButton} w-fit`} onClick={() => router.push("/admin/orders")}>חזרה להזמנות</button>
+      </div>
+    );
+  }
+  if (orderId && !seeded) return <SlicePending label="טוען הזמנה…" />;
+
   return (
-    <form data-screen-label="Create order" onSubmit={(event) => void save(event)} className="mx-auto flex max-w-[1040px] flex-col gap-4" style={{ padding: narrow ? 16 : 24 }}>
+    <form data-screen-label={orderId ? "Edit order" : "Create order"} onSubmit={(event) => void save(event)} className="mx-auto flex max-w-[1040px] flex-col gap-4" style={{ padding: narrow ? 16 : 24 }}>
       <div className="flex flex-wrap items-center gap-2.5">
-        <button type="button" aria-label="חזרה להזמנות" onClick={() => router.push("/admin/orders")} className="grid size-8 shrink-0 place-items-center rounded-lg border-0 bg-transparent text-[#4a4a4a] hover:bg-[#e3e3e3]">
+        <button type="button" aria-label={orderId ? "חזרה להזמנה" : "חזרה להזמנות"} onClick={() => router.push(orderId ? `/admin/orders/${orderId}` : "/admin/orders")} className="grid size-8 shrink-0 place-items-center rounded-lg border-0 bg-transparent text-[#4a4a4a] hover:bg-[#e3e3e3]">
           <svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M4 10h12M11 5l5 5-5 5" />
           </svg>
         </button>
-        <h1 className="m-0 flex-1 text-[22px] leading-7 font-bold">יצירת הזמנה</h1>
+        <h1 className="m-0 flex-1 text-[22px] leading-7 font-bold">{orderId ? `עריכת הזמנה #${orderId}` : "יצירת הזמנה"}</h1>
         <button type="submit" className={solidButton} disabled={saving}>
-          {saving ? "שומר…" : "יצירת הזמנה"}
+          {saving ? "שומר…" : orderId ? "שמירת שינויים" : "יצירת הזמנה"}
         </button>
       </div>
 
@@ -423,7 +520,7 @@ export function CreateOrderScreen() {
                 <MoneyRow label="סכום ביניים" detail={itemsLabel(lines.reduce((sum, line) => sum + line.qty, 0))} value={formatMoney(subtotal)} />
                 {discountOpen ? (
                   <label className="grid grid-cols-[120px_minmax(0,1fr)] items-center gap-2 text-sm">
-                    <span>הנחה</span>
+                    <span>הנחה{discountCode ? ` (${discountCode})` : ""}</span>
                     <input value={discountText} onChange={(event) => setDiscountText(event.target.value)} inputMode="decimal" placeholder="0.00" className={field} />
                   </label>
                 ) : (
@@ -447,13 +544,20 @@ export function CreateOrderScreen() {
                 {freeShipping && !shippingOpen ? <p className="m-0 text-xs text-ink-secondary">משלוח חינם מעל {formatMoney(FREE_SHIPPING)}</p> : null}
                 <MoneyRow label="מע״מ משוער" detail="כלול במחיר" value={formatMoney(includedVat(total))} />
                 <MoneyRow label="סה״כ" value={formatMoney(total)} strong />
-                <label className="grid grid-cols-[120px_minmax(0,1fr)] items-center gap-2 text-sm">
-                  <span>תשלום</span>
-                  <select value={payment} onChange={(event) => setPayment(event.target.value === "paid" ? "paid" : "pending")} className={field}>
-                    <option value="pending">ממתין לתשלום</option>
-                    <option value="paid">שולם</option>
-                  </select>
-                </label>
+                {orderId ? (
+                  <>
+                    {paidAlready ? <p className="m-0 text-xs text-ink-secondary">ההזמנה כבר שולמה. שינוי בסכום לא מחייב ולא מזכה את הלקוח.</p> : null}
+                    {alreadyShipped ? <p className="m-0 text-xs text-ink-secondary">ההזמנה כבר סומנה כנשלחה. שינוי במוצרים יעדכן את המלאי.</p> : null}
+                  </>
+                ) : (
+                  <label className="grid grid-cols-[120px_minmax(0,1fr)] items-center gap-2 text-sm">
+                    <span>תשלום</span>
+                    <select value={payment} onChange={(event) => setPayment(event.target.value === "paid" ? "paid" : "pending")} className={field}>
+                      <option value="pending">ממתין לתשלום</option>
+                      <option value="paid">שולם</option>
+                    </select>
+                  </label>
+                )}
               </>
             )}
             {error ? <p className="m-0 text-sm text-[#b42318]">{error}</p> : null}
@@ -468,7 +572,14 @@ export function CreateOrderScreen() {
 
           <section className={card}>
             <h2 className="m-0 mb-2 text-sm font-semibold">לקוח</h2>
-            {selected ? (
+            {orderId ? (
+              <div className="text-sm">
+                <div className="font-medium">{selected?.name || "ללא לקוח"}</div>
+                {selected?.email ? <div className="text-ink-secondary">{selected.email}</div> : null}
+                {selected?.phone ? <div dir="ltr" className="text-end text-ink-secondary">{selected.phone}</div> : null}
+                {selected?.street || selected?.city ? <div className="text-ink-secondary">{[selected.street, selected.city, selected.zip].filter(Boolean).join(", ")}</div> : null}
+              </div>
+            ) : selected ? (
               <div className="rounded-lg bg-[#f6f6f6] p-3 text-sm">
                 <div className="flex items-start gap-2">
                   <div className="min-w-0 flex-1">

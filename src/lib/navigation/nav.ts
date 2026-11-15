@@ -154,6 +154,7 @@ const TITLES: Record<string, string> = {
 export function titleForPath(path: string) {
   if (TITLES[path]) return TITLES[path];
   if (/^\/admin\/orders\/abandoned\/[^/]+$/.test(path)) return "עגלה נטושה";
+  if (/^\/admin\/orders\/\d+\/edit$/.test(path)) return "עריכת הזמנה";
   if (/^\/admin\/orders\/\d+$/.test(path)) return "הזמנה";
   if (/^\/admin\/products\/gift-cards\/(?!new$|product$)[^/]+$/.test(path)) return "כרטיס מתנה";
   if (/^\/admin\/products\/collections\/[^/]+$/.test(path)) return "קטגוריה";

@@ -8,7 +8,7 @@ import { useAdmin } from "@/components/admin/layout/admin-provider";
 import { SlicePending, useAdminSlice } from "@/components/admin/slice-pending";
 import { useUnsavedEditor } from "@/components/admin/shared/use-unsaved";
 import { getCatalogVersion, isVideoMedia, listCatalogProducts, subscribeCatalog } from "@/data/mock/catalog-session";
-import { commitPostVideo, deletePost, getPost, getPostsVersion, nextPostId, postCover, postHasOwnImage, releasePostVideo, savePost, stagePostVideo, subscribePosts, type Post } from "@/data/mock/content-session";
+import { commitPostImage, commitPostVideo, deletePost, getPost, getPostsVersion, nextPostId, postCover, postHasOwnImage, releasePostVideo, savePost, stagePostVideo, subscribePosts, type Post } from "@/data/mock/content-session";
 import { getSettings, getSettingsVersion, subscribeSettings } from "@/data/mock/settings-session";
 import { slugifyHandle } from "@/lib/catalog/present";
 import { fitVideo, needsVideoFit, VideoFitError } from "@/lib/media/fit-video";
@@ -572,16 +572,17 @@ export function PostEditorScreen({ postId }: { postId: number | null }) {
     }
     setSaving(true);
     try {
+      const image = await commitPostImage(draft.image, saved.image);
       const video = await commitPostVideo(draft.video, saved.video);
       const id = existing?.id ?? nextPostId();
-      const next = { ...draft, id, video, tone: draft.tone || "#e7e2d9", handle: draft.handle || slugifyHandle(draft.title) };
+      const next = { ...draft, id, image, video, tone: draft.tone || "#e7e2d9", handle: draft.handle || slugifyHandle(draft.title) };
       savePost(next);
       setDraft(next);
       setSaved(next);
       toast("הפוסט נשמר");
       if (postId == null) router.replace(`/admin/content/posts/${id}`);
     } catch (failure) {
-      toast(failure instanceof Error ? failure.message : "שמירת הסרטון נכשלה");
+      toast(failure instanceof Error ? failure.message : "השמירה נכשלה");
     } finally {
       setSaving(false);
     }

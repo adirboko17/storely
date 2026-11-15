@@ -82,12 +82,20 @@ function publicMediaUrl(path: string) {
   return `${base}/storage/v1/object/public/${mediaBucket}/${path}`;
 }
 
-function storedPostVideo(value: string, storeId: string) {
+function storedPostFile(value: string, storeId: string) {
   const marker = `/storage/v1/object/public/${mediaBucket}/`;
   const index = value.indexOf(marker);
   if (index < 0) return null;
   const path = decodeURIComponent(value.slice(index + marker.length).split("?")[0] ?? "");
   return path.startsWith(`${storeId}/posts/`) ? path : null;
+}
+
+const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"]);
+
+function imageExtension(type: string) {
+  if (type === "image/jpeg") return "jpg";
+  const extension = type.split("/")[1]?.split(";")[0] ?? "";
+  return ["png", "webp", "gif", "avif"].includes(extension) ? extension : "";
 }
 
 export async function commitPostVideo(video: string, previous = "") {
@@ -97,7 +105,7 @@ export async function commitPostVideo(video: string, previous = "") {
   const supabase = createSupabaseBrowserClient();
   const dropPrevious = async () => {
     if (!previous || previous === next) return;
-    const stale = storedPostVideo(previous, storeId);
+    const stale = storedPostFile(previous, storeId);
     if (stale) await supabase.storage.from(mediaBucket).remove([stale]);
   };
   if (!next || /^https?:\/\//i.test(next)) {
@@ -113,6 +121,33 @@ export async function commitPostVideo(video: string, previous = "") {
   releasePostVideo(next);
   await dropPrevious();
   return publicMediaUrl(path);
+}
+
+export async function commitPostImage(image: string, previous = "") {
+  const next = image.trim();
+  const storeId = getStoreIdentity().storeId;
+  if (!storeId || typeof window === "undefined") return next;
+  const supabase = createSupabaseBrowserClient();
+  const dropPrevious = async (current: string) => {
+    if (!previous || previous === current) return;
+    const stale = storedPostFile(previous, storeId);
+    if (stale) await supabase.storage.from(mediaBucket).remove([stale]);
+  };
+  if (!next.startsWith("data:image/")) {
+    await dropPrevious(next);
+    return next;
+  }
+  const blob = await fetch(next).then((response) => response.blob());
+  const type = blob.type.split(";")[0] ?? "";
+  const extension = imageExtension(type);
+  if (!IMAGE_TYPES.has(type) || !extension) throw new Error("אפשר לשמור תמונות jpg, png, webp, gif או avif");
+  if (blob.size > 8_388_608) throw new Error("התמונה גדולה מ־8MB");
+  const path = `${storeId}/posts/${crypto.randomUUID()}.${extension}`;
+  const { error } = await supabase.storage.from(mediaBucket).upload(path, blob, { contentType: type, upsert: false });
+  if (error) throw new Error("העלאת התמונה נכשלה");
+  const url = publicMediaUrl(path);
+  await dropPrevious(url);
+  return url;
 }
 
 export function listPosts() {
