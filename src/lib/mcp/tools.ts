@@ -418,7 +418,7 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: "create_popup",
-    description: "Create a popup. Status defaults to draft. Triggers are immediate, delay, scroll, or exit. There is no wheel, click, or add-to-cart trigger. Blocks may be nested: heading, text, image, logo, button, field, spacer, row, container, columns, stack, overlay, badge, divider, icon, and shape. Read get_popup_design_schema before inventing style keys. An image uses assetId, productId plus imageIndex, or an https URL already stored for this store. A required consent field records marketing consent. couponCode is returned only after that consent. New popups include an email field unless blocks are sent.",
+    description: "Create a popup. Status defaults to draft. Triggers are immediate, delay, scroll, or exit. There is no wheel, click, or add-to-cart trigger. The public site shows only heading, text, image, logo, button, field, spacer, row, and overlay. Read get_popup_design_schema before choosing blocks or style keys. A row holds columns. An overlay places those blocks on an image. An image uses assetId, productId plus imageIndex, or an https URL already stored for this store. A required consent field records marketing consent. couponCode is returned only after that consent. New popups include an email field unless blocks are sent.",
     inputSchema: {
       type: "object",
       properties: {
@@ -452,7 +452,7 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: "update_popup",
-    description: "Change a popup. Omitted fields stay as they are. Send blocks only when replacing the content. For one block, use update_popup_block. An image uses assetId, productId plus imageIndex, or an https URL already stored for this store. Style keys are listed by get_popup_design_schema. Read the popup first. Ask before setting status to active.",
+    description: "Change a popup. Omitted fields stay as they are. Send blocks only when replacing the content. For one block, use update_popup_block. Blocks must stay within the public-site set from get_popup_design_schema. An image uses assetId, productId plus imageIndex, or an https URL already stored for this store. Read the popup first. Ask before setting status to active.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1238,7 +1238,7 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: "get_popup_design_schema",
-    description: "List the popup blocks, style keys, fonts, image rules, and form rules. Read this before creating a popup design. Templates are starting points from list_popup_templates, not a limit.",
+    description: "List the popup blocks and style keys the public site actually shows. Read this before creating or editing a popup. Blocks outside this list are rejected. Templates are starting points from list_popup_templates, not a limit.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
@@ -1248,7 +1248,7 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: "create_popup_from_design",
-    description: "Create a draft popup from a template name, a full design, or both. The design object overrides the template. Always saved as draft. Use get_brand_assets and product images first, then render_popup_preview to see the result. publish_popup is a separate call.",
+    description: "Create a draft popup from a template name, a full design, or both. The design object overrides the template. Blocks must match get_popup_design_schema or the call is rejected. Always saved as draft. Use get_brand_assets and product images first, then render_popup_preview to see the result. publish_popup is a separate call.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1270,7 +1270,7 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: "update_popup_block",
-    description: "Replace fields on one popup block by its id and keep every other block. Send the block fields to change. Refuses an active popup, so pause it or edit a draft. Does not publish.",
+    description: "Replace fields on one popup block by its id and keep every other block. The block type must be one the public site shows. Send the block fields to change. Refuses an active popup, so pause it or edit a draft. Does not publish.",
     inputSchema: {
       type: "object",
       properties: { id: { type: "string" }, blockId: { type: "string" }, block: { type: "object" } },
@@ -1280,7 +1280,7 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: "reorder_popup_blocks",
-    description: "Reorder popup blocks by id. parentId is the container, stack, overlay, row, or column whose children move. Omit parentId to reorder the top level. Refuses an active popup.",
+    description: "Reorder popup blocks by id. parentId is the overlay, row, or column whose children move. Omit parentId to reorder the top level. Refuses an active popup.",
     inputSchema: {
       type: "object",
       properties: { id: { type: "string" }, parentId: { type: "string" }, blockIds: { type: "array", items: { type: "string" } } },
@@ -1437,7 +1437,7 @@ export const MCP_INSTRUCTIONS = [
   "You cannot run SQL, change the schema, read payment secrets, or add a feature the store does not already save.",
   "Call get_website_structure before editing the public site. The homepage, header, and footer layout are that store's own code. They are read-only here and need a deploy of that site. Do not invent a hero, banner, FAQ, or gallery. Articles, policies, collections, events, popups, the logo, and brand colors are the parts Storely stores, and those updates show on the next storefront load without a deploy.",
   "This store has no homepage banner editor, no wheel popup, no click or add-to-cart popup trigger, no upsell module, no WhatsApp templates, no 301 redirects, and no canonical field. Popup designs keep the last 20 versions; restore_popup_revision puts one back on a draft or paused popup.",
-  "Popup triggers are immediate, delay, scroll, and exit. Design with get_popup_design_schema, list_popup_templates, get_brand_assets, and product images. Save a draft, then call render_popup_preview and look at the screenshots before changing layout. update_popup_block changes one block. Ask before publishing a popup.",
+  "Popup triggers are immediate, delay, scroll, and exit. Call get_popup_design_schema before designing a popup and use only the blocks and style keys it lists. The public site shows heading, text, image, logo, button, field, spacer, row, and overlay. A popup built from any other block does not appear. Save a draft, then call render_popup_preview and look at the screenshots before changing layout. update_popup_block changes one block. Ask before publishing a popup.",
   "Free shipping starts at 250 and that threshold cannot be changed.",
   "Email, SMS, and WhatsApp are simulated. send_test_message does not deliver anything. Do not say a message was sent.",
   "A review can be created only for a product on a delivered order. The customer name comes from that order.",

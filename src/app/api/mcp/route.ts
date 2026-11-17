@@ -5,7 +5,7 @@ import { negotiatedProtocol, parseRpcMessage, rpcError, rpcResult, toolCallParam
 import { compositeContent, parseCompositeRequest, renderComposite, sourceKeys, type ProductSource } from "@/lib/mcp/composite";
 import { capturePopupPreview, previewContent } from "@/lib/mcp/popup-preview";
 import { captureWebsitePreview, previewHost, websitePreviewContent } from "@/lib/mcp/website-preview";
-import { designFromTemplate, POPUP_TEMPLATES, popupDesignSchema } from "@/lib/mcp/popup-templates";
+import { designFromTemplate, POPUP_TEMPLATES, popupDesignSchema, storefrontPopupBlockError } from "@/lib/mcp/popup-templates";
 import { cleanFileName, decodeBase64Image, decodeImage, extensionFor, imageMime, mediaContent, ownStorageObject } from "@/lib/mcp/images";
 import { createSupabaseAuthClient, createSupabaseServiceClient, createSupabaseUserClient } from "@/lib/supabase/service";
 
@@ -152,6 +152,10 @@ async function callTool(actor: Actor, name: string, args: Record<string, unknown
     if (name === "get_popup_design_schema") {
       return { content: [{ type: "text", text: JSON.stringify(popupDesignSchema(), null, 2) }], isError: false };
     }
+    if (name === "create_popup" || name === "update_popup" || name === "update_popup_block") {
+      const problem = storefrontPopupBlockError(args);
+      if (problem) return { content: [{ type: "text", text: `VALIDATION: ${problem}` }], isError: true };
+    }
     if (name === "create_popup_from_design") return await createPopupFromDesign(actor, args);
     if (name === "render_popup_preview") return await renderPopupPreview(actor, args, origin);
     if (name === "render_website_preview") return await renderWebsitePreview(actor, args);
@@ -172,6 +176,8 @@ async function createPopupFromDesign(actor: Actor, args: Record<string, unknown>
   if (!name) return { content: [{ type: "text", text: "VALIDATION: A popup name is required" }], isError: true };
   const built = designFromTemplate(args);
   if (built.error || !built.design) return { content: [{ type: "text", text: `VALIDATION: ${built.error ?? "A design is required"}` }], isError: true };
+  const problem = storefrontPopupBlockError({ ...args, design: built.design });
+  if (problem) return { content: [{ type: "text", text: `VALIDATION: ${problem}` }], isError: true };
   const payload: Record<string, unknown> = { ...args, name, design: built.design, status: "draft" };
   delete payload.template;
   const result = await invoke(actor, "create_popup", payload);
