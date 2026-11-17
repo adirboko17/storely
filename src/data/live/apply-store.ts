@@ -177,6 +177,8 @@ function mapDiscount(value: unknown, index: number): Discount {
     bxGetColl: text(item?.bxGetColl),
     bxBuyIds: idList(item?.bxBuyIds),
     bxGetIds: idList(item?.bxGetIds),
+    showOnSite: item?.showOnSite === true,
+    badgeText: text(item?.badgeText),
   };
 }
 

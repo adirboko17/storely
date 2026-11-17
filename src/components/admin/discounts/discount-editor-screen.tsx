@@ -18,6 +18,8 @@ import {
   getDiscountVersion,
   nextDiscountId,
   saveDiscount,
+  siteBadgeDefault,
+  siteDisplayBlock,
   subscribeDiscounts,
   type BxgyMode,
   type Discount,
@@ -82,6 +84,7 @@ function detailLines(discount: Discount) {
   lines.push(combos.length ? `משתלבת עם הנחות ${combos.join(", ")}` : "לא משתלבת עם הנחות אחרות");
   if (discount.type === "bxgy") lines.push(discount.combBundle ? "משתלבת עם באנדלים" : "לא משתלבת עם באנדלים");
   if (discount.blockGift) lines.push("לא משתלבת עם כרטיס מתנה");
+  if (discount.showOnSite && !siteDisplayBlock(discount)) lines.push(`מוצגת באתר: ${discount.badgeText.trim() || siteBadgeDefault(discount)}`);
   lines.push(discount.hasEnd && discount.end ? `${formatDay(discount.start)} עד ${formatDay(discount.end)}` : `פעילה מ-${formatDay(discount.start)}`);
   return lines;
 }
@@ -408,6 +411,7 @@ export function DiscountEditorScreen({ discountId, kind }: { discountId: number 
   if (missing && !discountsReady) return <SlicePending label="טוען הנחה…" />;
   if (missing) notFound();
   const status = discountStatus(draft);
+  const siteBlock = siteDisplayBlock(draft);
   const valueLabel = draft.type === "ship" ? "משלוח חינם" : draft.type === "bxgy" ? (draft.bxMode === "pair" ? "מוצר תמורת מוצר" : draft.bxMode === "cats" ? "קטגוריה תמורת קטגוריה" : `קנו ${draft.bxBuy || "0"} קבלו ${draft.bxGet || "0"}`) : draft.valueType === "pct" ? `${draft.value || "0"}%` : `${currencySymbol()}${draft.value || "0"}`;
 
   return (
@@ -608,6 +612,31 @@ export function DiscountEditorScreen({ discountId, kind }: { discountId: number 
               ) : null}
             </div>
           </Section>
+
+          {draft.type === "order" || draft.type === "product" ? (
+            <Section title="תצוגה באתר">
+              <div className={card}>
+                <label className={`flex items-start gap-2.5 text-sm ${siteBlock ? "text-[#8a8a8a]" : ""}`}>
+                  <input type="checkbox" disabled={!!siteBlock} checked={draft.showOnSite && !siteBlock} onChange={(event) => patch({ showOnSite: event.target.checked })} className="mt-0.5 size-4 accent-[#303030]" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-semibold">הצגת ההנחה על המוצרים באתר</span>
+                    <span className="mt-0.5 block text-[13px] leading-5 text-[#616161]">
+                      {siteBlock ?? (draft.method === "auto"
+                        ? "כרטיס המוצר ועמוד המוצר יציגו תגית, את המחיר אחרי ההנחה ואת המחיר המקורי מחוק. אותו מחיר יופיע בעגלה ובתשלום."
+                        : "כרטיס המוצר ועמוד המוצר יציגו תגית עם הקוד ואת המחיר אחרי הקוד. הלקוח עדיין מזין את הקוד בקופה.")}
+                    </span>
+                  </span>
+                </label>
+                {draft.showOnSite && !siteBlock ? (
+                  <label className="mt-3 block">
+                    <span className="mb-1.5 block text-sm font-semibold">טקסט התגית</span>
+                    <input value={draft.badgeText} maxLength={40} onChange={(event) => patch({ badgeText: event.target.value })} placeholder={siteBadgeDefault(draft)} className={field} />
+                    <span className="mt-1.5 block text-[13px] text-ink-secondary">בלי טקסט, התגית תהיה &quot;{siteBadgeDefault(draft)}&quot;.</span>
+                  </label>
+                ) : null}
+              </div>
+            </Section>
+          ) : null}
 
           <Section title="זכאות">
             <div className={card}>

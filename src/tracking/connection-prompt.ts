@@ -36,6 +36,8 @@ policies.items הוא מערך המסמכים: id, title, body כ-HTML, footer �
 בפוטר הציגו קישור לכל מסמך עם footer=true. הקישור נפתח בעמוד /policies/{id} ומציג את title ואת body.
 בעגלת הקניות הציגו לפי cart, ובדף התשלום לפי checkout: hidden לא מוצג, link הוא קישור, checkbox הוא תיבת סימון "קראתי ואני מסכים" עם קישור לאותו עמוד. אי אפשר להמשיך לתשלום בלי לסמן כל תיבת סימון שמופיעה בעגלה או בדף התשלום.
 אם policies.items חסר, התייחסו לשדות return, privacy, terms, shipping, contact, legal ו-purchase כ-HTML של מסמכים מובנים, עם קישור בפוטר ובדף התשלום.
+הנחה שסומנה ב-CMS כ"מוצגת באתר" מגיעה על המוצר. sale (או null) הוא מבצע אוטומטי: price הוא המחיר אחרי ההנחה, was המחיר המקורי, badge טקסט התגית, endsOn תאריך הסיום, variants מפה ממזהה וריאנט למחיר, ו-bundles מערך qty ו-price של מארזי הכמות. כשיש sale, זה המחיר של המוצר בכל מקום: בכרטיס, בעמוד המוצר, במארזים ובעגלה. הציגו את was מחוק ואת badge כתגית. quote_storefront כבר מחשב את העגלה במחירי sale, וה-discount שחוזר הוא רק מה שיורד מעבר להם.
+codeOffer (או null) הוא קוד קופון שמוצג באתר: code, badge, price ו-variants ו-bundles באותו מבנה. הציגו את badge כתגית ואת price כ"מחיר עם הקוד". המחיר הרגיל לא משתנה עד שהלקוח מזין את הקוד בקופה.
 השדה currency ב-storefront_shop וב-quote_storefront הוא מטבע החנות: ILS, USD או EUR. הציגו את הסמל המתאים בכל מחיר בחנות ובסל.
 
 אירועים נערכים ב-CMS תחת תוכן / אירועים. האתר קורא ל-store_public_events עם target_store, כמו store_public_catalog, בלי tracking_key. הקריאה רצה בשרת עם המפתח הציבורי. התשובה היא מערך. אם החנות לא פעילה או שאין אירוע לפרסום, חוזר []. טיוטה לא חוזרת, וקישור זום לא חוזר אף פעם.

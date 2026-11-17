@@ -38,6 +38,8 @@ export type Discount = {
   bxGetColl: string;
   bxBuyIds: string[];
   bxGetIds: string[];
+  showOnSite: boolean;
+  badgeText: string;
 };
 
 export const TODAY = "2026-10-13";
@@ -140,6 +142,22 @@ export function discountSummary(discount: Discount) {
   return `${head}. ${min}.`;
 }
 
+export function siteDisplayBlock(discount: Discount) {
+  if (discount.type !== "order" && discount.type !== "product") return "אפשר להציג באתר רק הנחה על ההזמנה או על מוצרים.";
+  if (discount.valueType !== "pct") return "אפשר להציג באתר רק הנחה באחוזים.";
+  const value = Number(discount.value);
+  if (!(value > 0 && value < 100)) return "אחוז ההנחה צריך להיות בין 1 ל-99.";
+  if (discount.minType !== "none") return "הנחה עם מינימום קנייה תלויה בעגלה, ולכן לא מוצגת על המוצרים.";
+  if (discount.eligibility !== "all") return "הנחה לפלח לקוחות לא מוצגת לכל הגולשים.";
+  if (discount.method === "auto" && (discount.limit || discount.once)) return "הנחה אוטומטית עם מגבלת שימושים לא מוצגת על המוצרים.";
+  return null;
+}
+
+export function siteBadgeDefault(discount: Pick<Discount, "value" | "method" | "code">) {
+  const value = `${Number(discount.value) || 0}% הנחה`;
+  return discount.method === "code" ? `${value} בקוד ${discount.code.trim() || "…"}` : value;
+}
+
 function discountPayload(discount: Discount) {
   return {
     id: discount.sourceId ?? null,
@@ -172,6 +190,8 @@ function discountPayload(discount: Discount) {
     bxGetColl: discount.bxGetColl,
     bxBuyIds: discount.bxBuyIds,
     bxGetIds: discount.bxGetIds,
+    showOnSite: discount.showOnSite && siteDisplayBlock(discount) === null,
+    badgeText: discount.badgeText.trim(),
   };
 }
 
@@ -220,5 +240,6 @@ export function blankDiscount(type: DiscountKind, id: number): Discount {
     method: "code", eligibility: "all", segment: "", minType: "none", minValue: "", once: false, limit: false, limitN: "",
     start: TODAY, hasEnd: false, end: "", uses: 0, combProduct: false, combOrder: false, combShip: false, combBundle: false, blockGift: false, applies: "all", collections: [],
     bxMode: "pair", bxBuy: "2", bxGet: "1", bxColl: "", bxGetColl: "", bxBuyIds: [], bxGetIds: [],
+    showOnSite: false, badgeText: "",
   };
 }
